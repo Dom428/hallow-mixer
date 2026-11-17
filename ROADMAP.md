@@ -28,10 +28,23 @@ The goal: everything SteelSeries Sonar does for a gamer - and the things it does
 | **2.8** | Preset hotkeys: Ctrl+Alt+1 to 9 for your presets, Ctrl+Alt+0 for the next one, with the on-screen pop-up; skips keys that type a character on AltGr keyboards (German, French...) or that another app uses; Settings switch |
 | **2.9** | Game profiles: a Games window lists every game Hallow Mixer remembers, with its five channel levels (change them, or take the mixer's current ones) and its EQ; forget a game's EQ or the whole game; the running game moves right away |
 | **3.0** | Headphone space: crossfeed for headphones in the EQ window (Light / Medium / Strong, the bs2b levels) - bass and low-mids from one side reach both ears like speakers in a room, treble keeps its width, centre sounds untouched; mid/side through Equalizer APO's own Copy and shelf filters (only the device's L and R) |
+| **3.1** | Background mute: right-click an app > "When I'm in another app" > keep playing / turn down to 20% / mute; it comes back the moment you switch to it (checks the window in front 4 times a second, only when an app uses it) |
 
 ## Next
 
-### 3.1 - Fixes from testing at home
+### 3.2 - Loud-sound guard
+- Catches sudden blasts (a flashbang, a screaming stream, a mic squeal in Chat) and turns that channel down for a moment; optional max level per channel
+
+### 3.3 - "You're muted" warning
+- If you start talking while your mic is muted, a pop-up tells you (no more talking to nobody)
+
+### 3.4 - Shortcuts for Stream Deck and scripts
+- Command line: `HallowMixer.exe --preset Gaming`, `--mute-mic`, `--channel game 60` - works with Stream Deck's "Open" action, AutoHotkey or a desktop shortcut
+
+### 3.5 - Quiet hours
+- At night: a cap on master volume and Windows sounds turned down, on a schedule you pick
+
+### Fixes from testing at home
 - Whatever comes up on the real A50, QuadCast 2S, Equalizer APO, OBS and Discord
 
 

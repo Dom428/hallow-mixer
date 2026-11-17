@@ -22,14 +22,14 @@ using WF = System.Windows.Forms;
 [assembly: AssemblyTitle("Hallow Mixer")]
 [assembly: AssemblyProduct("Hallow Mixer")]
 [assembly: AssemblyDescription("Per-app volume mixer: game, chat, music, media")]
-[assembly: AssemblyVersion("3.0.0.0")]
-[assembly: AssemblyFileVersion("3.0.0.0")]
+[assembly: AssemblyVersion("3.1.0.0")]
+[assembly: AssemblyFileVersion("3.1.0.0")]
 
 namespace HallowMixer
 {
     public static class Program
     {
-        public const string Version = "3.0";
+        public const string Version = "3.1";
         [STAThread]
         public static void Main(string[] args)
         {
@@ -687,7 +687,7 @@ namespace HallowMixer
             var icon = new Image { Width = 16, Height = 16, Margin = new Thickness(0, 0, 6, 0), Source = AppIcon(a.ExePath), Cursor = Cursors.Hand,
                 ToolTip = "Click to mute / unmute just " + a.Name };
             var muted = eng.AppMuted(a.Key);
-            var name = new TextBlock { Text = a.Name, FontSize = 11.5, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center,
+            var name = new TextBlock { Text = a.Name + (eng.S.BgLevel.ContainsKey(a.Key) ? (eng.InBackground(a.Key) ? "  (in background)" : "") : ""), FontSize = 11.5, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center,
                 ToolTip = (a.ExePath ?? a.Name) + (a.AutoChannel ? "" : "\n(you put this here)") };
             Action look = () => { var m = eng.AppMuted(a.Key); icon.Opacity = m ? 0.3 : 1; name.Opacity = m ? 0.45 : 1; name.TextDecorations = m ? TextDecorations.Strikethrough : null; };
             icon.MouseLeftButtonUp += (o, e) => { eng.ToggleAppMute(a); look(); Status(a.Name + (eng.AppMuted(a.Key) ? " muted." : " unmuted.")); };
@@ -726,6 +726,21 @@ namespace HallowMixer
                 }
             };
             cm.Items.Add(playOn);
+            var bg = new MenuItem { Header = "When I'm in another app" };
+            int curBg; bool hasBg = eng.S.BgLevel.TryGetValue(a.Key, out curBg);
+            foreach (var opt in new[] { Tuple.Create(-1, "Keep playing"), Tuple.Create(20, "Turn down to 20%"), Tuple.Create(0, "Mute") })
+            {
+                var o = opt;
+                var mi = new MenuItem { Header = o.Item2, IsChecked = o.Item1 < 0 ? !hasBg : hasBg && curBg == o.Item1 };
+                mi.Click += (o2, e2) =>
+                {
+                    if (o.Item1 < 0) eng.S.BgLevel.Remove(a.Key); else eng.S.BgLevel[a.Key] = o.Item1;
+                    eng.S.Save(); eng.Apply(); RebuildApps();
+                    Status(o.Item1 < 0 ? a.Name + " keeps playing when you switch away." : a.Name + (o.Item1 == 0 ? " goes silent" : " turns down to 20%") + " while you're in another app, and comes back when you return.");
+                };
+                bg.Items.Add(mi);
+            }
+            cm.Items.Add(bg);
             var reset = new MenuItem { Header = "Back to automatic" };
             reset.Click += (o, e) => { eng.ResetApp(a); RebuildApps(); };
             cm.Items.Add(reset);
@@ -757,9 +772,23 @@ namespace HallowMixer
             catch { }
         }
         void UpdateDefaults() { try { defOut = CoreAudio.DefaultId(0); defMic = CoreAudio.DefaultId(1); } catch { } }
+        IntPtr lastFront; int frontTick;
+        void TickFront()
+        {
+            if (++frontTick % 5 != 0 || eng.S.BgLevel.Count == 0) return;   // 4 times a second, only when an app uses it
+            var h = GetForegroundWindow(); if (h == lastFront) return;
+            lastFront = h;
+            uint pid; GetWindowThreadProcessId(h, out pid);
+            var a = eng.AppForPid(pid); var key = a != null ? a.Key : eng.KeyForPid(pid);
+            if (key == eng.FrontKey) return;
+            bool before = eng.FrontKey != null && eng.S.BgLevel.ContainsKey(eng.FrontKey), after = key != null && eng.S.BgLevel.ContainsKey(key);
+            eng.FrontKey = key;
+            if (before || after) { eng.Apply(); UpdateSubs(); RebuildApps(); }
+        }
         void TickMeters()
         {
             TickPtt();
+            TickFront();
             var peaks = new Dictionary<string, float>();
             foreach (var id in Engine.ChannelIds) peaks[id] = 0;
             foreach (var a in eng.Apps) { float pk = a.Peak(); if (pk > peaks[a.Channel]) peaks[a.Channel] = pk; }

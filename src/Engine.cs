@@ -65,6 +65,8 @@ namespace HallowMixer
         [DataMember] public bool EqPerGame = true;        // each game remembers its headset/speaker EQ
         [DataMember] public Dictionary<string, Dictionary<string, EqState>> GameEq = new Dictionary<string, Dictionary<string, EqState>>();
         [DataMember] public bool LevelMedia;              // even out loud and quiet moments in the Media channel
+        // v3.1
+        [DataMember] public Dictionary<string, int> BgLevel = new Dictionary<string, int>();   // app -> 0..99 % while you're in another app (0 = muted)
         // v2.8
         [DataMember] public bool PresetKeys = true;     // Ctrl+Alt+1..9 = preset 1..9, Ctrl+Alt+0 = next preset
         // v2.6
@@ -96,7 +98,7 @@ namespace HallowMixer
             DuckOnChat = true; DuckAmount = 50; PerGame = true; Overlay = true;
             PrimaryOut = ""; FallbackOut = ""; MiniLeft = -1; MiniTop = -1;
             Eq = new Dictionary<string, EqState>(); AppOutput = new Dictionary<string, string>();
-            AutoUpdate = true; LastUpdateCheck = ""; MicKeepLevel = -1; ApiOn = true; NowPlayingOn = true; SmartDuck = true; PresetKeys = true; SetupMode = ""; ChatCleanPrev = ""; ObsHost = "localhost"; ObsPort = 4455; ObsPass = ""; EqPerGame = true; GameEq = new Dictionary<string, Dictionary<string, EqState>>(); MicMode = "off"; PttKey = 0x05; WinLeft = -1; WinTop = -1; WinWidth = -1; WinHeight = -1;
+            AutoUpdate = true; LastUpdateCheck = ""; MicKeepLevel = -1; ApiOn = true; NowPlayingOn = true; SmartDuck = true; PresetKeys = true; BgLevel = new Dictionary<string, int>(); SetupMode = ""; ChatCleanPrev = ""; ObsHost = "localhost"; ObsPort = 4455; ObsPass = ""; EqPerGame = true; GameEq = new Dictionary<string, Dictionary<string, EqState>>(); MicMode = "off"; PttKey = 0x05; WinLeft = -1; WinTop = -1; WinWidth = -1; WinHeight = -1;
             MutedApps = new List<string>(); GameLevels = new Dictionary<string, Preset>();
             AppChannel = new Dictionary<string, string>(); AppVolume = new Dictionary<string, int>();
         }
@@ -130,6 +132,7 @@ namespace HallowMixer
             if (s.StreamOff == null) s.StreamOff = new List<string>();
             if (s.ScenePresets == null) s.ScenePresets = new Dictionary<string, string>();
             if (s.SetupMode == null) s.SetupMode = "";
+            if (s.BgLevel == null) s.BgLevel = new Dictionary<string, int>();
             if (s.ChatCleanPrev == null) s.ChatCleanPrev = "";
             if (string.IsNullOrEmpty(s.ObsHost)) s.ObsHost = "localhost";
             if (s.ObsPort <= 0) s.ObsPort = 4455;
@@ -321,6 +324,14 @@ namespace HallowMixer
         }
         public int AppVolume(string key) { int v; return S.AppVolume.TryGetValue(key, out v) ? v : 100; }
         public bool AppMuted(string key) { return S.MutedApps.Contains(key); }
+        // ---- v3.1 background mute: the app whose window you're in (process name), set by the window
+        public string FrontKey;
+        public float BgFactor(string key)
+        {
+            int l; if (key == null || !S.BgLevel.TryGetValue(key, out l) || key == FrontKey) return 1f;
+            return Math.Max(0, Math.Min(99, l)) / 100f;
+        }
+        public bool InBackground(string key) { return S.BgLevel.ContainsKey(key) && key != FrontKey; }
         public void ToggleAppMute(MixApp a)
         {
             if (!S.MutedApps.Remove(a.Key)) S.MutedApps.Add(a.Key);
@@ -463,7 +474,7 @@ namespace HallowMixer
             foreach (var a in Apps)
             {
                 var c = Chan(a.Channel);
-                float v = c.Volume / 100f * ChannelFactor(a.Channel) * DuckFactor(a.Channel) * AppVolume(a.Key) / 100f;
+                float v = c.Volume / 100f * ChannelFactor(a.Channel) * DuckFactor(a.Channel) * AppVolume(a.Key) / 100f * BgFactor(a.Key);
                 v = Math.Max(0f, Math.Min(1f, v));
                 foreach (var s in a.Sessions) s.Set(v, c.Muted || AppMuted(a.Key));
                 if (CoreAudio.CanRoutePerApp)
@@ -509,7 +520,7 @@ namespace HallowMixer
         }
         public void ResetApp(MixApp a)
         {
-            S.AppChannel.Remove(a.Key); S.AppVolume.Remove(a.Key); S.AppOutput.Remove(a.Key); S.MutedApps.Remove(a.Key);
+            S.AppChannel.Remove(a.Key); S.AppVolume.Remove(a.Key); S.AppOutput.Remove(a.Key); S.MutedApps.Remove(a.Key); S.BgLevel.Remove(a.Key);
             a.Channel = Guess(a.Key, a.ExePath); a.AutoChannel = true; S.Save(); Apply();
         }
         public void ApplyPreset(Preset p)
