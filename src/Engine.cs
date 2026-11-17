@@ -65,6 +65,15 @@ namespace HallowMixer
         [DataMember] public bool EqPerGame = true;        // each game remembers its headset/speaker EQ
         [DataMember] public Dictionary<string, Dictionary<string, EqState>> GameEq = new Dictionary<string, Dictionary<string, EqState>>();
         [DataMember] public bool LevelMedia;              // even out loud and quiet moments in the Media channel
+        // v2.0 - streamers (OBS)
+        [DataMember] public bool ObsAuto;
+        [DataMember] public string ObsHost = "localhost";
+        [DataMember] public int ObsPort = 4455;
+        [DataMember] public string ObsPass = "";          // encrypted for this Windows user (DPAPI)
+        [DataMember] public Dictionary<string, List<string>> StreamLinks = new Dictionary<string, List<string>>();   // channel -> OBS source names
+        [DataMember] public Dictionary<string, int> StreamLevel = new Dictionary<string, int>();                    // channel -> 0..100 on stream
+        [DataMember] public List<string> StreamOff = new List<string>();                                             // channels kept off stream
+        [DataMember] public Dictionary<string, string> ScenePresets = new Dictionary<string, string>();             // OBS scene -> preset name
 
         // The JSON reader skips field initialisers, so set the defaults here (values in the file then override them).
         [OnDeserializing] void Defaults(StreamingContext c)
@@ -72,7 +81,7 @@ namespace HallowMixer
             DuckOnChat = true; DuckAmount = 50; PerGame = true; Overlay = true;
             PrimaryOut = ""; FallbackOut = ""; MiniLeft = -1; MiniTop = -1;
             Eq = new Dictionary<string, EqState>(); AppOutput = new Dictionary<string, string>();
-            AutoUpdate = true; LastUpdateCheck = ""; MicKeepLevel = -1; EqPerGame = true; GameEq = new Dictionary<string, Dictionary<string, EqState>>(); MicMode = "off"; PttKey = 0x05; WinLeft = -1; WinTop = -1; WinWidth = -1; WinHeight = -1;
+            AutoUpdate = true; LastUpdateCheck = ""; MicKeepLevel = -1; ObsHost = "localhost"; ObsPort = 4455; ObsPass = ""; EqPerGame = true; GameEq = new Dictionary<string, Dictionary<string, EqState>>(); MicMode = "off"; PttKey = 0x05; WinLeft = -1; WinTop = -1; WinWidth = -1; WinHeight = -1;
             MutedApps = new List<string>(); GameLevels = new Dictionary<string, Preset>();
             AppChannel = new Dictionary<string, string>(); AppVolume = new Dictionary<string, int>();
         }
@@ -100,6 +109,12 @@ namespace HallowMixer
             if (s.AppOutput == null) s.AppOutput = new Dictionary<string, string>();
             if (s.GameLevels == null) s.GameLevels = new Dictionary<string, Preset>();
             if (s.GameEq == null) s.GameEq = new Dictionary<string, Dictionary<string, EqState>>();
+            if (s.StreamLinks == null) s.StreamLinks = new Dictionary<string, List<string>>();
+            if (s.StreamLevel == null) s.StreamLevel = new Dictionary<string, int>();
+            if (s.StreamOff == null) s.StreamOff = new List<string>();
+            if (s.ScenePresets == null) s.ScenePresets = new Dictionary<string, string>();
+            if (string.IsNullOrEmpty(s.ObsHost)) s.ObsHost = "localhost";
+            if (s.ObsPort <= 0) s.ObsPort = 4455;
             if (s.DuckAmount <= 0 || s.DuckAmount > 100) s.DuckAmount = 50;
             foreach (var c in Engine.ChannelIds) if (!s.Channels.Any(x => x.Id == c)) s.Channels.Add(new ChannelState { Id = c });
             return s;

@@ -17,12 +17,9 @@ The goal: everything SteelSeries Sonar does for a gamer - and the things it does
 | **1.8** | EQ follows the game; even out Media (loudness levelling); settings panel scrolls |
 | **1.9** | Parametric EQ with a curve you drag (peak, shelves, low/high cut; up to 10 bands); 14 output presets incl. per-game (Valorant, CS2, Apex, Fortnite, CoD, R6, PUBG, Tarkov, OW2...) and 5 mic presets (incl. QuadCast 2S) |
 
-## Next
+| **2.0** | Streamers: OBS link (obs-websocket v5, password stored encrypted); stream mix per channel (level + on/off stream); "Set up OBS for me" makes an Application Audio Capture source per app; presets per OBS scene; connects by itself when OBS opens |
 
-### 2.0 - Streamers
-- OBS link (obs-websocket, built into OBS): Hallow Mixer channels drive OBS audio sources
-- Stream mix vs. your mix: keep music out of the stream, or chat at a different level
-- Scene-aware presets (Just Chatting / Gaming / BRB)
+## Next
 
 ### 2.1 - Hallow family
 - Hallow Toolkit: install and open Hallow Mixer from the Apps tab; settings travel with "Share your setup"

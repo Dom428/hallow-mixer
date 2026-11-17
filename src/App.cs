@@ -22,14 +22,14 @@ using WF = System.Windows.Forms;
 [assembly: AssemblyTitle("Hallow Mixer")]
 [assembly: AssemblyProduct("Hallow Mixer")]
 [assembly: AssemblyDescription("Per-app volume mixer: game, chat, music, media")]
-[assembly: AssemblyVersion("1.9.0.0")]
-[assembly: AssemblyFileVersion("1.9.0.0")]
+[assembly: AssemblyVersion("2.0.0.0")]
+[assembly: AssemblyFileVersion("2.0.0.0")]
 
 namespace HallowMixer
 {
     public static class Program
     {
-        public const string Version = "1.9";
+        public const string Version = "2.0";
         [STAThread]
         public static void Main(string[] args)
         {
@@ -252,6 +252,7 @@ namespace HallowMixer
                 CheckAutoSwitch();
                 UpdateDefaults();
                 KeepMicLevel();
+                if (eng.S.ObsAuto && !obs.Connected && !obsConnecting && (DateTime.Now - lastObsTry).TotalSeconds > 30) { var t = ConnectObs(true); }
                 if (eng.Refresh()) RebuildApps(); else UpdateSubs();
                 if (eng.LevelsSwitched) { eng.LevelsSwitched = false; LoadValues(); Status(eng.LevelsNote); if (eng.S.Overlay) osd.Flash(eng.LevelsNote, -1); }
                 if (eng.EqSwitched) { eng.EqSwitched = false; if (eqWin != null && eqWin.IsLoaded) eqWin.Reload(); }
@@ -303,6 +304,13 @@ namespace HallowMixer
                 else eqWin.Activate();
             };
             mp.Children.Add(eqBtn);
+            var streamBtn = new Button { Content = "Stream", Style = (Style)FindResource("Btn"), Margin = new Thickness(0, 0, 8, 0), ToolTip = "OBS: a separate mix for your stream, and presets per scene" };
+            streamBtn.Click += (s, e) =>
+            {
+                if (streamWin == null || !streamWin.IsLoaded) { streamWin = new StreamWindow(eng, obs, ConnectObs) { Owner = this }; streamWin.Closed += (o, a) => eng.S.Save(); streamWin.Show(); }
+                else streamWin.Activate();
+            };
+            mp.Children.Add(streamBtn);
             mp.Children.Add(gear);
             mp.Children.Add(Label("Output", 0, 8));
             outputPick = new ComboBox { Width = 250, Style = (Style)FindResource("Combo"), ToolTip = "Windows' default output - where apps play unless a channel sends them somewhere else" };
@@ -931,6 +939,43 @@ namespace HallowMixer
             }) { IsBackground = true };
             t.SetApartmentState(ApartmentState.MTA);
             t.Start();
+        }
+
+        // ---- v2.0 OBS link
+        readonly ObsLink obs = new ObsLink(); StreamWindow streamWin; bool obsConnecting, obsHooked; DateTime lastObsTry = DateTime.MinValue;
+        async System.Threading.Tasks.Task ConnectObs(bool quiet)
+        {
+            if (obsConnecting) return;
+            obsConnecting = true; lastObsTry = DateTime.Now;
+            if (!obsHooked)
+            {
+                obsHooked = true;
+                obs.SceneChanged += scene => Dispatcher.BeginInvoke(new Action(() => OnObsScene(scene)));
+                obs.Disconnected += why => Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    Status(why); lastObsTry = DateTime.Now;
+                    if (streamWin != null && streamWin.IsLoaded) { var r = streamWin.Refresh(); streamWin.Status(why); }
+                }));
+            }
+            try
+            {
+                if (await obs.Connect(eng.S.ObsHost, eng.S.ObsPort, ObsLink.Unprotect(eng.S.ObsPass)))
+                {
+                    int n = await StreamMix.Apply(obs, eng.S, null);
+                    Status("Connected to OBS" + (n > 0 ? " - stream mix set on " + n + " source(s)." : "."));
+                    if (quiet && streamWin != null && streamWin.IsLoaded) { var r = streamWin.Refresh(); }
+                }
+                else if (!quiet) Status(obs.LastError);
+            }
+            finally { obsConnecting = false; }
+        }
+        void OnObsScene(string scene)
+        {
+            string pn; if (!eng.S.ScenePresets.TryGetValue(scene, out pn)) return;
+            var p = eng.S.Presets.FirstOrDefault(x => x.Name == pn); if (p == null) return;
+            UsePreset(p);
+            Status("OBS scene " + scene + " - " + p.Name + " preset on.");
+            if (eng.S.Overlay) osd.Flash(scene + ": " + p.Name, -1);
         }
 
         // ---- v1.7 mic pro
