@@ -22,11 +22,12 @@ The goal: everything SteelSeries Sonar does for a gamer - and the things it does
 | **2.2** | Ready for everyone: first-run setup - "With Sonar / Replacing Sonar / Just a mixer" - guesses your headset, fallback and mic, shows what will change, then sets channels, outputs and mic; "Run setup again" in Settings |
 | **2.3** | Clean chat voices: "Clean voices" on the Chat strip sends Chat through NVIDIA Broadcast's speaker effects (noise and echo removed from friends' voices); turns itself off and puts Chat back if NVIDIA Broadcast goes away |
 | **2.4** | Hallow family, part 2: settings travel with Hallow Toolkit 4.6's "Share your setup" - presets, app choices, ducking, mic mode and headset/mic EQ (checked on import; EQ lands on your own real headset and mic, never Sonar's virtual devices) |
+| **2.5** | Now playing: the song or video that's playing (from Windows' media sessions) with previous / play-pause / next in the mixer and the Mini mixer, coloured by the app's channel; on the phone dashboard through Hallow Toolkit 4.7; Settings switch |
 
 ## Next
 
-### 2.5 - Now playing
-- See the song or video that's playing (Music and Media) in the mixer, the Mini mixer and the phone dashboard, with play/pause and skip
+### 2.6 - Smarter ducking
+- Duck only while a voice is really talking (ignore Discord join/leave sounds and short noises), with a gentle fade back
 
 ### Later - Hallow family, part 3
 - Hallow Discord bot: post "now playing" and mic status if you want it

@@ -22,14 +22,14 @@ using WF = System.Windows.Forms;
 [assembly: AssemblyTitle("Hallow Mixer")]
 [assembly: AssemblyProduct("Hallow Mixer")]
 [assembly: AssemblyDescription("Per-app volume mixer: game, chat, music, media")]
-[assembly: AssemblyVersion("2.4.0.0")]
-[assembly: AssemblyFileVersion("2.4.0.0")]
+[assembly: AssemblyVersion("2.5.0.0")]
+[assembly: AssemblyFileVersion("2.5.0.0")]
 
 namespace HallowMixer
 {
     public static class Program
     {
-        public const string Version = "2.4";
+        public const string Version = "2.5";
         [STAThread]
         public static void Main(string[] args)
         {
@@ -98,7 +98,7 @@ namespace HallowMixer
     class MiniWindow : Window
     {
         readonly Settings s;
-        public MiniWindow(Settings settings, IEnumerable<Tuple<string, Color, Slider>> rows, Slider balance)
+        public MiniWindow(Settings settings, IEnumerable<Tuple<string, Color, Slider>> rows, Slider balance, UIElement extra)
         {
             s = settings;
             Title = "Hallow Mixer - mini"; WindowStyle = WindowStyle.None; AllowsTransparency = true; Background = Brushes.Transparent;
@@ -136,6 +136,7 @@ namespace HallowMixer
             Grid.SetColumn(bs, 1); Grid.SetColumn(cl, 2);
             bg.Children.Add(gl); bg.Children.Add(bs); bg.Children.Add(cl);
             sp.Children.Add(bg);
+            if (extra != null) sp.Children.Add(extra);
             var shell = new Border { Background = new SolidColorBrush(Color.FromArgb(240, 0x1C, 0x17, 0x24)), BorderBrush = new SolidColorBrush(Color.FromRgb(0x3A, 0x32, 0x48)),
                 BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(10), Padding = new Thickness(14, 10, 14, 12), Child = sp,
                 ToolTip = null };
@@ -252,6 +253,7 @@ namespace HallowMixer
                 CheckAutoSwitch();
                 UpdateDefaults();
                 KeepMicLevel();
+                if (eng.S.NowPlayingOn) NowPlaying.Poll(m => Dispatcher.BeginInvoke(new Action(() => ShowNow(m))));
                 if (++cleanTick % 5 == 0 && eng.S.ChatClean && eng.CheckChatClean(CoreAudio.Devices(0)))
                 { LoadValues(); UpdateCleanButton(); Status("NVIDIA Broadcast's speaker is gone, so Chat is back on its normal output."); }
                 if (eng.S.ObsAuto && !obs.Connected && !obsConnecting && (DateTime.Now - lastObsTry).TotalSeconds > 30) { var t = ConnectObs(true); }
@@ -282,6 +284,7 @@ namespace HallowMixer
             var root = new Grid { Margin = new Thickness(18, 12, 18, 12) };
             root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
@@ -363,7 +366,9 @@ namespace HallowMixer
 
             // ---- status line
             status = new TextBlock { Foreground = (Brush)FindResource("Muted"), FontSize = 11.5, Margin = new Thickness(6, 10, 6, 0), TextTrimming = TextTrimming.CharacterEllipsis };
-            Grid.SetRow(status, 3); root.Children.Add(status);
+            Grid.SetRow(status, 4); root.Children.Add(status);
+            nowBar = new NowBar(false) { Margin = new Thickness(5, 10, 5, 0), Command = MediaCommand };
+            Grid.SetRow(nowBar, 3); root.Children.Add(nowBar);
             Status(CoreAudio.CanRoutePerApp ? "Right-click an app to move it, click its icon to mute it, scroll over a channel to change it.  Ctrl+Alt+PageUp/PageDown = game/chat,  Ctrl+Alt+M = mute mic."
                                             : "Per-channel output isn't supported on this Windows version - volumes still work.");
             var outer = new Grid();
@@ -401,6 +406,7 @@ namespace HallowMixer
             sw("EQ follows the game (each game remembers its headset EQ)", eng.S.EqPerGame, v => eng.S.EqPerGame = v);
             sw("Even out Media: loud ads and explosions down, quiet talking up", eng.S.LevelMedia, v => eng.S.LevelMedia = v);
             sw("Show a pop-up on screen when I use the hotkeys", eng.S.Overlay, v => eng.S.Overlay = v);
+            sw("Show what's playing (song or video, with play/pause and skip)", eng.S.NowPlayingOn, v => { eng.S.NowPlayingOn = v; ShowNow(v ? NowPlaying.Current : null); });
             sw("Headset first: use it whenever it's on, otherwise use the fallback", eng.S.AutoSwitch, v => { eng.S.AutoSwitch = v; lastAuto = null; });
             var ag = new Grid { Margin = new Thickness(52, 2, 0, 6) };
             ag.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(70) }); ag.ColumnDefinitions.Add(new ColumnDefinition());
@@ -927,6 +933,23 @@ namespace HallowMixer
             Status("Opened NVIDIA Broadcast's page. After installing, come back and click Use NVIDIA Broadcast mic.");
         }
 
+        // ---- v2.5 now playing
+        NowBar nowBar, miniNow;
+        void ShowNow(MediaInfo m)
+        {
+            if (!eng.S.NowPlayingOn) m = null;
+            var app = m == null ? null : eng.Apps.FirstOrDefault(a => a.Key == m.Key || (m.Key.Length > 3 && a.Key.StartsWith(m.Key)) || (a.Key.Length > 3 && m.Key.StartsWith(a.Key)));
+            var ch = app != null ? app.Channel : null;
+            var color = ch != null ? Colors[ch] : C("#8F88A0");
+            var name = ch != null ? Engine.ChannelNames[ch] : null;
+            if (nowBar != null) nowBar.Show(m, color, name);
+            if (miniNow != null) miniNow.Show(m, color, name);
+        }
+        void MediaCommand(string what)
+        {
+            NowPlaying.Command(what, () => NowPlaying.Poll(m => Dispatcher.BeginInvoke(new Action(() => ShowNow(m)))));
+        }
+
         // ---- v2.3 clean chat voices
         ToggleButton cleanBtn; int cleanTick;
         void UpdateCleanButton()
@@ -1058,7 +1081,13 @@ namespace HallowMixer
             var micInfo = new Dictionary<string, object> { { "level", mid == null ? -1 : (int)Math.Round(CoreAudio.GetLevel(mid) * 100) }, { "muted", mid != null && CoreAudio.GetMute(mid) } };
             return new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(new Dictionary<string, object> {
                 { "version", Program.Version }, { "channels", chans }, { "mic", micInfo }, { "chatMix", eng.S.ChatMix },
-                { "presets", eng.S.Presets.Select(p => p.Name).ToArray() }, { "game", eng.CurrentGameName }, { "obs", obs.Connected } });
+                { "presets", eng.S.Presets.Select(p => p.Name).ToArray() }, { "game", eng.CurrentGameName }, { "obs", obs.Connected },
+                { "nowPlaying", NowState() } });
+        }
+        object NowState()
+        {
+            var m = eng.S.NowPlayingOn ? NowPlaying.Current : null; if (m == null) return null;
+            return new Dictionary<string, object> { { "app", m.App }, { "title", m.Title }, { "artist", m.Artist }, { "playing", m.Playing }, { "canPrev", m.CanPrev }, { "canNext", m.CanNext } };
         }
         // Commands: /set?ch=game&v=60 (or &d=-10), /mute?ch=game&m=toggle|1|0, /mic?mute=toggle|1|0, /preset?name=Chill
         string ApiDo(string path, Dictionary<string, string> q)
@@ -1089,6 +1118,12 @@ namespace HallowMixer
                     var mid = CoreAudio.DefaultId(1); if (mid == null) return "no mic";
                     SetMicMute(m == "1" ? true : m == "0" ? false : !CoreAudio.GetMute(mid));
                     return CoreAudio.GetMute(mid) ? "Mic muted" : "Mic on";
+                }
+                case "/media":
+                {
+                    string d; q.TryGetValue("do", out d);
+                    if (d != "playpause" && d != "next" && d != "prev") return "do must be playpause, next or prev";
+                    MediaCommand(d); return d == "next" ? "Next" : d == "prev" ? "Previous" : "Play / pause";
                 }
                 case "/preset":
                 {
@@ -1262,7 +1297,7 @@ namespace HallowMixer
             {
                 var rows = Engine.ChannelIds.Select(id => Tuple.Create(id == "other" ? "System" : Engine.ChannelNames[id], strips[id].Color, strips[id].Fader)).ToList();
                 rows.Add(Tuple.Create("Mic", mic.Color, mic.Fader));
-                mini = new MiniWindow(eng.S, rows, balance);
+                miniNow = new NowBar(true) { Margin = new Thickness(0, 10, 0, 0), Command = MediaCommand }; mini = new MiniWindow(eng.S, rows, balance, miniNow); ShowNow(NowPlaying.Current);
             }
             if (mini.IsVisible) { mini.Hide(); eng.S.MiniOpen = false; }
             else { mini.Show(); eng.S.MiniOpen = true; }
