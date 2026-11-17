@@ -19,11 +19,12 @@ The goal: everything SteelSeries Sonar does for a gamer - and the things it does
 
 | **2.0** | Streamers: OBS link (obs-websocket v5, password stored encrypted); stream mix per channel (level + on/off stream); "Set up OBS for me" makes an Application Audio Capture source per app; presets per OBS scene; connects by itself when OBS opens |
 | **2.1** | Hallow family: Hallow Toolkit 4.5 installs/opens Hallow Mixer; its phone dashboard changes channel levels, mute, mic and presets; local control API (127.0.0.1 only, with a key) |
+| **2.2** | Ready for everyone: first-run setup - "With Sonar / Replacing Sonar / Just a mixer" - guesses your headset, fallback and mic, shows what will change, then sets channels, outputs and mic; "Run setup again" in Settings |
 
 ## Next
 
-### 2.2 - Ready for everyone
-- First-run setup: "Using Sonar / replacing Sonar / just a mixer" - sets channels, outputs and mic for you
+### 2.3 - Clean chat voices
+- One click sends the Chat channel through NVIDIA Broadcast's speaker effects (background noise and echo removed from your friends' voices), when you have an RTX card
 
 ### Later - Hallow family, part 2
 - Hallow Mixer settings travel with the Toolkit's "Share your setup"
@@ -31,7 +32,7 @@ The goal: everything SteelSeries Sonar does for a gamer - and the things it does
 
 ### Later - closing the gap to Sonar
 - 360 spatial audio (virtual surround) through Equalizer APO's convolution filter - needs 3D sound profiles we're allowed to ship
-- Clean up voices in chat: one click to send the Chat channel through NVIDIA Broadcast's speaker effects
+
 - Mic noise gate, compressor and limiter: Equalizer APO has none built in, so this needs our own audio plugin
 - Quick switch for Windows spatial sound (Windows Sonic / Dolby Atmos): Windows has no public way for apps to change it, so this needs research first
 

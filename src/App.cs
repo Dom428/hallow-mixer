@@ -22,14 +22,14 @@ using WF = System.Windows.Forms;
 [assembly: AssemblyTitle("Hallow Mixer")]
 [assembly: AssemblyProduct("Hallow Mixer")]
 [assembly: AssemblyDescription("Per-app volume mixer: game, chat, music, media")]
-[assembly: AssemblyVersion("2.1.0.0")]
-[assembly: AssemblyFileVersion("2.1.0.0")]
+[assembly: AssemblyVersion("2.2.0.0")]
+[assembly: AssemblyFileVersion("2.2.0.0")]
 
 namespace HallowMixer
 {
     public static class Program
     {
-        public const string Version = "2.1";
+        public const string Version = "2.2";
         [STAThread]
         public static void Main(string[] args)
         {
@@ -263,6 +263,7 @@ namespace HallowMixer
             if (!startHidden) Show(); else { WindowState = WindowState.Minimized; Show(); Hide(); WindowState = WindowState.Normal; }
             if (eng.S.MiniOpen) { eng.S.MiniOpen = false; ToggleMini(); }
             UpdateNoiseButton();
+            if (Settings.FirstRun && !eng.S.SetupDone && !startHidden) Dispatcher.BeginInvoke(new Action(OpenSetup), DispatcherPriority.ApplicationIdle);
             DateTime lastCheck;
             if (eng.S.AutoUpdate && (!DateTime.TryParse(eng.S.LastUpdateCheck, out lastCheck) || (DateTime.Now - lastCheck).TotalHours > 20)) CheckForUpdate(false);
         }
@@ -436,6 +437,10 @@ namespace HallowMixer
                     Status("Your mic stays at " + eng.S.MicKeepLevel + "%. Move the Mic fader to change it."); }
             });
             var st = sw("Start with Windows (in the tray)", StartsWithWindows(), v => { SetStartWithWindows(v); if (trayStartup != null) trayStartup.Checked = v; });
+            var again = new Button { Content = "Run setup again", Style = (Style)FindResource("Btn"), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 10, 0, 0),
+                ToolTip = "With Sonar, replacing Sonar, or just a mixer - sets channels, outputs and mic for you" };
+            again.Click += (s, e) => OpenSetup();
+            sp.Children.Add(again);
             var games = new Button { Content = "Forget saved game levels", Style = (Style)FindResource("Btn"), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 10, 0, 0) };
             games.Click += (s, e) => { int n = eng.S.GameLevels.Count; eng.S.GameLevels.Clear(); eng.S.Save(); Status("Forgot the saved levels for " + n + " game(s)."); };
             sp.Children.Add(games);
@@ -941,6 +946,26 @@ namespace HallowMixer
             }) { IsBackground = true };
             t.SetApartmentState(ApartmentState.MTA);
             t.Start();
+        }
+
+        // ---- v2.2 first-run setup
+        SetupWindow setupWin;
+        void OpenSetup()
+        {
+            if (setupWin != null && setupWin.IsLoaded) { setupWin.Activate(); return; }
+            if (!IsVisible) ShowFromTray();
+            setupWin = new SetupWindow(eng, (mode, ready, start) =>
+            {
+                lastAuto = null; UpdateDefaults(); eng.Refresh(); RebuildApps(); LoadValues();
+                if (start) { SetStartWithWindows(true); if (trayStartup != null) trayStartup.Checked = true; }
+                if (ready) DiscordReady();
+                // rebuild the settings flyout so its switches and device boxes show what setup chose
+                var parent = settingsPanel.Parent as Grid; var vis = settingsPanel.Visibility;
+                if (parent != null) { parent.Children.Remove(settingsPanel); settingsPanel = BuildSettings(); settingsPanel.Visibility = vis; parent.Children.Add(settingsPanel); }
+                Status(mode == "sonar" ? "Set up to work with Sonar." : mode == "replace" ? "Set up to replace Sonar. Turn Sonar off in SteelSeries GG when you're ready." : "Set up as a mixer.");
+            }) { Owner = this };
+            setupWin.Closed += (s, e) => eng.S.Save();
+            setupWin.Show();
         }
 
         // ---- v2.1 local API for Hallow Toolkit / phone dashboard

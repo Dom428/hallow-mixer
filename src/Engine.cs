@@ -65,6 +65,10 @@ namespace HallowMixer
         [DataMember] public bool EqPerGame = true;        // each game remembers its headset/speaker EQ
         [DataMember] public Dictionary<string, Dictionary<string, EqState>> GameEq = new Dictionary<string, Dictionary<string, EqState>>();
         [DataMember] public bool LevelMedia;              // even out loud and quiet moments in the Media channel
+        // v2.2 - first-run setup
+        [DataMember] public bool SetupDone;
+        [DataMember] public string SetupMode = "";       // "sonar", "replace", "mixer"
+        public static bool FirstRun;                     // no settings file when Hallow Mixer started (a new install)
         // v2.1
         [DataMember] public bool ApiOn = true;            // Hallow Toolkit + phone dashboard can control the mixer (this PC only, with a key)
         // v2.0 - streamers (OBS)
@@ -83,7 +87,7 @@ namespace HallowMixer
             DuckOnChat = true; DuckAmount = 50; PerGame = true; Overlay = true;
             PrimaryOut = ""; FallbackOut = ""; MiniLeft = -1; MiniTop = -1;
             Eq = new Dictionary<string, EqState>(); AppOutput = new Dictionary<string, string>();
-            AutoUpdate = true; LastUpdateCheck = ""; MicKeepLevel = -1; ApiOn = true; ObsHost = "localhost"; ObsPort = 4455; ObsPass = ""; EqPerGame = true; GameEq = new Dictionary<string, Dictionary<string, EqState>>(); MicMode = "off"; PttKey = 0x05; WinLeft = -1; WinTop = -1; WinWidth = -1; WinHeight = -1;
+            AutoUpdate = true; LastUpdateCheck = ""; MicKeepLevel = -1; ApiOn = true; SetupMode = ""; ObsHost = "localhost"; ObsPort = 4455; ObsPass = ""; EqPerGame = true; GameEq = new Dictionary<string, Dictionary<string, EqState>>(); MicMode = "off"; PttKey = 0x05; WinLeft = -1; WinTop = -1; WinWidth = -1; WinHeight = -1;
             MutedApps = new List<string>(); GameLevels = new Dictionary<string, Preset>();
             AppChannel = new Dictionary<string, string>(); AppVolume = new Dictionary<string, int>();
         }
@@ -100,6 +104,7 @@ namespace HallowMixer
         public static Settings Load()
         {
             Settings s = null;
+            FirstRun = !File.Exists(FilePath);
             try { if (File.Exists(FilePath)) using (var f = File.OpenRead(FilePath)) s = (Settings)new DataContractJsonSerializer(typeof(Settings)).ReadObject(f); } catch { }
             if (s == null) s = new Settings();
             if (s.Channels == null) s.Channels = new List<ChannelState>();
@@ -115,6 +120,7 @@ namespace HallowMixer
             if (s.StreamLevel == null) s.StreamLevel = new Dictionary<string, int>();
             if (s.StreamOff == null) s.StreamOff = new List<string>();
             if (s.ScenePresets == null) s.ScenePresets = new Dictionary<string, string>();
+            if (s.SetupMode == null) s.SetupMode = "";
             if (string.IsNullOrEmpty(s.ObsHost)) s.ObsHost = "localhost";
             if (s.ObsPort <= 0) s.ObsPort = 4455;
             if (s.DuckAmount <= 0 || s.DuckAmount > 100) s.DuckAmount = 50;
@@ -492,6 +498,16 @@ namespace HallowMixer
             foreach (var a in Apps) { foreach (var s in a.Sessions) { s.LastSet = -1; s.Set(1f, false); } foreach (var pid in a.Pids) CoreAudio.RouteApp(pid, ""); }
             bool routedAny = S.AppOutput.Count > 0 || S.Channels.Any(c => !string.IsNullOrEmpty(c.OutputId));
             if (routedAny) CoreAudio.ClearAllRoutes();
+        }
+        // Setup "Replacing Sonar": forget per-app outputs Windows saved (Sonar's too), put running apps on the default
+        // output, then re-apply only Hallow Mixer's own choices.
+        public void ForgetRoutes()
+        {
+            Refresh();
+            CoreAudio.ClearAllRoutes();
+            foreach (var a in Apps) foreach (var pid in a.Pids) CoreAudio.RouteApp(pid, "");
+            routed.Clear();
+            Apply();
         }
         // Put every app back to full volume, unmuted, on the default output (used on exit if you choose to).
         public void ResetAllApps()
