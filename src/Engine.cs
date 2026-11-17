@@ -65,6 +65,9 @@ namespace HallowMixer
         [DataMember] public bool EqPerGame = true;        // each game remembers its headset/speaker EQ
         [DataMember] public Dictionary<string, Dictionary<string, EqState>> GameEq = new Dictionary<string, Dictionary<string, EqState>>();
         [DataMember] public bool LevelMedia;              // even out loud and quiet moments in the Media channel
+        // v2.3 - clean chat voices (NVIDIA Broadcast speaker effects)
+        [DataMember] public bool ChatClean;
+        [DataMember] public string ChatCleanPrev = "";   // the Chat channel's output before, to go back to
         // v2.2 - first-run setup
         [DataMember] public bool SetupDone;
         [DataMember] public string SetupMode = "";       // "sonar", "replace", "mixer"
@@ -87,7 +90,7 @@ namespace HallowMixer
             DuckOnChat = true; DuckAmount = 50; PerGame = true; Overlay = true;
             PrimaryOut = ""; FallbackOut = ""; MiniLeft = -1; MiniTop = -1;
             Eq = new Dictionary<string, EqState>(); AppOutput = new Dictionary<string, string>();
-            AutoUpdate = true; LastUpdateCheck = ""; MicKeepLevel = -1; ApiOn = true; SetupMode = ""; ObsHost = "localhost"; ObsPort = 4455; ObsPass = ""; EqPerGame = true; GameEq = new Dictionary<string, Dictionary<string, EqState>>(); MicMode = "off"; PttKey = 0x05; WinLeft = -1; WinTop = -1; WinWidth = -1; WinHeight = -1;
+            AutoUpdate = true; LastUpdateCheck = ""; MicKeepLevel = -1; ApiOn = true; SetupMode = ""; ChatCleanPrev = ""; ObsHost = "localhost"; ObsPort = 4455; ObsPass = ""; EqPerGame = true; GameEq = new Dictionary<string, Dictionary<string, EqState>>(); MicMode = "off"; PttKey = 0x05; WinLeft = -1; WinTop = -1; WinWidth = -1; WinHeight = -1;
             MutedApps = new List<string>(); GameLevels = new Dictionary<string, Preset>();
             AppChannel = new Dictionary<string, string>(); AppVolume = new Dictionary<string, int>();
         }
@@ -121,6 +124,7 @@ namespace HallowMixer
             if (s.StreamOff == null) s.StreamOff = new List<string>();
             if (s.ScenePresets == null) s.ScenePresets = new Dictionary<string, string>();
             if (s.SetupMode == null) s.SetupMode = "";
+            if (s.ChatCleanPrev == null) s.ChatCleanPrev = "";
             if (string.IsNullOrEmpty(s.ObsHost)) s.ObsHost = "localhost";
             if (s.ObsPort <= 0) s.ObsPort = 4455;
             if (s.DuckAmount <= 0 || s.DuckAmount > 100) s.DuckAmount = 50;
@@ -499,6 +503,40 @@ namespace HallowMixer
             bool routedAny = S.AppOutput.Count > 0 || S.Channels.Any(c => !string.IsNullOrEmpty(c.OutputId));
             if (routedAny) CoreAudio.ClearAllRoutes();
         }
+        // ---- v2.3 clean chat voices: the Chat channel plays into NVIDIA Broadcast's speaker, which cleans the voices
+        // and plays them on the output you pick in the NVIDIA Broadcast app.
+        public static AudioDevice BroadcastSpeaker(List<AudioDevice> outs)
+        {
+            return outs.FirstOrDefault(d => d.Name.IndexOf("NVIDIA Broadcast", StringComparison.OrdinalIgnoreCase) >= 0);
+        }
+        public void SetChatClean(bool on, string broadcastId)
+        {
+            var c = Chan("chat");
+            if (on)
+            {
+                if (string.IsNullOrEmpty(broadcastId)) return;
+                if (!S.ChatClean) S.ChatCleanPrev = c.OutputId ?? "";
+                c.OutputId = broadcastId; S.ChatClean = true;
+            }
+            else
+            {
+                if (S.ChatClean) c.OutputId = S.ChatCleanPrev ?? "";
+                S.ChatClean = false; S.ChatCleanPrev = "";
+            }
+            S.Save(); Apply();
+        }
+        // NVIDIA Broadcast removed or its speaker gone: put Chat back so you still hear your friends. True if it did.
+        public bool CheckChatClean(List<AudioDevice> outs)
+        {
+            if (!S.ChatClean) return false;
+            var id = Chan("chat").OutputId;
+            if (!string.IsNullOrEmpty(id) && outs.Any(d => d.Id == id)) return false;
+            var prev = S.ChatCleanPrev ?? "";
+            if (prev != "" && !outs.Any(d => d.Id == prev)) prev = "";
+            Chan("chat").OutputId = prev; S.ChatClean = false; S.ChatCleanPrev = ""; S.Save(); Apply();
+            return true;
+        }
+
         // Setup "Replacing Sonar": forget per-app outputs Windows saved (Sonar's too), put running apps on the default
         // output, then re-apply only Hallow Mixer's own choices.
         public void ForgetRoutes()

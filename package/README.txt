@@ -35,6 +35,7 @@ WHAT IT DOES
 - Settings > Keep my mic level: puts your mic level back if Discord or a game changes it.
 - EQ > a mic > Low cut: removes rumble, desk bumps and fan hum.
 - EQ > Parametric EQ: drag the dots on the curve; presets for many games and for mics (QuadCast 2S).
+- Clean voices (Chat strip): with an RTX card, sends Chat through NVIDIA Broadcast to remove noise from your friends' voices.
 - Setup: the first time it opens, pick With Sonar / Replacing Sonar / Just a mixer (Settings > Run setup again to redo it).
 - Phone: Hallow Toolkit's phone dashboard shows Mixer controls while Hallow Mixer runs (turn it off in Settings if you like).
 - Stream (top bar): link OBS (OBS > Tools > WebSocket Server Settings > Enable), then set each channel's stream level, or click Set up OBS for me. Pick a preset for each OBS scene.

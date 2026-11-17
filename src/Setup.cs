@@ -81,14 +81,14 @@ namespace HallowMixer
                 {
                     var d = SonarDev(outs, m[1]); if (d == null) continue;
                     var ch = m[0]; var id = d.Id;
-                    steps.Add(new SetupStep { Text = Engine.ChannelNames[ch] + " apps play into Sonar's " + m[1] + " channel", Run = () => eng.Chan(ch).OutputId = id });
+                    steps.Add(new SetupStep { Text = Engine.ChannelNames[ch] + " apps play into Sonar's " + m[1] + " channel", Run = () => { eng.Chan(ch).OutputId = id; if (ch == "chat") S.ChatClean = false; } });
                 }
                 steps.Add(new SetupStep { Text = "Headset-first switching off (Sonar picks your headset)", Run = () => S.AutoSwitch = false });
                 steps.Add(new SetupStep { Text = "EQ, mic and headset output stay in Sonar - Hallow Mixer handles levels, apps, presets and hotkeys", Run = () => { } });
             }
             else if (mode == "replace")
             {
-                steps.Add(new SetupStep { Text = "Every channel plays on your default output (no Sonar devices)", Run = () => { foreach (var c in S.Channels) c.OutputId = ""; S.AppOutput.Clear(); } });
+                steps.Add(new SetupStep { Text = "Every channel plays on your default output (no Sonar devices)", Run = () => { foreach (var c in S.Channels) c.OutputId = ""; S.AppOutput.Clear(); S.ChatClean = false; } });
                 steps.Add(new SetupStep { Text = "Apps Sonar had sent to its own devices go back to your default output", Run = () => eng.ForgetRoutes() });
                 if (headset != null)
                 {
@@ -109,7 +109,7 @@ namespace HallowMixer
             else
             {
                 if (S.Channels.Any(c => !string.IsNullOrEmpty(c.OutputId)))
-                    steps.Add(new SetupStep { Text = "Every channel plays on your default output", Run = () => { foreach (var c in S.Channels) c.OutputId = ""; } });
+                    steps.Add(new SetupStep { Text = "Every channel plays on your default output", Run = () => { foreach (var c in S.Channels) c.OutputId = ""; S.ChatClean = false; } });
                 steps.Add(new SetupStep { Text = "Your devices stay as they are - Hallow Mixer sorts apps into channels and handles levels", Run = () => { } });
             }
             steps.Add(new SetupStep { Text = "Setup remembered (run it again any time from Settings)", Run = () => { S.SetupMode = mode; S.SetupDone = true; } });

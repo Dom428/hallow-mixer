@@ -22,14 +22,14 @@ using WF = System.Windows.Forms;
 [assembly: AssemblyTitle("Hallow Mixer")]
 [assembly: AssemblyProduct("Hallow Mixer")]
 [assembly: AssemblyDescription("Per-app volume mixer: game, chat, music, media")]
-[assembly: AssemblyVersion("2.2.0.0")]
-[assembly: AssemblyFileVersion("2.2.0.0")]
+[assembly: AssemblyVersion("2.3.0.0")]
+[assembly: AssemblyFileVersion("2.3.0.0")]
 
 namespace HallowMixer
 {
     public static class Program
     {
-        public const string Version = "2.2";
+        public const string Version = "2.3";
         [STAThread]
         public static void Main(string[] args)
         {
@@ -252,6 +252,8 @@ namespace HallowMixer
                 CheckAutoSwitch();
                 UpdateDefaults();
                 KeepMicLevel();
+                if (++cleanTick % 5 == 0 && eng.S.ChatClean && eng.CheckChatClean(CoreAudio.Devices(0)))
+                { LoadValues(); UpdateCleanButton(); Status("NVIDIA Broadcast's speaker is gone, so Chat is back on its normal output."); }
                 if (eng.S.ObsAuto && !obs.Connected && !obsConnecting && (DateTime.Now - lastObsTry).TotalSeconds > 30) { var t = ConnectObs(true); }
                 if (eng.Refresh()) RebuildApps(); else UpdateSubs();
                 if (eng.LevelsSwitched) { eng.LevelsSwitched = false; LoadValues(); Status(eng.LevelsNote); if (eng.S.Overlay) osd.Flash(eng.LevelsNote, -1); }
@@ -262,7 +264,7 @@ namespace HallowMixer
             saveTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) }; saveTimer.Tick += (s, e) => { if (dirty) { dirty = false; eng.S.Save(); } }; saveTimer.Start();
             if (!startHidden) Show(); else { WindowState = WindowState.Minimized; Show(); Hide(); WindowState = WindowState.Normal; }
             if (eng.S.MiniOpen) { eng.S.MiniOpen = false; ToggleMini(); }
-            UpdateNoiseButton();
+            UpdateNoiseButton(); UpdateCleanButton();
             if (Settings.FirstRun && !eng.S.SetupDone && !startHidden) Dispatcher.BeginInvoke(new Action(OpenSetup), DispatcherPriority.ApplicationIdle);
             DateTime lastCheck;
             if (eng.S.AutoUpdate && (!DateTime.TryParse(eng.S.LastUpdateCheck, out lastCheck) || (DateTime.Now - lastCheck).TotalHours > 20)) CheckForUpdate(false);
@@ -532,6 +534,12 @@ namespace HallowMixer
                 Status(Engine.ChannelNames[id] + " apps now play on " + (d == null || d.Id == "" ? "the default output" : d.Name) + ". Some apps switch after they restart.");
             };
             body.Children.Add(st.Output);
+            if (id == "chat")
+            {
+                cleanBtn = new ToggleButton { Style = (Style)FindResource("Toggle"), Margin = new Thickness(0, 0, 0, 10), Visibility = Visibility.Collapsed };
+                cleanBtn.Click += (s, e) => CleanChat();
+                body.Children.Add(cleanBtn);
+            }
             dp.Children.Add(body);
             st.AppList = new StackPanel();
             var sv = new ScrollViewer { Content = st.AppList, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
@@ -919,6 +927,40 @@ namespace HallowMixer
             Status("Opened NVIDIA Broadcast's page. After installing, come back and click Use NVIDIA Broadcast mic.");
         }
 
+        // ---- v2.3 clean chat voices
+        ToggleButton cleanBtn; int cleanTick;
+        void UpdateCleanButton()
+        {
+            if (cleanBtn == null) return;
+            var bs = Engine.BroadcastSpeaker(CoreAudio.Devices(0));
+            if (bs == null && hasRtx != true && !eng.S.ChatClean) { cleanBtn.Visibility = Visibility.Collapsed; return; }
+            cleanBtn.Visibility = Visibility.Visible;
+            cleanBtn.IsChecked = eng.S.ChatClean;
+            cleanBtn.Content = eng.S.ChatClean ? "Clean voices: on" : bs != null ? "Clean voices" : "Get clean voices";
+            cleanBtn.ToolTip = bs != null || eng.S.ChatClean
+                ? "Sends Chat through NVIDIA Broadcast: background noise and echo removed from your friends' voices"
+                : "Your RTX card can clean up your friends' voices with NVIDIA Broadcast (free, from NVIDIA)";
+        }
+        void CleanChat()
+        {
+            if (eng.S.ChatClean)
+            {
+                eng.SetChatClean(false, null); LoadValues(); UpdateCleanButton();
+                Status("Clean voices off - Chat plays on its normal output again.");
+                return;
+            }
+            var bs = Engine.BroadcastSpeaker(CoreAudio.Devices(0));
+            if (bs == null)
+            {
+                cleanBtn.IsChecked = false;
+                try { Process.Start(new ProcessStartInfo("https://www.nvidia.com/en-us/geforce/broadcasting/broadcast-app/") { UseShellExecute = true }); } catch { }
+                Status("Opened NVIDIA Broadcast's page. After installing, come back and click Clean voices.");
+                return;
+            }
+            eng.SetChatClean(true, bs.Id); LoadValues(); UpdateCleanButton();
+            Status("Chat now goes through NVIDIA Broadcast. In the NVIDIA Broadcast app, under Speakers, pick your headset and turn on Noise Removal. Some apps switch after a restart.");
+        }
+
         // Record 5 s from the default mic on a background thread, then play it back.
         void TestMic(Button btn)
         {
@@ -959,6 +1001,7 @@ namespace HallowMixer
                 lastAuto = null; UpdateDefaults(); eng.Refresh(); RebuildApps(); LoadValues();
                 if (start) { SetStartWithWindows(true); if (trayStartup != null) trayStartup.Checked = true; }
                 if (ready) DiscordReady();
+                UpdateCleanButton();
                 // rebuild the settings flyout so its switches and device boxes show what setup chose
                 var parent = settingsPanel.Parent as Grid; var vis = settingsPanel.Visibility;
                 if (parent != null) { parent.Children.Remove(settingsPanel); settingsPanel = BuildSettings(); settingsPanel.Visibility = vis; parent.Children.Add(settingsPanel); }

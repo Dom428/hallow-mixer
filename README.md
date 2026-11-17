@@ -25,6 +25,7 @@ A per-app volume mixer for Windows 10/11 - one fader per kind of sound, a game/c
 - **Discord-ready mic:** one click unmutes, sets a good level that stays put, and adds voice EQ + an 80 Hz rumble cut.
 - **Keep my mic level:** if Discord's automatic gain, a game or Windows moves your mic level, it's put back.
 - **Parametric EQ:** drag a curve like Sonar's - peaks, shelves, low/high cut, up to 10 bands, with presets for Valorant, CS2, Apex, Fortnite, CoD and more, plus mic presets (incl. QuadCast 2S).
+- **Clean chat voices:** with an RTX card and NVIDIA Broadcast, one click on the Chat strip removes background noise and echo from your friends' voices.
 - **First-run setup:** pick "With Sonar", "Replacing Sonar" or "Just a mixer" - it guesses your headset and mic, shows exactly what will change, then sets it up. Run it again from Settings.
 - **Hallow Toolkit + phone:** Hallow Toolkit installs and opens it, and its phone dashboard (over Tailscale) changes your levels, mutes and presets. Control is local to your PC and needs a key only your account can read.
 - **Stream (OBS):** a separate mix for your stream - each channel's level on stream, or keep it off stream; one click makes OBS sources for your apps; presets switch with your OBS scenes.
