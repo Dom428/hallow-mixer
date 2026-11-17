@@ -32,8 +32,8 @@ WHAT IT DOES
 
 USING STEELSERIES SONAR?
 Hallow Mixer works alongside it: it controls each app's volume even when the app plays through
-Sonar. Hallow Mixer can't make virtual sound devices or EQ (that needs a driver), so keep Sonar
-for those.
+Sonar. EQ works through Equalizer APO instead of Sonar's own. Hallow Mixer can't make virtual
+sound devices - it sends each channel to a real device instead.
 
 UNINSTALL
 Exit it from the tray, untick "Start with Windows" first if you turned it on, then delete
