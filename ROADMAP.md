@@ -18,16 +18,16 @@ The goal: everything SteelSeries Sonar does for a gamer - and the things it does
 | **1.9** | Parametric EQ with a curve you drag (peak, shelves, low/high cut; up to 10 bands); 14 output presets incl. per-game (Valorant, CS2, Apex, Fortnite, CoD, R6, PUBG, Tarkov, OW2...) and 5 mic presets (incl. QuadCast 2S) |
 
 | **2.0** | Streamers: OBS link (obs-websocket v5, password stored encrypted); stream mix per channel (level + on/off stream); "Set up OBS for me" makes an Application Audio Capture source per app; presets per OBS scene; connects by itself when OBS opens |
+| **2.1** | Hallow family: Hallow Toolkit 4.5 installs/opens Hallow Mixer; its phone dashboard changes channel levels, mute, mic and presets; local control API (127.0.0.1 only, with a key) |
 
 ## Next
 
-### 2.1 - Hallow family
-- Hallow Toolkit: install and open Hallow Mixer from the Apps tab; settings travel with "Share your setup"
-- Phone dashboard (over Tailscale): see and change channel levels from your phone
-- Hallow Discord bot: post "now playing" and mic status if you want it
-
 ### 2.2 - Ready for everyone
 - First-run setup: "Using Sonar / replacing Sonar / just a mixer" - sets channels, outputs and mic for you
+
+### Later - Hallow family, part 2
+- Hallow Mixer settings travel with the Toolkit's "Share your setup"
+- Hallow Discord bot: post "now playing" and mic status if you want it
 
 ### Later - closing the gap to Sonar
 - 360 spatial audio (virtual surround) through Equalizer APO's convolution filter - needs 3D sound profiles we're allowed to ship

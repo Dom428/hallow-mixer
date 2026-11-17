@@ -22,14 +22,14 @@ using WF = System.Windows.Forms;
 [assembly: AssemblyTitle("Hallow Mixer")]
 [assembly: AssemblyProduct("Hallow Mixer")]
 [assembly: AssemblyDescription("Per-app volume mixer: game, chat, music, media")]
-[assembly: AssemblyVersion("2.0.0.0")]
-[assembly: AssemblyFileVersion("2.0.0.0")]
+[assembly: AssemblyVersion("2.1.0.0")]
+[assembly: AssemblyFileVersion("2.1.0.0")]
 
 namespace HallowMixer
 {
     public static class Program
     {
-        public const string Version = "2.0";
+        public const string Version = "2.1";
         [STAThread]
         public static void Main(string[] args)
         {
@@ -258,6 +258,7 @@ namespace HallowMixer
                 if (eng.EqSwitched) { eng.EqSwitched = false; if (eqWin != null && eqWin.IsLoaded) eqWin.Reload(); }
             };
             refreshTimer.Start();
+            if (eng.S.ApiOn) StartApi();
             saveTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) }; saveTimer.Tick += (s, e) => { if (dirty) { dirty = false; eng.S.Save(); } }; saveTimer.Start();
             if (!startHidden) Show(); else { WindowState = WindowState.Minimized; Show(); Hide(); WindowState = WindowState.Normal; }
             if (eng.S.MiniOpen) { eng.S.MiniOpen = false; ToggleMini(); }
@@ -439,6 +440,7 @@ namespace HallowMixer
             games.Click += (s, e) => { int n = eng.S.GameLevels.Count; eng.S.GameLevels.Clear(); eng.S.Save(); Status("Forgot the saved levels for " + n + " game(s)."); };
             sp.Children.Add(games);
             sw("Check for updates when Hallow Mixer starts (asks before installing)", eng.S.AutoUpdate, v => eng.S.AutoUpdate = v);
+            sw("Let Hallow Toolkit and its phone dashboard control the mixer (this PC only)", eng.S.ApiOn, v => { eng.S.ApiOn = v; if (v) StartApi(); else StopApi(); });
             var ur = new WrapPanel { Margin = new Thickness(0, 4, 0, 0) };
             var checkNow = new Button { Content = "Check for updates now", Style = (Style)FindResource("Btn"), Margin = new Thickness(0, 0, 8, 6) };
             checkNow.Click += (s, e) => CheckForUpdate(true);
@@ -941,6 +943,65 @@ namespace HallowMixer
             t.Start();
         }
 
+        // ---- v2.1 local API for Hallow Toolkit / phone dashboard
+        MixerApi api;
+        void StartApi()
+        {
+            if (api != null) return;
+            api = new MixerApi(ApiState, ApiDo, Dispatcher);
+            if (!api.Start()) { api = null; return; }
+            Dispatcher.ShutdownStarted += (s, e) => StopApi();
+        }
+        void StopApi() { if (api != null) { api.Stop(); api = null; } }
+        string ApiState()
+        {
+            var mid = CoreAudio.DefaultId(1);
+            var chans = Engine.ChannelIds.Select(id => { var c = eng.Chan(id); return (object)new Dictionary<string, object> { { "id", id }, { "name", Engine.ChannelNames[id] }, { "volume", c.Volume }, { "muted", c.Muted } }; }).ToArray();
+            var micInfo = new Dictionary<string, object> { { "level", mid == null ? -1 : (int)Math.Round(CoreAudio.GetLevel(mid) * 100) }, { "muted", mid != null && CoreAudio.GetMute(mid) } };
+            return new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(new Dictionary<string, object> {
+                { "version", Program.Version }, { "channels", chans }, { "mic", micInfo }, { "chatMix", eng.S.ChatMix },
+                { "presets", eng.S.Presets.Select(p => p.Name).ToArray() }, { "game", eng.CurrentGameName }, { "obs", obs.Connected } });
+        }
+        // Commands: /set?ch=game&v=60 (or &d=-10), /mute?ch=game&m=toggle|1|0, /mic?mute=toggle|1|0, /preset?name=Chill
+        string ApiDo(string path, Dictionary<string, string> q)
+        {
+            string ch; q.TryGetValue("ch", out ch);
+            if ((path == "/set" || path == "/mute") && (ch == null || !Engine.ChannelIds.Contains(ch))) return "unknown channel";
+            switch (path)
+            {
+                case "/set":
+                {
+                    var c = eng.Chan(ch); int v; string a;
+                    if (q.TryGetValue("v", out a) && int.TryParse(a, out v)) c.Volume = Math.Max(0, Math.Min(100, v));
+                    else if (q.TryGetValue("d", out a) && int.TryParse(a, out v)) c.Volume = Math.Max(0, Math.Min(100, c.Volume + v));
+                    else return "missing v or d";
+                    eng.NoteLevelsChanged(); eng.Apply(); LoadValues(); dirty = true;
+                    return Engine.ChannelNames[ch] + " " + c.Volume + "%";
+                }
+                case "/mute":
+                {
+                    var c = eng.Chan(ch); string m; q.TryGetValue("m", out m);
+                    c.Muted = m == "1" ? true : m == "0" ? false : !c.Muted;
+                    eng.Apply(); LoadValues(); dirty = true;
+                    return Engine.ChannelNames[ch] + (c.Muted ? " muted" : " on");
+                }
+                case "/mic":
+                {
+                    string m; q.TryGetValue("mute", out m);
+                    var mid = CoreAudio.DefaultId(1); if (mid == null) return "no mic";
+                    SetMicMute(m == "1" ? true : m == "0" ? false : !CoreAudio.GetMute(mid));
+                    return CoreAudio.GetMute(mid) ? "Mic muted" : "Mic on";
+                }
+                case "/preset":
+                {
+                    string n; q.TryGetValue("name", out n);
+                    var p = eng.S.Presets.FirstOrDefault(x => x.Name == n); if (p == null) return "no preset called " + n;
+                    UsePreset(p); return p.Name + " preset on";
+                }
+            }
+            return null;
+        }
+
         // ---- v2.0 OBS link
         readonly ObsLink obs = new ObsLink(); StreamWindow streamWin; bool obsConnecting, obsHooked; DateTime lastObsTry = DateTime.MinValue;
         async System.Threading.Tasks.Task ConnectObs(bool quiet)
@@ -1132,7 +1193,7 @@ namespace HallowMixer
         }
         void ExitApp()
         {
-            exiting = true;
+            exiting = true; StopApi();
             try { eng.S.Save(); eng.ResetAllApps(); } catch { }
             var h = new WindowInteropHelper(this).Handle; for (int i = 1; i <= 5; i++) UnregisterHotKey(h, i);
             tray.Visible = false; tray.Dispose();
