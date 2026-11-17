@@ -22,14 +22,14 @@ using WF = System.Windows.Forms;
 [assembly: AssemblyTitle("Hallow Mixer")]
 [assembly: AssemblyProduct("Hallow Mixer")]
 [assembly: AssemblyDescription("Per-app volume mixer: game, chat, music, media")]
-[assembly: AssemblyVersion("2.7.0.0")]
-[assembly: AssemblyFileVersion("2.7.0.0")]
+[assembly: AssemblyVersion("2.8.0.0")]
+[assembly: AssemblyFileVersion("2.8.0.0")]
 
 namespace HallowMixer
 {
     public static class Program
     {
-        public const string Version = "2.7";
+        public const string Version = "2.8";
         [STAThread]
         public static void Main(string[] args)
         {
@@ -408,6 +408,7 @@ namespace HallowMixer
             sw("EQ follows the game (each game remembers its headset EQ)", eng.S.EqPerGame, v => eng.S.EqPerGame = v);
             sw("Even out Media: loud ads and explosions down, quiet talking up", eng.S.LevelMedia, v => eng.S.LevelMedia = v);
             sw("Show a pop-up on screen when I use the hotkeys", eng.S.Overlay, v => eng.S.Overlay = v);
+            sw("Preset hotkeys: Ctrl+Alt+1 to 9 for your presets, Ctrl+Alt+0 for the next one", eng.S.PresetKeys, v => { eng.S.PresetKeys = v; RegisterPresetKeys(v); });
             sw("Show what's playing (song or video, with play/pause and skip)", eng.S.NowPlayingOn, v => { eng.S.NowPlayingOn = v; ShowNow(v ? NowPlaying.Current : null); });
             sw("Headset first: use it whenever it's on, otherwise use the fallback", eng.S.AutoSwitch, v => { eng.S.AutoSwitch = v; lastAuto = null; });
             var ag = new Grid { Margin = new Thickness(52, 2, 0, 6) };
@@ -806,7 +807,7 @@ namespace HallowMixer
                 {
                     var preset = p;
                     var b = new Button { Content = p.Name, Style = (Style)FindResource("Btn"), Margin = new Thickness(0, 0, 6, 0), MinWidth = 64,
-                        ToolTip = "Click to use " + p.Name + ". Right-click to save, rename or delete." };
+                        ToolTip = "Click to use " + p.Name + (eng.S.PresetKeys && eng.S.Presets.IndexOf(p) < 9 ? " (Ctrl+Alt+" + (eng.S.Presets.IndexOf(p) + 1) + ")" : "") + ". Right-click to save, rename or delete." };
                     b.Click += (s, e) => UsePreset(preset);
                     var cm = new ContextMenu();
                     var save = new MenuItem { Header = "Save the current levels here" };
@@ -1246,6 +1247,44 @@ namespace HallowMixer
             if (!RegisterHotKey(h, 4, 0x4003, 0x26)) bad.Add("Ctrl+Alt+Up");
             if (!RegisterHotKey(h, 5, 0x4003, 0x28)) bad.Add("Ctrl+Alt+Down");
             if (bad.Count > 0) Status("Another app already uses " + string.Join(", ", bad) + " - those hotkeys are off.");
+            if (eng.S.PresetKeys) RegisterPresetKeys(true);
+        }
+
+        // ---- v2.8 preset hotkeys: Ctrl+Alt+1..9 = preset 1..9, Ctrl+Alt+0 = next preset (ids 10..19)
+        [DllImport("user32.dll")] static extern int ToUnicodeEx(uint vk, uint scan, byte[] state, [Out, MarshalAs(UnmanagedType.LPWStr)] System.Text.StringBuilder buf, int size, uint flags, IntPtr layout);
+        [DllImport("user32.dll")] static extern IntPtr GetKeyboardLayout(uint thread);
+        // On keyboards with AltGr (German, French, Polish...), Ctrl+Alt+digit types a character like { or @ - never take those.
+        public static bool TypesSomething(uint vk)
+        {
+            var st = new byte[256]; st[0x11] = 0x80; st[0x12] = 0x80;   // Ctrl + Alt held
+            var sb = new System.Text.StringBuilder(8);
+            int n = ToUnicodeEx(vk, 0, st, sb, sb.Capacity, 4, GetKeyboardLayout(0));   // flag 4: don't change the keyboard state
+            return n != 0;
+        }
+        public List<string> PresetKeysSkipped = new List<string>();
+        void RegisterPresetKeys(bool on)
+        {
+            var h = new WindowInteropHelper(this).Handle; if (h == IntPtr.Zero) return;
+            for (int i = 10; i <= 19; i++) UnregisterHotKey(h, i);
+            PresetKeysSkipped.Clear();
+            if (!on) return;
+            for (int d = 0; d <= 9; d++)
+            {
+                uint vk = (uint)(0x30 + d); var name = "Ctrl+Alt+" + d;
+                if (TypesSomething(vk)) { PresetKeysSkipped.Add(name + " (types a character on your keyboard)"); continue; }
+                if (!RegisterHotKey(h, 10 + d, 0x4003, vk)) PresetKeysSkipped.Add(name + " (another app uses it)");
+            }
+            if (PresetKeysSkipped.Count > 0) Status("Preset hotkeys not used: " + string.Join(", ", PresetKeysSkipped) + ".");
+        }
+        int lastPreset = -1;
+        void PresetHotkey(int d)
+        {
+            var list = eng.S.Presets; if (list.Count == 0) return;
+            int i = d == 0 ? (lastPreset + 1) % list.Count : d - 1;
+            if (i >= list.Count) { Notice("No preset " + d + " (you have " + list.Count + ")", -1); return; }
+            lastPreset = i; var p = list[i];
+            eng.ApplyPreset(p); eng.NoteLevelsChanged(); LoadValues();
+            Status(p.Name + " preset on."); Notice(p.Name + " preset", -1);
         }
         IntPtr WndProc(IntPtr h, int msg, IntPtr w, IntPtr l, ref bool handled)
         {
@@ -1258,6 +1297,7 @@ namespace HallowMixer
             }
             else if (id == 3) { SetMicMute(!(mic.Mute.IsChecked == true)); Notice(mic.Mute.IsChecked == true ? "Mic muted" : "Mic on", -1); }
             else if (id == 4 || id == 5) FrontAppVolume(id == 4 ? 5 : -5);
+            else if (id >= 10 && id <= 19) PresetHotkey(id - 10);
             handled = true; return IntPtr.Zero;
         }
 
@@ -1336,7 +1376,7 @@ namespace HallowMixer
         {
             exiting = true; StopApi();
             try { eng.S.Save(); eng.ResetAllApps(); } catch { }
-            var h = new WindowInteropHelper(this).Handle; for (int i = 1; i <= 5; i++) UnregisterHotKey(h, i);
+            var h = new WindowInteropHelper(this).Handle; for (int i = 1; i <= 19; i++) UnregisterHotKey(h, i);
             tray.Visible = false; tray.Dispose();
             Application.Current.Shutdown();
         }
