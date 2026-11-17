@@ -22,14 +22,14 @@ using WF = System.Windows.Forms;
 [assembly: AssemblyTitle("Hallow Mixer")]
 [assembly: AssemblyProduct("Hallow Mixer")]
 [assembly: AssemblyDescription("Per-app volume mixer: game, chat, music, media")]
-[assembly: AssemblyVersion("3.8.0.0")]
-[assembly: AssemblyFileVersion("3.8.0.0")]
+[assembly: AssemblyVersion("3.9.0.0")]
+[assembly: AssemblyFileVersion("3.9.0.0")]
 
 namespace HallowMixer
 {
     public static class Program
     {
-        public const string Version = "3.8";
+        public const string Version = "3.9";
         public static List<CliCommand> StartupCommands = new List<CliCommand>();
         [STAThread]
         public static void Main(string[] args)
@@ -288,6 +288,8 @@ namespace HallowMixer
             if (eng.S.MiniOpen) { eng.S.MiniOpen = false; ToggleMini(); }
             UpdateNoiseButton(); UpdateCleanButton(); UpdateSplitButton();
             if (Settings.FirstRun && !eng.S.SetupDone && !startHidden) Dispatcher.BeginInvoke(new Action(OpenSetup), DispatcherPriority.ApplicationIdle);
+            if (string.IsNullOrEmpty(eng.S.LastSeenVersion) && Settings.FirstRun) { eng.S.LastSeenVersion = Program.Version; dirty = true; }   // new install: nothing to tell
+            if (!startHidden) Dispatcher.BeginInvoke(new Action(ShowWhatsNew), DispatcherPriority.ApplicationIdle);
             DateTime lastCheck;
             if (eng.S.AutoUpdate && (!DateTime.TryParse(eng.S.LastUpdateCheck, out lastCheck) || (DateTime.Now - lastCheck).TotalHours > 20)) CheckForUpdate(false);
         }
@@ -1226,6 +1228,16 @@ namespace HallowMixer
             t.Start();
         }
 
+        // ---- v3.9 what's new: once per update, the next time the window is on screen
+        void ShowWhatsNew()
+        {
+            if (eng.S.LastSeenVersion == Program.Version || !IsVisible) return;
+            var items = WhatsNew.Since(string.IsNullOrEmpty(eng.S.LastSeenVersion) ? "3.8" : eng.S.LastSeenVersion);   // settings from before 3.9: show this version
+            eng.S.LastSeenVersion = Program.Version; eng.S.Save();
+            if (items.Count == 0 || (setupWin != null && setupWin.IsLoaded)) return;
+            new WhatsNewWindow(items) { Owner = this }.Show();
+        }
+
         // ---- v2.2 first-run setup
         SetupWindow setupWin; GamesWindow gamesWin;
         void OpenSetup()
@@ -1295,7 +1307,7 @@ namespace HallowMixer
             return new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(new Dictionary<string, object> {
                 { "version", Program.Version }, { "channels", chans }, { "mic", micInfo }, { "chatMix", eng.S.ChatMix },
                 { "presets", eng.S.Presets.Select(p => p.Name).ToArray() }, { "game", eng.CurrentGameName }, { "obs", obs.Connected },
-                { "nowPlaying", NowState() } });
+                { "nowPlaying", NowState() }, { "profile", eng.S.ProfileName }, { "profiles", Profiles.List(eng.S.ProfileName).ToArray() } });
         }
         object NowState()
         {
@@ -1626,6 +1638,7 @@ namespace HallowMixer
         }
         public void ShowFromTray()
         {
+            Dispatcher.BeginInvoke(new Action(ShowWhatsNew), DispatcherPriority.ApplicationIdle);
             Show(); if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
             Activate(); Topmost = true; Topmost = false;
         }

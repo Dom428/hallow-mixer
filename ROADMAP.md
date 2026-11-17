@@ -36,12 +36,9 @@ The goal: everything SteelSeries Sonar does for a gamer - and the things it does
 | **3.6** | Profiles: whole mixer setups for different people or uses on one PC (Settings and tray menu; New / Delete; `--profile Name` shortcut); switching restarts Hallow Mixer cleanly - fixes a race where a restart (also Restore settings) could exit instead of reopening |
 | **3.7** | Split headset: finds headsets that show up as two outputs ("A50 Game" + "A50 Voice", "Arctis ... Game" + "... Chat"); one click on the Chat strip sends Chat to the voice/chat output with a Voice clarity EQ (keeps yours if you have one), so the headset's own game/chat dial balances games against Discord; one at a time with Clean voices |
 | **3.8** | Auto mic level: "Set my level for me" on the Mic strip records 5 s of talking, finds where your voice really peaks (90th percentile of 50 ms blocks, so a knock can't fool it) and sets the mic in dB so speech peaks around -7 dB; tells you to use Mic Boost if it's still too quiet at 100% |
+| **3.9** | What's new: a short pop-up once after each update with the versions you skipped (never on a new install); the local API reports profiles, so Hallow Toolkit 4.9's phone dashboard can switch them |
 
 ## Next
-
-### 3.9 - What's new, and profiles on your phone
-- A short "What's new" pop-up once after each update
-- Hallow Toolkit 4.9: switch mixer profiles from the phone dashboard
 
 ### Fixes from testing at home
 - Whatever comes up on the real A50, QuadCast 2S, Equalizer APO, OBS, Stream Deck and Discord

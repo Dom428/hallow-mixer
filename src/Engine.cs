@@ -65,6 +65,8 @@ namespace HallowMixer
         [DataMember] public bool EqPerGame = true;        // each game remembers its headset/speaker EQ
         [DataMember] public Dictionary<string, Dictionary<string, EqState>> GameEq = new Dictionary<string, Dictionary<string, EqState>>();
         [DataMember] public bool LevelMedia;              // even out loud and quiet moments in the Media channel
+        // v3.9
+        [DataMember] public string LastSeenVersion = "";   // for "What's new" after an update
         // v3.7 - split headset
         [DataMember] public bool Split;
         [DataMember] public string SplitPrev = "";       // Chat's output before
@@ -112,7 +114,7 @@ namespace HallowMixer
             DuckOnChat = true; DuckAmount = 50; PerGame = true; Overlay = true;
             PrimaryOut = ""; FallbackOut = ""; MiniLeft = -1; MiniTop = -1;
             Eq = new Dictionary<string, EqState>(); AppOutput = new Dictionary<string, string>();
-            AutoUpdate = true; LastUpdateCheck = ""; MicKeepLevel = -1; ApiOn = true; NowPlayingOn = true; SmartDuck = true; PresetKeys = true; MutedWarn = true; QuietFrom = 23; QuietTo = 7; QuietMax = 40; ProfileName = "Default"; SplitPrev = ""; BgLevel = new Dictionary<string, int>(); SetupMode = ""; ChatCleanPrev = ""; ObsHost = "localhost"; ObsPort = 4455; ObsPass = ""; EqPerGame = true; GameEq = new Dictionary<string, Dictionary<string, EqState>>(); MicMode = "off"; PttKey = 0x05; WinLeft = -1; WinTop = -1; WinWidth = -1; WinHeight = -1;
+            AutoUpdate = true; LastUpdateCheck = ""; MicKeepLevel = -1; ApiOn = true; NowPlayingOn = true; SmartDuck = true; PresetKeys = true; MutedWarn = true; QuietFrom = 23; QuietTo = 7; QuietMax = 40; ProfileName = "Default"; SplitPrev = ""; LastSeenVersion = ""; BgLevel = new Dictionary<string, int>(); SetupMode = ""; ChatCleanPrev = ""; ObsHost = "localhost"; ObsPort = 4455; ObsPass = ""; EqPerGame = true; GameEq = new Dictionary<string, Dictionary<string, EqState>>(); MicMode = "off"; PttKey = 0x05; WinLeft = -1; WinTop = -1; WinWidth = -1; WinHeight = -1;
             MutedApps = new List<string>(); GameLevels = new Dictionary<string, Preset>();
             AppChannel = new Dictionary<string, string>(); AppVolume = new Dictionary<string, int>();
         }
