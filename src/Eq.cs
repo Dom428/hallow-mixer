@@ -25,6 +25,7 @@ namespace HallowMixer
         [DataMember] public bool On;
         [DataMember] public string Preset = "Flat";
         [DataMember] public int[] Gains = new int[10];
+        [DataMember] public int LowCut;        // v1.7: high-pass filter in Hz for mics (0 = off) - removes rumble, desk bumps, fan hum
     }
 
     public static class Eq
@@ -40,6 +41,7 @@ namespace HallowMixer
             { "Music", new[] { 4, 3, 1, 0, -1, -1, 0, 2, 3, 4 } } };
         public static readonly Dictionary<string, int[]> MicPresets = new Dictionary<string, int[]> {
             { "Flat", new[] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } },
+            { "Discord-ready", new[] { 0, -1, -2, -1, 0, 1, 3, 3, 1, -2 } },
             { "Clear voice", new[] { -12, -8, -3, 0, 1, 2, 3, 2, 0, -2 } },
             { "Warm", new[] { -6, 2, 3, 1, 0, -1, 0, 1, 0, -2 } },
             { "Bright", new[] { -8, -5, -1, 0, 0, 1, 3, 4, 4, 2 } },
@@ -100,6 +102,19 @@ namespace HallowMixer
             return Connected;
         }
 
+        public static readonly int[] LowCuts = { 0, 60, 80, 100, 120 };
+
+        // One click: the Discord-ready mic sound on this mic (voice EQ + 80 Hz low cut).
+        public static EqState MakeDiscordReady(Dictionary<string, EqState> eq, string micId, string micName)
+        {
+            EqState st;
+            if (!eq.TryGetValue(micId, out st)) { st = new EqState(); eq[micId] = st; }
+            st.Name = "Mic: " + micName; st.Capture = true; st.On = true; st.Preset = "Discord-ready";
+            st.Gains = (int[])MicPresets["Discord-ready"].Clone(); st.LowCut = 80;
+            Write(eq);
+            return st;
+        }
+
         static string Guid(string deviceId) { int i = deviceId.LastIndexOf('.'); return i >= 0 ? deviceId.Substring(i + 1) : deviceId; }
 
         // Writes every device's EQ. Equalizer APO picks the change up within a second.
@@ -109,13 +124,15 @@ namespace HallowMixer
             sb.AppendLine("# Written by Hallow Mixer - change it in Hallow Mixer > EQ (edits here are overwritten).");
             foreach (var kv in eq)
             {
-                var e = kv.Value; if (!e.On || e.Gains == null || e.Gains.All(g => g == 0)) continue;
+                var e = kv.Value; if (!e.On || e.Gains == null || (e.Gains.All(g => g == 0) && e.LowCut <= 0)) continue;
                 sb.AppendLine();
                 sb.AppendLine("# " + (e.Name ?? kv.Key) + " - " + e.Preset);
                 sb.AppendLine("Device: " + Guid(kv.Key));
                 int max = Math.Max(0, e.Gains.Max());
                 sb.AppendLine("Preamp: " + (-max).ToString(CultureInfo.InvariantCulture) + " dB");   // headroom, so boosts never distort
-                sb.AppendLine("GraphicEQ: " + string.Join("; ", Bands.Select((f, i) => f.ToString(CultureInfo.InvariantCulture) + " " + e.Gains[i].ToString(CultureInfo.InvariantCulture))));
+                if (e.Gains.Any(g => g != 0))
+                    sb.AppendLine("GraphicEQ: " + string.Join("; ", Bands.Select((f, i) => f.ToString(CultureInfo.InvariantCulture) + " " + e.Gains[i].ToString(CultureInfo.InvariantCulture))));
+                if (e.LowCut > 0) sb.AppendLine("Filter: ON HP Fc " + e.LowCut.ToString(CultureInfo.InvariantCulture) + " Hz");   // true 12 dB/oct high-pass
             }
             sb.AppendLine();
             sb.AppendLine("Device: all");
@@ -132,7 +149,7 @@ namespace HallowMixer
     public class EqWindow : Window
     {
         readonly Settings s;
-        ComboBox device; CheckBox onSwitch; WrapPanel presetRow; TextBlock status, apoText; Button connectBtn, configBtn;
+        ComboBox device, lowCut; DockPanel lowCutRow; CheckBox onSwitch; WrapPanel presetRow; TextBlock status, apoText; Button connectBtn, configBtn;
         readonly Slider[] bands = new Slider[10]; readonly TextBlock[] vals = new TextBlock[10];
         bool loading; readonly DispatcherTimer writeTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
 
@@ -173,6 +190,15 @@ namespace HallowMixer
 
             presetRow = new WrapPanel { Margin = new Thickness(0, 0, 0, 12) };
             sp.Children.Add(presetRow);
+            lowCutRow = new DockPanel { Margin = new Thickness(0, 0, 0, 12) };
+            var lcl = new TextBlock { Text = "Low cut", Foreground = (Brush)FindResource("Muted"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) };
+            lowCut = new ComboBox { Style = (Style)FindResource("Combo"), Width = 120, ToolTip = "Removes rumble, desk bumps and fan hum below this pitch (voices stay untouched). 80 Hz suits most voices." };
+            lowCut.ItemsSource = Eq.LowCuts.Select(h => h == 0 ? "Off" : h + " Hz").ToList();
+            lowCut.SelectionChanged += (o, e) => { if (loading) return; var st = Cur(); if (st == null || lowCut.SelectedIndex < 0) return; st.LowCut = Eq.LowCuts[lowCut.SelectedIndex]; if (st.LowCut > 0) { st.On = true; onSwitch.IsChecked = true; } Changed(); };
+            var lch = new TextBlock { Text = "removes rumble and desk bumps", Foreground = (Brush)FindResource("Muted"), FontSize = 11, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0) };
+            DockPanel.SetDock(lcl, Dock.Left); DockPanel.SetDock(lowCut, Dock.Left);
+            lowCutRow.Children.Add(lcl); lowCutRow.Children.Add(lowCut); lowCutRow.Children.Add(lch);
+            sp.Children.Add(lowCutRow);
 
             var grid = new Grid { Height = 210, Background = (Brush)FindResource("Panel") };
             for (int i = 0; i < 10; i++)
@@ -246,6 +272,8 @@ namespace HallowMixer
             loading = true;
             onSwitch.IsChecked = st.On;
             for (int i = 0; i < 10; i++) { bands[i].Value = st.Gains[i]; vals[i].Text = (st.Gains[i] > 0 ? "+" : "") + st.Gains[i]; }
+            lowCutRow.Visibility = st.Capture ? Visibility.Visible : Visibility.Collapsed;
+            lowCut.SelectedIndex = Math.Max(0, Array.IndexOf(Eq.LowCuts, st.LowCut));
             loading = false;
             presetRow.Children.Clear();
             var presets = st.Capture ? Eq.MicPresets : Eq.OutPresets;
@@ -255,7 +283,9 @@ namespace HallowMixer
                 var b = new Button { Content = name, Style = (Style)FindResource(st.Preset == name ? "Accent" : "Btn"), Margin = new Thickness(0, 0, 6, 6) };
                 b.Click += (o, e) =>
                 {
-                    var cur = Cur(); cur.Gains = (int[])gains.Clone(); cur.Preset = name; cur.On = name != "Flat"; Changed(); LoadDevice();
+                    var cur = Cur(); cur.Gains = (int[])gains.Clone(); cur.Preset = name;
+                    if (cur.Capture && name == "Discord-ready") cur.LowCut = 80; else if (cur.Capture && name == "Flat") cur.LowCut = 0;
+                    cur.On = name != "Flat" || cur.LowCut > 0; Changed(); LoadDevice();
                     Status(name + " on " + cur.Name + (Eq.Connected ? "." : " - connect Equalizer APO above for it to take effect."));
                 };
                 presetRow.Children.Add(b);
@@ -264,5 +294,6 @@ namespace HallowMixer
         }
 
         void Changed() { writeTimer.Stop(); writeTimer.Start(); }
+        public void Reload() { LoadDevice(); }
     }
 }

@@ -1,4 +1,4 @@
-﻿# Hallow Mixer
+# Hallow Mixer
 
 A per-app volume mixer for Windows 10/11 - one fader per kind of sound, a game/chat balance, your mic, presets and hotkeys. Free, tiny (under 100 KB), nothing else to install.
 
@@ -22,6 +22,8 @@ A per-app volume mixer for Windows 10/11 - one fader per kind of sound, a game/c
 - **Headset first:** when your headset turns on, sound goes to it; when it turns off, it falls back to your speakers - and back again.
 - **Hotkeys:** `Ctrl+Alt+PageUp` / `PageDown` = game/chat balance, `Ctrl+Alt+M` = mute mic - with an on-screen pop-up that shows over borderless games.
 - **Noise removal:** one click to switch to NVIDIA Broadcast's noise-removed mic (free, RTX cards).
+- **Discord-ready mic:** one click unmutes, sets a good level that stays put, and adds voice EQ + an 80 Hz rumble cut.
+- **Keep my mic level:** if Discord's automatic gain, a game or Windows moves your mic level, it's put back.
 - **Updates:** checks GitHub when it starts and asks before installing; the download's checksum is verified.
 - **Settings backup:** save and restore all levels, presets, EQ and app choices.
 - **Tray app:** close the window and it keeps running by the clock; optional start with Windows. Exit puts every app back to full volume and its normal output.

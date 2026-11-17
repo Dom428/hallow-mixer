@@ -1,4 +1,4 @@
-﻿// Hallow Mixer - window, tray icon and hotkeys. WPF built in code (C# 5 / .NET Framework 4.8, no installs needed).
+// Hallow Mixer - window, tray icon and hotkeys. WPF built in code (C# 5 / .NET Framework 4.8, no installs needed).
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -22,14 +22,14 @@ using WF = System.Windows.Forms;
 [assembly: AssemblyTitle("Hallow Mixer")]
 [assembly: AssemblyProduct("Hallow Mixer")]
 [assembly: AssemblyDescription("Per-app volume mixer: game, chat, music, media")]
-[assembly: AssemblyVersion("1.6.0.0")]
-[assembly: AssemblyFileVersion("1.6.0.0")]
+[assembly: AssemblyVersion("1.7.0.0")]
+[assembly: AssemblyFileVersion("1.7.0.0")]
 
 namespace HallowMixer
 {
     public static class Program
     {
-        public const string Version = "1.6";
+        public const string Version = "1.7";
         [STAThread]
         public static void Main(string[] args)
         {
@@ -251,6 +251,7 @@ namespace HallowMixer
             {
                 CheckAutoSwitch();
                 UpdateDefaults();
+                KeepMicLevel();
                 if (eng.Refresh()) RebuildApps(); else UpdateSubs();
                 if (eng.LevelsSwitched) { eng.LevelsSwitched = false; LoadValues(); Status(eng.LevelsNote); if (eng.S.Overlay) osd.Flash(eng.LevelsNote, -1); }
             };
@@ -416,6 +417,12 @@ namespace HallowMixer
             DockPanel.SetDock(pml, Dock.Left); DockPanel.SetDock(mode, Dock.Left); DockPanel.SetDock(pttKeyBtn, Dock.Right);
             pm.Children.Add(pml); pm.Children.Add(mode); pm.Children.Add(pttKeyBtn); pm.Children.Add(pttKeyText);
             sp.Children.Add(pm);
+            micKeepSwitch = sw("Keep my mic level (puts it back if Discord, a game or Windows changes it)", eng.S.MicKeep, v =>
+            {
+                eng.S.MicKeep = v; keptMic = null;
+                if (v) { var id = CoreAudio.DefaultId(1); var l = id == null ? -1 : CoreAudio.GetLevel(id); eng.S.MicKeepLevel = l < 0 ? -1 : (int)Math.Round(l * 100); keptMic = id;
+                    Status("Your mic stays at " + eng.S.MicKeepLevel + "%. Move the Mic fader to change it."); }
+            });
             var st = sw("Start with Windows (in the tray)", StartsWithWindows(), v => { SetStartWithWindows(v); if (trayStartup != null) trayStartup.Checked = v; });
             var games = new Button { Content = "Forget saved game levels", Style = (Style)FindResource("Btn"), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 10, 0, 0) };
             games.Click += (s, e) => { int n = eng.S.GameLevels.Count; eng.S.GameLevels.Clear(); eng.S.Save(); Status("Forgot the saved levels for " + n + " game(s)."); };
@@ -521,9 +528,10 @@ namespace HallowMixer
             var shell = StripShell(st, "Mic");
             var dp = (DockPanel)shell.Child;
             var body = new StackPanel { Background = Brushes.Transparent }; DockPanel.SetDock(body, Dock.Top);
-            body.Children.Add(FaderBlock(st, "Your mic level (what games and Discord get)"));
+            body.Children.Add(FaderBlock(st, "Your mic level (what games and Discord get). Using Sonar? Set your real mic's level in Sonar."));
             body.PreviewMouseWheel += (s, e) => { st.Fader.Value = Math.Max(0, Math.Min(100, Math.Round(st.Fader.Value) + (e.Delta > 0 ? 3 : -3))); e.Handled = true; };
-            st.Fader.ValueChanged += (s, e) => { if (loading) return; var mid = CoreAudio.DefaultId(1); if (mid != null) CoreAudio.SetLevel(mid, (float)(st.Fader.Value / 100)); st.Pct.Text = (int)st.Fader.Value + "%"; };
+            st.Fader.ValueChanged += (s, e) => { if (loading) return; var mid = CoreAudio.DefaultId(1); if (mid != null) CoreAudio.SetLevel(mid, (float)(st.Fader.Value / 100)); st.Pct.Text = (int)st.Fader.Value + "%";
+                if (eng.S.MicKeep) { eng.S.MicKeepLevel = (int)Math.Round(st.Fader.Value); keptMic = mid; dirty = true; } };
             st.Pct = new TextBlock { HorizontalAlignment = HorizontalAlignment.Center, FontSize = 15, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 8) };
             body.Children.Add(st.Pct);
             st.Mute = new ToggleButton { Content = "Mute", Style = (Style)FindResource("Toggle"), Margin = new Thickness(0, 0, 0, 8), ToolTip = "Ctrl+Alt+M" };
@@ -532,6 +540,10 @@ namespace HallowMixer
             var test = new Button { Content = "Test mic", Style = (Style)FindResource("Btn"), Margin = new Thickness(0, 0, 0, 8), ToolTip = "Records 5 seconds, then plays it back - exactly what Discord and games hear" };
             test.Click += (s, e) => TestMic(test);
             body.Children.Add(test);
+            var ready = new Button { Content = "Discord-ready mic", Style = (Style)FindResource("Accent"), Margin = new Thickness(0, 0, 0, 8),
+                ToolTip = "One click: unmute, a good level that stays put, voice EQ and rumble cut (needs Equalizer APO for the EQ part)" };
+            ready.Click += (s, e) => DiscordReady();
+            body.Children.Add(ready);
             st.Output = new ComboBox { Style = (Style)FindResource("Combo"), Margin = new Thickness(0, 0, 0, 10), ToolTip = "Which mic Windows uses (default for games and calls)" };
             st.Output.DropDownOpened += (s, e) => FillDevices(st.Output, 1, null, false);
             st.Output.SelectionChanged += (s, e) => { if (loading) return; var d = st.Output.SelectedItem as AudioDevice; if (d != null) { CoreAudio.SetDefault(d.Id); LoadMic(); Status(d.Name + " is now your mic for games and calls."); } };
@@ -540,7 +552,6 @@ namespace HallowMixer
             nvBtn.Click += (s, e) => NoiseRemoval();
             body.Children.Add(nvBtn);
             dp.Children.Add(body);
-            dp.Children.Add(new TextBlock { Text = "Using Sonar? Set your real mic's level in Sonar.", TextWrapping = TextWrapping.Wrap, FontSize = 11, Foreground = (Brush)FindResource("Muted") });
             return shell;
         }
 
@@ -916,6 +927,51 @@ namespace HallowMixer
             }) { IsBackground = true };
             t.SetApartmentState(ApartmentState.MTA);
             t.Start();
+        }
+
+        // ---- v1.7 mic pro
+        CheckBox micKeepSwitch; string keptMic; DateTime lastKeepNote = DateTime.MinValue;
+        // Every 2 s: if something else moved the mic level (Discord's automatic gain, a game, Windows), put it back.
+        void KeepMicLevel()
+        {
+            if (!eng.S.MicKeep || string.IsNullOrEmpty(defMic)) return;
+            try
+            {
+                var l = CoreAudio.GetLevel(defMic); if (l < 0) return;
+                int now = (int)Math.Round(l * 100);
+                if (keptMic != defMic || eng.S.MicKeepLevel < 0) { keptMic = defMic; eng.S.MicKeepLevel = now; dirty = true; return; }   // new mic: hold its level
+                if (Math.Abs(now - eng.S.MicKeepLevel) < 2) return;
+                CoreAudio.SetLevel(defMic, eng.S.MicKeepLevel / 100f);
+                if (IsVisible) { loading = true; mic.Fader.Value = eng.S.MicKeepLevel; mic.Pct.Text = eng.S.MicKeepLevel + "%"; loading = false; }
+                if ((DateTime.Now - lastKeepNote).TotalMinutes > 10)
+                {
+                    lastKeepNote = DateTime.Now;
+                    Status("Something changed your mic level to " + now + "% - put it back to " + eng.S.MicKeepLevel + "%. If it keeps happening, turn off Automatic Gain Control in Discord > Voice & Video.");
+                }
+            }
+            catch { }
+        }
+
+        // One click: a mic that sounds good in Discord and stays that way.
+        void DiscordReady()
+        {
+            var id = CoreAudio.DefaultId(1); if (id == null) { Status("No mic found."); return; }
+            var dev = CoreAudio.Devices(1).FirstOrDefault(d => d.Id == id);
+            var name = dev != null ? dev.Name : "your mic";
+            var done = new List<string>();
+            if (CoreAudio.GetMute(id)) { SetMicMute(false); done.Add("unmuted"); }
+            var lvl = CoreAudio.GetLevel(id);
+            if (lvl >= 0 && lvl < 0.4f) { CoreAudio.SetLevel(id, 0.75f); lvl = 0.75f; done.Add("level raised to 75%"); }
+            eng.S.MicKeep = true; eng.S.MicKeepLevel = lvl < 0 ? -1 : (int)Math.Round(lvl * 100); keptMic = id;
+            if (micKeepSwitch != null) micKeepSwitch.IsChecked = true;
+            done.Add("level held at " + eng.S.MicKeepLevel + "%");
+            Eq.MakeDiscordReady(eng.S.Eq, id, name);
+            done.Add(Eq.Connected ? "voice EQ + rumble cut on" : "voice EQ + rumble cut saved (starts once Equalizer APO is connected)");
+            eng.S.Save(); LoadMic();
+            if (eqWin != null && eqWin.IsLoaded) eqWin.Reload();
+            var tip = BroadcastMic() == null && hasRtx == true ? " Noise removal: see below." : "";
+            Status("Mic is Discord-ready: " + string.Join(", ", done) + ". In Discord, turn off Automatic Gain Control." + tip);
+            if (eng.S.Overlay) osd.Flash("Mic is Discord-ready", -1);
         }
 
         void SetMicMute(bool m)

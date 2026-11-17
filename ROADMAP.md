@@ -1,4 +1,4 @@
-﻿# Hallow Mixer roadmap
+# Hallow Mixer roadmap
 
 The goal: everything SteelSeries Sonar does for a gamer - and the things it doesn't - in a tiny, free app that works with any headset.
 
@@ -13,18 +13,16 @@ The goal: everything SteelSeries Sonar does for a gamer - and the things it does
 | **1.4** | Volume of the app in front (Ctrl+Alt+Up/Down); per-app output (Play on); mic test (record + play back) |
 | **1.5** | Push-to-talk / push-to-mute; window remembers size and place; presets you can rename, add and delete |
 | **1.6** | Noise removal via NVIDIA Broadcast (one click); auto-update from GitHub with checksum check; uninstall entry in Windows Settings > Apps (resets every app first); settings backup and restore |
+| **1.7** | Discord-ready mic (one click); keep my mic level; mic low cut (real high-pass filter); Discord-ready mic EQ preset |
 
 ## Next
 
-### 1.7 - Mic pro
-- Noise gate and limiter for the mic (through Equalizer APO's built-in filters where possible)
-- One-click "Discord-ready mic": rumble cut + clear-voice EQ + NVIDIA Broadcast noise removal
-- Mic level auto-keeper (like the toolkit's Keep my mic level)
 
 ### 1.8 - Hear better
 - EQ follows the game: each game remembers its EQ like it remembers its levels
 - Quick switch for Windows spatial sound (Windows Sonic / Dolby Atmos if installed)
 - Loudness levelling for the Media channel (quiet dialogue, loud explosions)
+- Mic noise gate and limiter: Equalizer APO has none built in, so this needs its own audio filter (NVIDIA Broadcast covers background noise until then)
 
 ### 1.9 - Streamers
 - OBS link (obs-websocket, built into OBS): Hallow Mixer channels drive OBS audio sources

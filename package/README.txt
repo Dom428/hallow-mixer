@@ -1,4 +1,4 @@
-﻿HALLOW MIXER - one fader per kind of sound: Game, Chat, Music, Media, System, plus your mic
+HALLOW MIXER - one fader per kind of sound: Game, Chat, Music, Media, System, plus your mic
 
 HOW TO INSTALL
 1. Right-click the zip > Properties > tick "Unblock" > OK
@@ -31,6 +31,9 @@ WHAT IT DOES
 - Hotkeys: Ctrl+Alt+PageUp / PageDown = game/chat balance, Ctrl+Alt+M = mute mic,
   with an on-screen pop-up that shows over borderless games.
 - Mic > Get noise removal / Use NVIDIA Broadcast mic: noise removal with NVIDIA Broadcast (RTX cards).
+- Mic > Discord-ready mic: one click for a good, steady level plus voice EQ and rumble cut.
+- Settings > Keep my mic level: puts your mic level back if Discord or a game changes it.
+- EQ > a mic > Low cut: removes rumble, desk bumps and fan hum.
 - Updates: it checks GitHub when it starts and asks first. Settings > Back up / Restore settings.
 - Closing the window keeps it running by the clock (your levels stay on). Tray menu:
   presets, mute mic, Start with Windows, Exit.

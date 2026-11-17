@@ -1,4 +1,4 @@
-﻿// Hallow Mixer - channels, which app goes where, the volume math and saved settings.
+// Hallow Mixer - channels, which app goes where, the volume math and saved settings.
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -58,6 +58,9 @@ namespace HallowMixer
         // v1.6
         [DataMember] public bool AutoUpdate = true;
         [DataMember] public string LastUpdateCheck = "";
+        // v1.7
+        [DataMember] public bool MicKeep;                 // put the mic level back if Discord, a game or Windows changes it
+        [DataMember] public int MicKeepLevel = -1;        // 0..100, -1 = take the current level
 
         // The JSON reader skips field initialisers, so set the defaults here (values in the file then override them).
         [OnDeserializing] void Defaults(StreamingContext c)
@@ -65,7 +68,7 @@ namespace HallowMixer
             DuckOnChat = true; DuckAmount = 50; PerGame = true; Overlay = true;
             PrimaryOut = ""; FallbackOut = ""; MiniLeft = -1; MiniTop = -1;
             Eq = new Dictionary<string, EqState>(); AppOutput = new Dictionary<string, string>();
-            AutoUpdate = true; LastUpdateCheck = ""; MicMode = "off"; PttKey = 0x05; WinLeft = -1; WinTop = -1; WinWidth = -1; WinHeight = -1;
+            AutoUpdate = true; LastUpdateCheck = ""; MicKeepLevel = -1; MicMode = "off"; PttKey = 0x05; WinLeft = -1; WinTop = -1; WinWidth = -1; WinHeight = -1;
             MutedApps = new List<string>(); GameLevels = new Dictionary<string, Preset>();
             AppChannel = new Dictionary<string, string>(); AppVolume = new Dictionary<string, int>();
         }
