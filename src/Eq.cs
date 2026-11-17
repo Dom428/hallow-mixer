@@ -26,6 +26,8 @@ namespace HallowMixer
         [DataMember] public string Preset = "Flat";
         [DataMember] public int[] Gains = new int[10];
         [DataMember] public int LowCut;        // v1.7: high-pass filter in Hz for mics (0 = off) - removes rumble, desk bumps, fan hum
+        [DataMember] public bool Param;        // v1.9: parametric mode (PBands) instead of the 10 graphic bands
+        [DataMember] public List<PBand> PBands;
     }
 
     public static class Eq
@@ -109,7 +111,7 @@ namespace HallowMixer
         {
             EqState st;
             if (!eq.TryGetValue(micId, out st)) { st = new EqState(); eq[micId] = st; }
-            st.Name = "Mic: " + micName; st.Capture = true; st.On = true; st.Preset = "Discord-ready";
+            st.Name = "Mic: " + micName; st.Capture = true; st.On = true; st.Preset = "Discord-ready"; st.Param = false;
             st.Gains = (int[])MicPresets["Discord-ready"].Clone(); st.LowCut = 80;
             Write(eq);
             return st;
@@ -124,13 +126,17 @@ namespace HallowMixer
             sb.AppendLine("# Written by Hallow Mixer - change it in Hallow Mixer > EQ (edits here are overwritten).");
             foreach (var kv in eq)
             {
-                var e = kv.Value; if (!e.On || e.Gains == null || (e.Gains.All(g => g == 0) && e.LowCut <= 0)) continue;
+                var e = kv.Value; if (!e.On || e.Gains == null) continue;
+                bool param = e.Param && e.PBands != null;
+                var act = param ? e.PBands.Where(PEq.Active).ToList() : null;
+                if ((param ? act.Count == 0 : e.Gains.All(g => g == 0)) && e.LowCut <= 0) continue;
                 sb.AppendLine();
-                sb.AppendLine("# " + (e.Name ?? kv.Key) + " - " + e.Preset);
+                sb.AppendLine("# " + (e.Name ?? kv.Key) + " - " + e.Preset + (param ? " (parametric)" : ""));
                 sb.AppendLine("Device: " + Guid(kv.Key));
-                int max = Math.Max(0, e.Gains.Max());
-                sb.AppendLine("Preamp: " + (-max).ToString(CultureInfo.InvariantCulture) + " dB");   // headroom, so boosts never distort
-                if (e.Gains.Any(g => g != 0))
+                double max = param ? Math.Ceiling(PEq.MaxBoost(act) * 10) / 10 : Math.Max(0, e.Gains.Max());
+                sb.AppendLine("Preamp: " + (-max).ToString("0.#", CultureInfo.InvariantCulture) + " dB");   // headroom, so boosts never distort
+                if (param) foreach (var b in act) sb.AppendLine(PEq.Line(b));
+                else if (e.Gains.Any(g => g != 0))
                     sb.AppendLine("GraphicEQ: " + string.Join("; ", Bands.Select((f, i) => f.ToString(CultureInfo.InvariantCulture) + " " + e.Gains[i].ToString(CultureInfo.InvariantCulture))));
                 if (e.LowCut > 0) sb.AppendLine("Filter: ON HP Fc " + e.LowCut.ToString(CultureInfo.InvariantCulture) + " Hz");   // true 12 dB/oct high-pass
             }
@@ -151,6 +157,7 @@ namespace HallowMixer
         readonly Settings s;
         ComboBox device, lowCut; DockPanel lowCutRow; CheckBox onSwitch; WrapPanel presetRow; TextBlock status, apoText; Button connectBtn, configBtn;
         readonly Slider[] bands = new Slider[10]; readonly TextBlock[] vals = new TextBlock[10];
+        Button modeG, modeP; Border shell; PEqEditor peq;
         bool loading; readonly DispatcherTimer writeTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
 
         static SolidColorBrush B(string hex) { return new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex)); }
@@ -194,6 +201,12 @@ namespace HallowMixer
             dr.Children.Add(device);
             sp.Children.Add(dr);
 
+            var mr = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 10) };
+            modeG = new Button { Content = "Graphic EQ", Margin = new Thickness(0, 0, 6, 0), ToolTip = "10 fixed sliders - quick and simple" };
+            modeP = new Button { Content = "Parametric EQ", ToolTip = "Place bands anywhere and drag the curve - like Sonar's EQ" };
+            modeG.Click += (o, e) => SetMode(false); modeP.Click += (o, e) => SetMode(true);
+            mr.Children.Add(modeG); mr.Children.Add(modeP);
+            sp.Children.Add(mr);
             presetRow = new WrapPanel { Margin = new Thickness(0, 0, 0, 12) };
             sp.Children.Add(presetRow);
             lowCutRow = new DockPanel { Margin = new Thickness(0, 0, 0, 12) };
@@ -230,8 +243,11 @@ namespace HallowMixer
                 col.Children.Add(bands[i]);
                 Grid.SetColumn(col, i); grid.Children.Add(col);
             }
-            var shell = new Border { CornerRadius = new CornerRadius(8), Background = (Brush)FindResource("Panel"), Child = grid, Padding = new Thickness(6) };
+            shell = new Border { CornerRadius = new CornerRadius(8), Background = (Brush)FindResource("Panel"), Child = grid, Padding = new Thickness(6) };
             sp.Children.Add(shell);
+            peq = new PEqEditor { Visibility = Visibility.Collapsed };
+            peq.Changed = () => { var st = Cur(); if (st == null) return; st.Preset = "Custom"; if (!st.On) { st.On = true; onSwitch.IsChecked = true; } Changed(); };
+            sp.Children.Add(peq);
             status = new TextBlock { Foreground = (Brush)FindResource("Muted"), FontSize = 11.5, Margin = new Thickness(0, 10, 0, 0), TextWrapping = TextWrapping.Wrap };
             sp.Children.Add(status);
             Content = sp;
@@ -280,8 +296,32 @@ namespace HallowMixer
             for (int i = 0; i < 10; i++) { bands[i].Value = st.Gains[i]; vals[i].Text = (st.Gains[i] > 0 ? "+" : "") + st.Gains[i]; }
             lowCutRow.Visibility = st.Capture ? Visibility.Visible : Visibility.Collapsed;
             lowCut.SelectedIndex = Math.Max(0, Array.IndexOf(Eq.LowCuts, st.LowCut));
+            bool pm = st.Param && st.PBands != null;
+            shell.Visibility = pm ? Visibility.Collapsed : Visibility.Visible;
+            peq.Visibility = pm ? Visibility.Visible : Visibility.Collapsed;
+            modeG.Style = (Style)FindResource(pm ? "Btn" : "Accent"); modeP.Style = (Style)FindResource(pm ? "Accent" : "Btn");
             loading = false;
             presetRow.Children.Clear();
+            if (pm)
+            {
+                peq.Load(st.PBands);
+                foreach (var kv in st.Capture ? PEq.MicPresets : PEq.OutPresets)
+                {
+                    var name = kv.Key; var pb = kv.Value;
+                    var b = new Button { Content = name, Style = (Style)FindResource(st.Preset == name ? "Accent" : "Btn"), Margin = new Thickness(0, 0, 6, 6) };
+                    b.Click += (o, e) =>
+                    {
+                        var cur = Cur(); cur.PBands = PEq.Copy(pb); cur.Preset = name; cur.On = true; Changed(); LoadDevice();
+                        Status(name + " on " + cur.Name + " - a starting point, drag the dots to taste." + (Eq.Connected ? "" : " Connect Equalizer APO above for it to take effect."));
+                    };
+                    presetRow.Children.Add(b);
+                }
+                var flat = new Button { Content = "Reset", Style = (Style)FindResource("Btn"), Margin = new Thickness(0, 0, 6, 6), ToolTip = "Back to 5 empty bands" };
+                flat.Click += (o, e) => { var cur = Cur(); cur.PBands = PEq.FromGraphic(null); cur.Preset = "Flat"; Changed(); LoadDevice(); };
+                presetRow.Children.Add(flat);
+                Status(st.Capture ? "Mic EQ changes what Discord and games hear from you." : "Game presets lift footsteps and reloads and trim boomy lows.");
+                return;
+            }
             var presets = st.Capture ? Eq.MicPresets : Eq.OutPresets;
             foreach (var kv in presets)
             {
@@ -300,6 +340,13 @@ namespace HallowMixer
         }
 
         void Changed() { writeTimer.Stop(); writeTimer.Start(); }
+        void SetMode(bool param)
+        {
+            var st = Cur(); if (st == null || st.Param == param) return;
+            if (param && (st.PBands == null || st.PBands.Count == 0)) st.PBands = PEq.FromGraphic(st.Gains);
+            st.Param = param; Changed(); LoadDevice();
+            Status(param ? "Parametric EQ - your graphic EQ was carried over. Drag the dots, or pick a preset." : "Graphic EQ - your parametric bands are kept for when you switch back.");
+        }
         public void Reload() { LoadDevice(); }
         public Func<string> OnChanged;   // returns the running game's name when the change was saved for it
     }

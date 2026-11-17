@@ -22,14 +22,14 @@ using WF = System.Windows.Forms;
 [assembly: AssemblyTitle("Hallow Mixer")]
 [assembly: AssemblyProduct("Hallow Mixer")]
 [assembly: AssemblyDescription("Per-app volume mixer: game, chat, music, media")]
-[assembly: AssemblyVersion("1.8.0.0")]
-[assembly: AssemblyFileVersion("1.8.0.0")]
+[assembly: AssemblyVersion("1.9.0.0")]
+[assembly: AssemblyFileVersion("1.9.0.0")]
 
 namespace HallowMixer
 {
     public static class Program
     {
-        public const string Version = "1.8";
+        public const string Version = "1.9";
         [STAThread]
         public static void Main(string[] args)
         {

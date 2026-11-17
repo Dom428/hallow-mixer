@@ -34,6 +34,7 @@ WHAT IT DOES
 - Mic > Discord-ready mic: one click for a good, steady level plus voice EQ and rumble cut.
 - Settings > Keep my mic level: puts your mic level back if Discord or a game changes it.
 - EQ > a mic > Low cut: removes rumble, desk bumps and fan hum.
+- EQ > Parametric EQ: drag the dots on the curve; presets for many games and for mics (QuadCast 2S).
 - Settings > EQ follows the game: each game remembers its headset EQ.
 - Settings > Even out Media: loud ads and explosions down, quiet talking up.
 - Updates: it checks GitHub when it starts and asks first. Settings > Back up / Restore settings.
