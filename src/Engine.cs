@@ -65,6 +65,8 @@ namespace HallowMixer
         [DataMember] public bool EqPerGame = true;        // each game remembers its headset/speaker EQ
         [DataMember] public Dictionary<string, Dictionary<string, EqState>> GameEq = new Dictionary<string, Dictionary<string, EqState>>();
         [DataMember] public bool LevelMedia;              // even out loud and quiet moments in the Media channel
+        // v2.6
+        [DataMember] public bool SmartDuck = true;      // duck only for real talking, not join/leave sounds or short noises
         // v2.5
         [DataMember] public bool NowPlayingOn = true;   // show the song / video that's playing, with play/pause and skip
         // v2.3 - clean chat voices (NVIDIA Broadcast speaker effects)
@@ -92,7 +94,7 @@ namespace HallowMixer
             DuckOnChat = true; DuckAmount = 50; PerGame = true; Overlay = true;
             PrimaryOut = ""; FallbackOut = ""; MiniLeft = -1; MiniTop = -1;
             Eq = new Dictionary<string, EqState>(); AppOutput = new Dictionary<string, string>();
-            AutoUpdate = true; LastUpdateCheck = ""; MicKeepLevel = -1; ApiOn = true; NowPlayingOn = true; SetupMode = ""; ChatCleanPrev = ""; ObsHost = "localhost"; ObsPort = 4455; ObsPass = ""; EqPerGame = true; GameEq = new Dictionary<string, Dictionary<string, EqState>>(); MicMode = "off"; PttKey = 0x05; WinLeft = -1; WinTop = -1; WinWidth = -1; WinHeight = -1;
+            AutoUpdate = true; LastUpdateCheck = ""; MicKeepLevel = -1; ApiOn = true; NowPlayingOn = true; SmartDuck = true; SetupMode = ""; ChatCleanPrev = ""; ObsHost = "localhost"; ObsPort = 4455; ObsPass = ""; EqPerGame = true; GameEq = new Dictionary<string, Dictionary<string, EqState>>(); MicMode = "off"; PttKey = 0x05; WinLeft = -1; WinTop = -1; WinWidth = -1; WinHeight = -1;
             MutedApps = new List<string>(); GameLevels = new Dictionary<string, Preset>();
             AppChannel = new Dictionary<string, string>(); AppVolume = new Dictionary<string, int>();
         }
@@ -325,17 +327,17 @@ namespace HallowMixer
 
         // ---- auto-ducking: someone talks in Chat (or you talk) -> other channels go down, then fade back
         public float DuckChat = 1f, DuckMic = 1f;          // current multipliers (1 = not ducked)
-        DateTime chatHold, micHold;
+        public readonly VoiceDetector ChatVoice = new VoiceDetector(0.03f), MicVoice = new VoiceDetector(0.08f);
         public bool Ducking { get { return DuckChat < 0.97f || DuckMic < 0.97f; } }
         // Called ~20 times a second with the live levels. Returns true when the volumes need re-applying.
-        public bool UpdateDuck(float chatPeak, float micPeak)
+        public bool UpdateDuck(float chatPeak, float micPeak) { return UpdateDuck(chatPeak, micPeak, DateTime.UtcNow); }
+        public bool UpdateDuck(float chatPeak, float micPeak, DateTime now)
         {
-            var now = DateTime.UtcNow;
-            if (chatPeak > 0.03f) chatHold = now.AddMilliseconds(700);
-            if (micPeak > 0.08f) micHold = now.AddMilliseconds(700);
+            ChatVoice.Smart = MicVoice.Smart = S.SmartDuck;
+            bool chatTalk = ChatVoice.Update(chatPeak, now), micTalk = MicVoice.Update(micPeak, now);
             float low = 1f - S.DuckAmount / 100f;
-            float tChat = S.DuckOnChat && now < chatHold ? low : 1f;
-            float tMic = S.DuckOnMic && now < micHold ? low : 1f;
+            float tChat = S.DuckOnChat && chatTalk ? low : 1f;
+            float tMic = S.DuckOnMic && micTalk ? low : 1f;
             float oc = DuckChat, om = DuckMic;
             DuckChat += (tChat - DuckChat) * (tChat < DuckChat ? 0.45f : 0.07f);   // down fast, back up gently
             DuckMic += (tMic - DuckMic) * (tMic < DuckMic ? 0.45f : 0.07f);

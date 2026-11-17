@@ -22,14 +22,14 @@ using WF = System.Windows.Forms;
 [assembly: AssemblyTitle("Hallow Mixer")]
 [assembly: AssemblyProduct("Hallow Mixer")]
 [assembly: AssemblyDescription("Per-app volume mixer: game, chat, music, media")]
-[assembly: AssemblyVersion("2.5.0.0")]
-[assembly: AssemblyFileVersion("2.5.0.0")]
+[assembly: AssemblyVersion("2.6.0.0")]
+[assembly: AssemblyFileVersion("2.6.0.0")]
 
 namespace HallowMixer
 {
     public static class Program
     {
-        public const string Version = "2.5";
+        public const string Version = "2.6";
         [STAThread]
         public static void Main(string[] args)
         {
@@ -402,6 +402,8 @@ namespace HallowMixer
             Action dtext = () => { dl.Text = "Turn down by " + eng.S.DuckAmount + "%"; };
             ds.ValueChanged += (s, e) => { eng.S.DuckAmount = (int)Math.Round(ds.Value / 5) * 5; dtext(); dirty = true; };
             dtext(); DockPanel.SetDock(dl, Dock.Left); dr.Children.Add(dl); dr.Children.Add(ds); sp.Children.Add(dr);
+            var smart = sw("Only for real talking (ignore join/leave sounds, pings and short noises)", eng.S.SmartDuck, v => eng.S.SmartDuck = v);
+            smart.Margin = new Thickness(52, 0, 0, 6);
             sw("Remember my levels for each game (they come back when the game starts)", eng.S.PerGame, v => eng.S.PerGame = v);
             sw("EQ follows the game (each game remembers its headset EQ)", eng.S.EqPerGame, v => eng.S.EqPerGame = v);
             sw("Even out Media: loud ads and explosions down, quiet talking up", eng.S.LevelMedia, v => eng.S.LevelMedia = v);
