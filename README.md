@@ -34,6 +34,7 @@ A per-app volume mixer for Windows 10/11 - one fader per kind of sound, a game/c
 - **Quiet hours:** at night the volume is capped and Windows sounds are turned down, on your schedule.
 - **Profiles:** whole mixer setups for different people or uses on one PC - switch from Settings, the tray or `--profile Name`.
 - **Split headset:** on headsets with game and chat outputs (A50, Arctis), Chat goes to the chat side with a voice EQ so the headset's own dial balances them.
+- **Auto mic level:** talk for 5 seconds and Hallow Mixer sets your mic so you're loud and clear, never distorted.
 - **Headphone space:** crossfeed for headphones (EQ window) - sound feels like speakers in front of you instead of inside your head.
 - **Game profiles:** the Games window shows every game's saved levels and EQ - change them or forget a game.
 - **Preset hotkeys:** Ctrl+Alt+1 to 9 switch presets from inside a game, Ctrl+Alt+0 goes to the next one.

@@ -1,4 +1,4 @@
-﻿// Hallow Mixer - Windows Core Audio interop (sessions, endpoint volume, meters, default devices, per-app output).
+// Hallow Mixer - Windows Core Audio interop (sessions, endpoint volume, meters, default devices, per-app output).
 // Written for the C# 5 compiler that ships with .NET Framework 4.8, so it builds on any Windows 10/11 PC.
 using System;
 using System.Collections.Generic;
@@ -50,6 +50,11 @@ namespace HallowMixer
         [PreserveSig] int GetChannelVolumeLevelScalar(uint c, out float v);
         [PreserveSig] int SetMute([MarshalAs(UnmanagedType.Bool)] bool m, ref Guid ctx);
         [PreserveSig] int GetMute([MarshalAs(UnmanagedType.Bool)] out bool m);
+        [PreserveSig] int GetVolumeStepInfo(out uint step, out uint count);
+        [PreserveSig] int VolumeStepUp(ref Guid ctx);
+        [PreserveSig] int VolumeStepDown(ref Guid ctx);
+        [PreserveSig] int QueryHardwareSupport(out uint mask);
+        [PreserveSig] int GetVolumeRange(out float minDb, out float maxDb, out float incDb);
     }
     [ComImport, Guid("C02216F6-8C67-4B5B-9D00-D008E73E0064"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
     interface IAudioMeterInformation { [PreserveSig] int GetPeakValue(out float v); }
@@ -220,6 +225,20 @@ namespace HallowMixer
             var d = Device(id); if (d == null) return;
             var v = Activate<IAudioEndpointVolume>(d, IID_Volume); if (v == null) return;
             Guid g = Guid.Empty; v.SetMasterVolumeLevelScalar(Math.Max(0f, Math.Min(1f, level)), ref g);
+        }
+        // level in dB and the device's range (for auto mic level)
+        public static bool GetDb(string id, out float db, out float minDb, out float maxDb)
+        {
+            db = minDb = maxDb = 0; float inc;
+            var d = Device(id); if (d == null) return false;
+            var v = Activate<IAudioEndpointVolume>(d, IID_Volume); if (v == null) return false;
+            return v.GetMasterVolumeLevel(out db) >= 0 && v.GetVolumeRange(out minDb, out maxDb, out inc) >= 0;
+        }
+        public static void SetDb(string id, float db)
+        {
+            var d = Device(id); if (d == null) return;
+            var v = Activate<IAudioEndpointVolume>(d, IID_Volume); if (v == null) return;
+            Guid g = Guid.Empty; v.SetMasterVolumeLevel(db, ref g);
         }
         public static bool GetMute(string id)
         {

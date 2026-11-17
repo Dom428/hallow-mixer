@@ -22,14 +22,14 @@ using WF = System.Windows.Forms;
 [assembly: AssemblyTitle("Hallow Mixer")]
 [assembly: AssemblyProduct("Hallow Mixer")]
 [assembly: AssemblyDescription("Per-app volume mixer: game, chat, music, media")]
-[assembly: AssemblyVersion("3.7.0.0")]
-[assembly: AssemblyFileVersion("3.7.0.0")]
+[assembly: AssemblyVersion("3.8.0.0")]
+[assembly: AssemblyFileVersion("3.8.0.0")]
 
 namespace HallowMixer
 {
     public static class Program
     {
-        public const string Version = "3.7";
+        public const string Version = "3.8";
         public static List<CliCommand> StartupCommands = new List<CliCommand>();
         [STAThread]
         public static void Main(string[] args)
@@ -654,6 +654,9 @@ namespace HallowMixer
             var test = new Button { Content = "Test mic", Style = (Style)FindResource("Btn"), Margin = new Thickness(0, 0, 0, 8), ToolTip = "Records 5 seconds, then plays it back - exactly what Discord and games hear" };
             test.Click += (s, e) => TestMic(test);
             body.Children.Add(test);
+            var auto = new Button { Content = "Set my level for me", Style = (Style)FindResource("Btn"), Margin = new Thickness(0, 0, 0, 8), ToolTip = "Talk normally for 5 seconds - Hallow Mixer sets your mic so you're loud and clear, never distorted" };
+            auto.Click += (s, e) => AutoMicLevel(auto);
+            body.Children.Add(auto);
             var ready = new Button { Content = "Discord-ready mic", Style = (Style)FindResource("Accent"), Margin = new Thickness(0, 0, 0, 8),
                 ToolTip = "One click: unmute, a good level that stays put, voice EQ and rumble cut (needs Equalizer APO for the EQ part)" };
             ready.Click += (s, e) => DiscordReady();
@@ -1159,6 +1162,39 @@ namespace HallowMixer
             }
             eng.SetChatClean(true, bs.Id); LoadValues(); UpdateCleanButton(); UpdateSplitButton();
             Status("Chat now goes through NVIDIA Broadcast. In the NVIDIA Broadcast app, under Speakers, pick your headset and turn on Noise Removal. Some apps switch after a restart.");
+        }
+
+        // ---- v3.8 auto mic level: record 5 s of talking, then set the mic level (in dB) so speech peaks around -7 dB
+        void AutoMicLevel(Button btn)
+        {
+            var id = CoreAudio.DefaultId(1); if (id == null) { Status("No mic found."); return; }
+            if (mic.Mute.IsChecked == true) { Status("Your mic is muted - unmute it first."); return; }
+            float curDb, minDb, maxDb;
+            if (!CoreAudio.GetDb(id, out curDb, out minDb, out maxDb)) { Status("This mic doesn't let apps set its level."); return; }
+            btn.IsEnabled = false; btn.Content = "Talk now... 5"; Status("Talk like you do in a game or on Discord for 5 seconds.");
+            var countdown = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) }; int left = 5;
+            countdown.Tick += (o, e) => { left--; if (left > 0) btn.Content = "Talk now... " + left; else countdown.Stop(); };
+            countdown.Start();
+            var t = new Thread(() =>
+            {
+                byte[] wav = null; float pk; string err = null;
+                try { wav = MicTest.Record(id, 5, out pk); } catch (Exception ex) { err = ex.Message; }
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    countdown.Stop(); btn.Content = "Set my level for me"; btn.IsEnabled = true;
+                    if (err != null) { Status("Couldn't listen to the mic: " + err); return; }
+                    var speech = MicLevel.SpeechPeak(wav);
+                    var sug = MicLevel.Suggest(curDb, minDb, maxDb, speech);
+                    var before = (int)Math.Round(CoreAudio.GetLevel(id) * 100);
+                    if (sug.Changed) CoreAudio.SetDb(id, sug.NewDb);
+                    var after = (int)Math.Round(CoreAudio.GetLevel(id) * 100);
+                    if (eng.S.MicKeep) { eng.S.MicKeepLevel = after; keptMic = id; dirty = true; }
+                    LoadMic();
+                    Status(sug.Note + (sug.Changed ? " Mic " + before + "% -> " + after + "%." : "") + (speech > 0 ? " (Your voice peaked at " + (int)(speech * 100) + "%.)" : ""));
+                }));
+            }) { IsBackground = true };
+            t.SetApartmentState(ApartmentState.MTA);
+            t.Start();
         }
 
         // Record 5 s from the default mic on a background thread, then play it back.
