@@ -40,6 +40,7 @@ WHAT IT DOES
 - Right-click an app > When I'm in another app: keep playing, turn down to 20% or mute.
 - Settings > Loud-sound guard: sudden blasts are turned down for a moment.
 - Talk while muted and a pop-up tells you (Settings to turn off).
+- Stream Deck / shortcuts: HallowMixer.exe --preset Gaming, --toggle-mic, --channel game 60 (Settings > Shortcuts for Stream Deck).
 - EQ > Headphone space: crossfeed for headphones (Light / Medium / Strong).
 - Games (top bar): every game's saved levels and EQ - change them or forget a game.
 - Ctrl+Alt+1 to 9 = your presets, Ctrl+Alt+0 = next preset.

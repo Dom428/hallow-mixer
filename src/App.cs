@@ -22,22 +22,33 @@ using WF = System.Windows.Forms;
 [assembly: AssemblyTitle("Hallow Mixer")]
 [assembly: AssemblyProduct("Hallow Mixer")]
 [assembly: AssemblyDescription("Per-app volume mixer: game, chat, music, media")]
-[assembly: AssemblyVersion("3.3.0.0")]
-[assembly: AssemblyFileVersion("3.3.0.0")]
+[assembly: AssemblyVersion("3.4.0.0")]
+[assembly: AssemblyFileVersion("3.4.0.0")]
 
 namespace HallowMixer
 {
     public static class Program
     {
-        public const string Version = "3.3";
+        public const string Version = "3.4";
+        public static List<CliCommand> StartupCommands = new List<CliCommand>();
         [STAThread]
         public static void Main(string[] args)
         {
             if (args.Contains("--reset")) { try { new Engine().ResetForUninstall(); } catch { } return; }
+            List<CliCommand> cmds;
+            try { cmds = Cli.Parse(args); }
+            catch (ArgumentException ex) { MessageBox.Show(ex.Message, "Hallow Mixer", MessageBoxButton.OK, MessageBoxImage.Information); return; }
             bool created;
             var mutex = new Mutex(true, @"Local\HallowMixer", out created);
             var showEvent = new EventWaitHandle(false, EventResetMode.AutoReset, @"Local\HallowMixerShow");
-            if (!created) { showEvent.Set(); return; }   // already running: bring that one to the front
+            if (!created)
+            {
+                // already running: send it the commands (Stream Deck, shortcuts), or just bring it to the front
+                if (cmds.Count > 0 && Cli.Send(cmds)) return;
+                if (cmds.Count > 0) MessageBox.Show("Hallow Mixer is running but didn't take the command. Turn on Settings > \"Let Hallow Toolkit and its phone dashboard control the mixer\" - shortcuts use the same local connection.", "Hallow Mixer");
+                showEvent.Set(); return;
+            }
+            StartupCommands = cmds;
             var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
             using (var s = Assembly.GetExecutingAssembly().GetManifestResourceStream("HallowMixer.Theme.xaml"))
                 app.Resources.MergedDictionaries.Add((ResourceDictionary)XamlReader.Load(s));
@@ -264,6 +275,7 @@ namespace HallowMixer
             };
             refreshTimer.Start();
             if (eng.S.ApiOn) StartApi();
+            foreach (var c in Program.StartupCommands) { try { ApiDo(c.Path, c.Query); } catch { } }   // started by a shortcut with commands
             saveTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) }; saveTimer.Tick += (s, e) => { if (dirty) { dirty = false; eng.S.Save(); } }; saveTimer.Start();
             if (!startHidden) Show(); else { WindowState = WindowState.Minimized; Show(); Hide(); WindowState = WindowState.Normal; }
             if (eng.S.MiniOpen) { eng.S.MiniOpen = false; ToggleMini(); }
@@ -458,6 +470,18 @@ namespace HallowMixer
                     Status("Your mic stays at " + eng.S.MicKeepLevel + "%. Move the Mic fader to change it."); }
             });
             var st = sw("Start with Windows (in the tray)", StartsWithWindows(), v => { SetStartWithWindows(v); if (trayStartup != null) trayStartup.Checked = v; });
+            var sc = new Button { Content = "Shortcuts for Stream Deck...", Style = (Style)FindResource("Btn"), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 10, 0, 0),
+                ToolTip = "Copy command lines for Stream Deck's Open action, AutoHotkey or desktop shortcuts" };
+            sc.Click += (s, e) =>
+            {
+                var exe = Assembly.GetExecutingAssembly().Location;
+                var lines = new[] { "--preset " + (eng.S.Presets.Count > 0 ? "\"" + eng.S.Presets[0].Name + "\"" : "Gaming"), "--toggle-mic", "--channel game 60", "--channel chat +10", "--toggle-mute music", "--media playpause" };
+                var text = "Hallow Mixer shortcuts - use one line as a Stream Deck \"Open\" action, a desktop shortcut target or in AutoHotkey:\r\n\r\n" +
+                    string.Join("\r\n", lines.Select(l => "\"" + exe + "\" " + l)) +
+                    "\r\n\r\nChannels: game, chat, music, media, system. Levels 0-100, or +10 / -10.\r\nMic: --mute-mic, --unmute-mic, --toggle-mic.  Channels: --mute, --unmute, --toggle-mute.  Media: --media playpause | next | prev.";
+                try { Clipboard.SetText(text); Status("Shortcut examples copied - paste them into Notepad to pick one."); } catch { Status("Couldn't use the clipboard - try again."); }
+            };
+            sp.Children.Add(sc);
             var again = new Button { Content = "Run setup again", Style = (Style)FindResource("Btn"), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 10, 0, 0),
                 ToolTip = "With Sonar, replacing Sonar, or just a mixer - sets channels, outputs and mic for you" };
             again.Click += (s, e) => OpenSetup();
