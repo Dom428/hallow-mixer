@@ -22,14 +22,14 @@ using WF = System.Windows.Forms;
 [assembly: AssemblyTitle("Hallow Mixer")]
 [assembly: AssemblyProduct("Hallow Mixer")]
 [assembly: AssemblyDescription("Per-app volume mixer: game, chat, music, media")]
-[assembly: AssemblyVersion("2.6.0.0")]
-[assembly: AssemblyFileVersion("2.6.0.0")]
+[assembly: AssemblyVersion("2.7.0.0")]
+[assembly: AssemblyFileVersion("2.7.0.0")]
 
 namespace HallowMixer
 {
     public static class Program
     {
-        public const string Version = "2.6";
+        public const string Version = "2.7";
         [STAThread]
         public static void Main(string[] args)
         {
@@ -940,12 +940,18 @@ namespace HallowMixer
         void ShowNow(MediaInfo m)
         {
             if (!eng.S.NowPlayingOn) m = null;
-            var app = m == null ? null : eng.Apps.FirstOrDefault(a => a.Key == m.Key || (m.Key.Length > 3 && a.Key.StartsWith(m.Key)) || (a.Key.Length > 3 && m.Key.StartsWith(a.Key)));
-            var ch = app != null ? app.Channel : null;
+            var ch = NowChannel(m);
             var color = ch != null ? Colors[ch] : C("#8F88A0");
             var name = ch != null ? Engine.ChannelNames[ch] : null;
             if (nowBar != null) nowBar.Show(m, color, name);
             if (miniNow != null) miniNow.Show(m, color, name);
+        }
+        // the mixer channel of the app that's playing (null = not found)
+        string NowChannel(MediaInfo m)
+        {
+            if (m == null || string.IsNullOrEmpty(m.Key)) return null;
+            var app = eng.Apps.FirstOrDefault(a => a.Key == m.Key || (m.Key.Length > 3 && a.Key.StartsWith(m.Key)) || (a.Key.Length > 3 && m.Key.StartsWith(a.Key)));
+            return app != null ? app.Channel : null;
         }
         void MediaCommand(string what)
         {
@@ -1089,7 +1095,7 @@ namespace HallowMixer
         object NowState()
         {
             var m = eng.S.NowPlayingOn ? NowPlaying.Current : null; if (m == null) return null;
-            return new Dictionary<string, object> { { "app", m.App }, { "title", m.Title }, { "artist", m.Artist }, { "playing", m.Playing }, { "canPrev", m.CanPrev }, { "canNext", m.CanNext } };
+            return new Dictionary<string, object> { { "app", m.App }, { "title", m.Title }, { "artist", m.Artist }, { "playing", m.Playing }, { "canPrev", m.CanPrev }, { "canNext", m.CanNext }, { "channel", NowChannel(m) } };
         }
         // Commands: /set?ch=game&v=60 (or &d=-10), /mute?ch=game&m=toggle|1|0, /mic?mute=toggle|1|0, /preset?name=Chill
         string ApiDo(string path, Dictionary<string, string> q)

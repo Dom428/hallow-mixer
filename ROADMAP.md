@@ -24,11 +24,12 @@ The goal: everything SteelSeries Sonar does for a gamer - and the things it does
 | **2.4** | Hallow family, part 2: settings travel with Hallow Toolkit 4.6's "Share your setup" - presets, app choices, ducking, mic mode and headset/mic EQ (checked on import; EQ lands on your own real headset and mic, never Sonar's virtual devices) |
 | **2.5** | Now playing: the song or video that's playing (from Windows' media sessions) with previous / play-pause / next in the mixer and the Mini mixer, coloured by the app's channel; on the phone dashboard through Hallow Toolkit 4.7; Settings switch |
 | **2.6** | Smarter ducking: only real talking ducks (half a second of sound with three or more syllables); join/leave chimes, pings, key clicks and steady background hum are ignored; stays down between words, fades back about a second after talking stops; Settings switch to go back to the old way |
+| **2.7** | Hallow family, part 3: now playing tells Hallow Toolkit which channel the app is in, so Toolkit 4.8's Discord posts can share songs from Music apps (never browser videos) and mic muted / back on - both off until you turn them on |
 
 ## Next
 
-### 2.7 - Hallow family, part 3
-- Hallow Toolkit's Discord posts can include what you're playing (now playing) and when your mic is muted, if you want them
+### 2.8 - Preset hotkeys
+- Ctrl+Alt+1 to 9 switch to your presets from inside a game, with the on-screen pop-up
 
 
 ### Later - closing the gap to Sonar
