@@ -21,6 +21,9 @@ A per-app volume mixer for Windows 10/11 - one fader per kind of sound, a game/c
 - **Mini mixer:** a small always-on-top panel with every channel, your mic and the game/chat balance.
 - **Headset first:** when your headset turns on, sound goes to it; when it turns off, it falls back to your speakers - and back again.
 - **Hotkeys:** `Ctrl+Alt+PageUp` / `PageDown` = game/chat balance, `Ctrl+Alt+M` = mute mic - with an on-screen pop-up that shows over borderless games.
+- **Noise removal:** one click to switch to NVIDIA Broadcast's noise-removed mic (free, RTX cards).
+- **Updates:** checks GitHub when it starts and asks before installing; the download's checksum is verified.
+- **Settings backup:** save and restore all levels, presets, EQ and app choices.
 - **Tray app:** close the window and it keeps running by the clock; optional start with Windows. Exit puts every app back to full volume and its normal output.
 
 ## Install
@@ -30,6 +33,10 @@ A per-app volume mixer for Windows 10/11 - one fader per kind of sound, a game/c
 3. Double-click **INSTALL.bat** - no admin needed, it installs to your user folder
 
 Runs on the .NET Framework that comes with Windows 10 and 11. The app isn't code-signed, so Windows may say "Windows protected your PC" - click **More info > Run anyway**.
+
+## Uninstall
+
+Windows Settings > Apps > Hallow Mixer > Uninstall. Every app goes back to full volume and its normal output first.
 
 ## Good to know
 

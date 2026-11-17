@@ -297,6 +297,8 @@ namespace HallowMixer
             return policy;
         }
         public static bool CanRoutePerApp { get { return Policy() != null; } }
+        // Forget every per-app output Windows has saved (Settings > Sound > Volume mixer > app output).
+        public static void ClearAllRoutes() { var p = Policy(); if (p != null) try { p.ClearAllPersistedApplicationDefaultEndpoints(); } catch { } }
         // deviceId "" = back to the Windows default output
         public static bool RouteApp(uint pid, string deviceId)
         {

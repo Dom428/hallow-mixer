@@ -22,17 +22,18 @@ using WF = System.Windows.Forms;
 [assembly: AssemblyTitle("Hallow Mixer")]
 [assembly: AssemblyProduct("Hallow Mixer")]
 [assembly: AssemblyDescription("Per-app volume mixer: game, chat, music, media")]
-[assembly: AssemblyVersion("1.5.0.0")]
-[assembly: AssemblyFileVersion("1.5.0.0")]
+[assembly: AssemblyVersion("1.6.0.0")]
+[assembly: AssemblyFileVersion("1.6.0.0")]
 
 namespace HallowMixer
 {
     public static class Program
     {
-        public const string Version = "1.5";
+        public const string Version = "1.6";
         [STAThread]
         public static void Main(string[] args)
         {
+            if (args.Contains("--reset")) { try { new Engine().ResetForUninstall(); } catch { } return; }
             bool created;
             var mutex = new Mutex(true, @"Local\HallowMixer", out created);
             var showEvent = new EventWaitHandle(false, EventResetMode.AutoReset, @"Local\HallowMixerShow");
@@ -257,6 +258,9 @@ namespace HallowMixer
             saveTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) }; saveTimer.Tick += (s, e) => { if (dirty) { dirty = false; eng.S.Save(); } }; saveTimer.Start();
             if (!startHidden) Show(); else { WindowState = WindowState.Minimized; Show(); Hide(); WindowState = WindowState.Normal; }
             if (eng.S.MiniOpen) { eng.S.MiniOpen = false; ToggleMini(); }
+            UpdateNoiseButton();
+            DateTime lastCheck;
+            if (eng.S.AutoUpdate && (!DateTime.TryParse(eng.S.LastUpdateCheck, out lastCheck) || (DateTime.Now - lastCheck).TotalHours > 20)) CheckForUpdate(false);
         }
 
         static System.Windows.Media.ImageSource BitmapFromIcon()
@@ -286,6 +290,9 @@ namespace HallowMixer
             gear.Unchecked += (s, e) => { settingsPanel.Visibility = Visibility.Collapsed; };
             var miniBtn = new Button { Content = "Mini", Style = (Style)FindResource("Btn"), Margin = new Thickness(0, 0, 8, 0), ToolTip = "Small always-on-top mixer" };
             miniBtn.Click += (s, e) => ToggleMini();
+            updateBtn = new Button { Style = (Style)FindResource("Accent"), Margin = new Thickness(0, 0, 8, 0), Visibility = Visibility.Collapsed };
+            updateBtn.Click += (s, e) => InstallUpdate();
+            mp.Children.Add(updateBtn);
             mp.Children.Add(miniBtn);
             var eqBtn = new Button { Content = "EQ", Style = (Style)FindResource("Btn"), Margin = new Thickness(0, 0, 8, 0), ToolTip = "Equalizer for each headset, speaker and mic" };
             eqBtn.Click += (s, e) =>
@@ -413,6 +420,29 @@ namespace HallowMixer
             var games = new Button { Content = "Forget saved game levels", Style = (Style)FindResource("Btn"), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 10, 0, 0) };
             games.Click += (s, e) => { int n = eng.S.GameLevels.Count; eng.S.GameLevels.Clear(); eng.S.Save(); Status("Forgot the saved levels for " + n + " game(s)."); };
             sp.Children.Add(games);
+            sw("Check for updates when Hallow Mixer starts (asks before installing)", eng.S.AutoUpdate, v => eng.S.AutoUpdate = v);
+            var ur = new WrapPanel { Margin = new Thickness(0, 4, 0, 0) };
+            var checkNow = new Button { Content = "Check for updates now", Style = (Style)FindResource("Btn"), Margin = new Thickness(0, 0, 8, 6) };
+            checkNow.Click += (s, e) => CheckForUpdate(true);
+            var exp = new Button { Content = "Back up settings...", Style = (Style)FindResource("Btn"), Margin = new Thickness(0, 0, 8, 6), ToolTip = "Save all levels, presets, EQ and app choices to a file" };
+            exp.Click += (s, e) =>
+            {
+                var d = new SaveFileDialog { Filter = "Hallow Mixer settings (*.json)|*.json", FileName = "Hallow Mixer settings.json", InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Desktop) };
+                if (d.ShowDialog(this) != true) return;
+                eng.S.Save(); File.Copy(Settings.FilePathPublic, d.FileName, true); Status("Settings saved to " + d.FileName);
+            };
+            var imp = new Button { Content = "Restore settings...", Style = (Style)FindResource("Btn"), Margin = new Thickness(0, 0, 8, 6), ToolTip = "Load a settings file you backed up (Hallow Mixer restarts)" };
+            imp.Click += (s, e) =>
+            {
+                var d = new OpenFileDialog { Filter = "Hallow Mixer settings (*.json)|*.json", InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Desktop) };
+                if (d.ShowDialog(this) != true) return;
+                if (!Settings.LooksValid(d.FileName)) { Status("That file isn't a Hallow Mixer settings file."); return; }
+                File.Copy(d.FileName, Settings.FilePathPublic, true);
+                exiting = true; tray.Visible = false;
+                Process.Start(Assembly.GetExecutingAssembly().Location); Application.Current.Shutdown();
+            };
+            ur.Children.Add(checkNow); ur.Children.Add(exp); ur.Children.Add(imp);
+            sp.Children.Add(ur);
             sp.Children.Add(new TextBlock { Text = "Hallow Mixer v" + Program.Version, Foreground = (Brush)FindResource("Muted"), FontSize = 11, Margin = new Thickness(0, 12, 0, 0) });
             b.Child = sp;
             return b;
@@ -506,8 +536,11 @@ namespace HallowMixer
             st.Output.DropDownOpened += (s, e) => FillDevices(st.Output, 1, null, false);
             st.Output.SelectionChanged += (s, e) => { if (loading) return; var d = st.Output.SelectedItem as AudioDevice; if (d != null) { CoreAudio.SetDefault(d.Id); LoadMic(); Status(d.Name + " is now your mic for games and calls."); } };
             body.Children.Add(st.Output);
+            nvBtn = new Button { Style = (Style)FindResource("Btn"), Margin = new Thickness(0, 0, 0, 8), Visibility = Visibility.Collapsed };
+            nvBtn.Click += (s, e) => NoiseRemoval();
+            body.Children.Add(nvBtn);
             dp.Children.Add(body);
-            dp.Children.Add(new TextBlock { Text = "Using SteelSeries Sonar? Its mic stays the default - set your real mic's level in Sonar.", TextWrapping = TextWrapping.Wrap, FontSize = 11, Foreground = (Brush)FindResource("Muted") });
+            dp.Children.Add(new TextBlock { Text = "Using Sonar? Set your real mic's level in Sonar.", TextWrapping = TextWrapping.Wrap, FontSize = 11, Foreground = (Brush)FindResource("Muted") });
             return shell;
         }
 
@@ -783,6 +816,77 @@ namespace HallowMixer
             w.Loaded += (s, e) => { box.Focus(); box.SelectAll(); };
             w.ShowDialog();
             return result;
+        }
+
+        // ---- updates
+        Button updateBtn; GhRelease pending;
+        void CheckForUpdate(bool manual)
+        {
+            if (manual) Status("Checking GitHub for a newer Hallow Mixer...");
+            var th = new Thread(() =>
+            {
+                var r = Updater.Latest();
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    eng.S.LastUpdateCheck = DateTime.Now.ToString("o"); dirty = true;
+                    if (r == null) { if (manual) Status("Couldn't reach GitHub - try again later."); return; }
+                    if (!Updater.IsNewer(r)) { if (manual) Status("You have the newest version (v" + Program.Version + ")."); return; }
+                    pending = r; updateBtn.Content = "Update to v" + r.Version.ToString(2); updateBtn.Visibility = Visibility.Visible;
+                    updateBtn.ToolTip = (r.Notes ?? "").Length > 600 ? r.Notes.Substring(0, 600) + "..." : r.Notes;
+                    Status("Hallow Mixer v" + r.Version.ToString(2) + " is out - click Update at the top (your settings are kept).");
+                    if (!IsVisible) ShowTrayTip("Hallow Mixer v" + r.Version.ToString(2) + " is out - open it to update.", false);
+                }));
+            }) { IsBackground = true };
+            th.Start();
+        }
+        void InstallUpdate()
+        {
+            if (pending == null) return;
+            if (MessageBox.Show(this, "Install Hallow Mixer v" + pending.Version.ToString(2) + " now?\n\nIt downloads from GitHub, checks the file, and reopens by itself. Your levels and settings are kept.", "Update Hallow Mixer", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+            updateBtn.IsEnabled = false; updateBtn.Content = "Updating...";
+            var r = pending;
+            var th = new Thread(() =>
+            {
+                eng.S.Save();
+                var err = Updater.Install(r);
+                Dispatcher.BeginInvoke(new Action(() => { if (err != null) { Status(err); updateBtn.IsEnabled = true; updateBtn.Content = "Update to v" + r.Version.ToString(2); } else Status("Installing the update - Hallow Mixer reopens in a few seconds."); }));
+            }) { IsBackground = true };
+            th.Start();
+        }
+
+        // ---- noise removal through NVIDIA Broadcast (free, needs an RTX card)
+        Button nvBtn; bool? hasRtx;
+        AudioDevice BroadcastMic() { return CoreAudio.Devices(1).FirstOrDefault(d => d.Name.IndexOf("NVIDIA Broadcast", StringComparison.OrdinalIgnoreCase) >= 0); }
+        void UpdateNoiseButton()
+        {
+            if (hasRtx == null)
+            {
+                hasRtx = false;
+                try
+                {
+                    using (var k = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}"))
+                        if (k != null) foreach (var n in k.GetSubKeyNames()) { try { using (var sk = k.OpenSubKey(n)) { var d = sk == null ? null : sk.GetValue("DriverDesc") as string; if (d != null && d.IndexOf("RTX", StringComparison.OrdinalIgnoreCase) >= 0) hasRtx = true; } } catch { } }
+                }
+                catch { }
+            }
+            var bm = BroadcastMic();
+            if (bm != null && bm.IsDefault) { nvBtn.Visibility = Visibility.Collapsed; return; }
+            if (bm == null && hasRtx != true) { nvBtn.Visibility = Visibility.Collapsed; return; }
+            nvBtn.Visibility = Visibility.Visible;
+            nvBtn.Content = bm != null ? "Use NVIDIA Broadcast mic" : "Get noise removal";
+            nvBtn.ToolTip = bm != null ? "Switch to NVIDIA Broadcast's noise-removed mic (for games and calls)" : "Your RTX card can remove background noise with NVIDIA Broadcast (free, from NVIDIA)";
+        }
+        void NoiseRemoval()
+        {
+            var bm = BroadcastMic();
+            if (bm != null)
+            {
+                CoreAudio.SetDefault(bm.Id); LoadMic(); UpdateNoiseButton();
+                Status("NVIDIA Broadcast mic is now your mic. Pick your real mic and turn on Noise Removal in the NVIDIA Broadcast app.");
+                return;
+            }
+            try { Process.Start(new ProcessStartInfo("https://www.nvidia.com/en-us/geforce/broadcasting/broadcast-app/") { UseShellExecute = true }); } catch { }
+            Status("Opened NVIDIA Broadcast's page. After installing, come back and click Use NVIDIA Broadcast mic.");
         }
 
         // Record 5 s from the default mic on a background thread, then play it back.

@@ -30,6 +30,8 @@ WHAT IT DOES
 - Headset first (Settings): headset on = sound goes to it, headset off = your speakers.
 - Hotkeys: Ctrl+Alt+PageUp / PageDown = game/chat balance, Ctrl+Alt+M = mute mic,
   with an on-screen pop-up that shows over borderless games.
+- Mic > Get noise removal / Use NVIDIA Broadcast mic: noise removal with NVIDIA Broadcast (RTX cards).
+- Updates: it checks GitHub when it starts and asks first. Settings > Back up / Restore settings.
 - Closing the window keeps it running by the clock (your levels stay on). Tray menu:
   presets, mute mic, Start with Windows, Exit.
 - Exit puts every app back to full volume and its normal output.
@@ -40,6 +42,5 @@ Sonar. EQ works through Equalizer APO instead of Sonar's own. Hallow Mixer can't
 sound devices - it sends each channel to a real device instead.
 
 UNINSTALL
-Exit it from the tray, untick "Start with Windows" first if you turned it on, then delete
-%LOCALAPPDATA%\Programs\Hallow Mixer and the two "Hallow Mixer" shortcuts.
-Your settings are in %APPDATA%\HallowMixer.
+Windows Settings > Apps > Hallow Mixer > Uninstall. Every app goes back to full volume and its
+normal output first. You can keep or delete your settings.

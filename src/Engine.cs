@@ -55,6 +55,9 @@ namespace HallowMixer
         [DataMember] public int PttKey = 0x05;            // virtual key; 0x05 = mouse back side button
         [DataMember] public double WinLeft = -1, WinTop = -1, WinWidth = -1, WinHeight = -1;
         [DataMember] public bool WinMax;
+        // v1.6
+        [DataMember] public bool AutoUpdate = true;
+        [DataMember] public string LastUpdateCheck = "";
 
         // The JSON reader skips field initialisers, so set the defaults here (values in the file then override them).
         [OnDeserializing] void Defaults(StreamingContext c)
@@ -62,13 +65,20 @@ namespace HallowMixer
             DuckOnChat = true; DuckAmount = 50; PerGame = true; Overlay = true;
             PrimaryOut = ""; FallbackOut = ""; MiniLeft = -1; MiniTop = -1;
             Eq = new Dictionary<string, EqState>(); AppOutput = new Dictionary<string, string>();
-            MicMode = "off"; PttKey = 0x05; WinLeft = -1; WinTop = -1; WinWidth = -1; WinHeight = -1;
+            AutoUpdate = true; LastUpdateCheck = ""; MicMode = "off"; PttKey = 0x05; WinLeft = -1; WinTop = -1; WinWidth = -1; WinHeight = -1;
             MutedApps = new List<string>(); GameLevels = new Dictionary<string, Preset>();
             AppChannel = new Dictionary<string, string>(); AppVolume = new Dictionary<string, int>();
         }
 
         static string Dir { get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "HallowMixer"); } }
         static string FilePath { get { return Path.Combine(Dir, "settings.json"); } }
+        public static string FilePathPublic { get { Directory.CreateDirectory(Dir); return FilePath; } }
+        // A backup file is accepted only if it reads as Hallow Mixer settings with channels in it.
+        public static bool LooksValid(string file)
+        {
+            try { using (var f = File.OpenRead(file)) { var s = (Settings)new DataContractJsonSerializer(typeof(Settings)).ReadObject(f); return s != null && s.Channels != null && s.Channels.Count > 0; } }
+            catch { return false; }
+        }
         public static Settings Load()
         {
             Settings s = null;
@@ -402,6 +412,14 @@ namespace HallowMixer
         {
             p.Volumes.Clear(); foreach (var c in S.Channels) p.Volumes[c.Id] = c.Volume;
             p.ChatMix = S.ChatMix; S.Save();
+        }
+        // Uninstall: every app back to full volume and Windows' default output, including routes saved by earlier runs.
+        public void ResetForUninstall()
+        {
+            Refresh();
+            foreach (var a in Apps) { foreach (var s in a.Sessions) { s.LastSet = -1; s.Set(1f, false); } foreach (var pid in a.Pids) CoreAudio.RouteApp(pid, ""); }
+            bool routedAny = S.AppOutput.Count > 0 || S.Channels.Any(c => !string.IsNullOrEmpty(c.OutputId));
+            if (routedAny) CoreAudio.ClearAllRoutes();
         }
         // Put every app back to full volume, unmuted, on the default output (used on exit if you choose to).
         public void ResetAllApps()
