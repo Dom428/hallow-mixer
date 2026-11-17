@@ -50,6 +50,11 @@ namespace HallowMixer
         [DataMember] public Dictionary<string, EqState> Eq = new Dictionary<string, EqState>();
         // v1.4: process name -> device id, for an app that should play somewhere other than its channel
         [DataMember] public Dictionary<string, string> AppOutput = new Dictionary<string, string>();
+        // v1.5
+        [DataMember] public string MicMode = "off";      // "off", "ptt" (push to talk), "ptm" (push to mute)
+        [DataMember] public int PttKey = 0x05;            // virtual key; 0x05 = mouse back side button
+        [DataMember] public double WinLeft = -1, WinTop = -1, WinWidth = -1, WinHeight = -1;
+        [DataMember] public bool WinMax;
 
         // The JSON reader skips field initialisers, so set the defaults here (values in the file then override them).
         [OnDeserializing] void Defaults(StreamingContext c)
@@ -57,6 +62,7 @@ namespace HallowMixer
             DuckOnChat = true; DuckAmount = 50; PerGame = true; Overlay = true;
             PrimaryOut = ""; FallbackOut = ""; MiniLeft = -1; MiniTop = -1;
             Eq = new Dictionary<string, EqState>(); AppOutput = new Dictionary<string, string>();
+            MicMode = "off"; PttKey = 0x05; WinLeft = -1; WinTop = -1; WinWidth = -1; WinHeight = -1;
             MutedApps = new List<string>(); GameLevels = new Dictionary<string, Preset>();
             AppChannel = new Dictionary<string, string>(); AppVolume = new Dictionary<string, int>();
         }

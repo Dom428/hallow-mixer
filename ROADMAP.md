@@ -1,4 +1,4 @@
-# Hallow Mixer roadmap
+﻿# Hallow Mixer roadmap
 
 The goal: everything SteelSeries Sonar does for a gamer - and the things it doesn't - in a tiny, free app that works with any headset.
 
@@ -11,13 +11,9 @@ The goal: everything SteelSeries Sonar does for a gamer - and the things it does
 | **1.2** | Mini mixer (always on top); headset first (auto-switch when the headset turns on/off) |
 | **1.3** | 10-band EQ for every headset, speaker and mic with presets, through Equalizer APO |
 | **1.4** | Volume of the app in front (Ctrl+Alt+Up/Down); per-app output (Play on); mic test (record + play back) |
+| **1.5** | Push-to-talk / push-to-mute; window remembers size and place; presets you can rename, add and delete |
 
 ## Next
-
-### 1.5 - Controls
-- **Push-to-talk / push-to-mute** for every app at once (hold a key or a mouse side button)
-- Window remembers its size and place
-- Rename presets and add more of them
 
 ### 1.6 - Mic pro (with Equalizer APO)
 - **Noise removal** for the mic (open-source RNNoise, Sonar's ClearCast equivalent)

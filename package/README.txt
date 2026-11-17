@@ -15,7 +15,8 @@ WHAT IT DOES
   Each app also has its own small slider inside the channel.
 - Game / chat balance: drag toward CHAT to turn the game down while you talk.
 - Mic: level, mute and live meter, and which mic Windows uses.
-- Presets: Gaming, Movie, Chill. Click to use, right-click to save your current levels into one.
+- Presets: click to use; right-click to save, rename or delete; + to add your own (up to 8).
+- Push-to-talk / push-to-mute (Settings > Mic): hold a key or mouse side button - works for every app.
 - Auto-ducking: when someone talks in Chat, game, music and media dip and fade back after.
   Optionally music dips while you talk. (Settings button, top right.)
 - Levels per game: each game gets its own levels - they come back when it starts.

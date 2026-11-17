@@ -22,14 +22,14 @@ using WF = System.Windows.Forms;
 [assembly: AssemblyTitle("Hallow Mixer")]
 [assembly: AssemblyProduct("Hallow Mixer")]
 [assembly: AssemblyDescription("Per-app volume mixer: game, chat, music, media")]
-[assembly: AssemblyVersion("1.4.0.0")]
-[assembly: AssemblyFileVersion("1.4.0.0")]
+[assembly: AssemblyVersion("1.5.0.0")]
+[assembly: AssemblyFileVersion("1.5.0.0")]
 
 namespace HallowMixer
 {
     public static class Program
     {
-        public const string Version = "1.4";
+        public const string Version = "1.5";
         [STAThread]
         public static void Main(string[] args)
         {
@@ -151,6 +151,40 @@ namespace HallowMixer
         [DllImport("user32.dll")] static extern bool RegisterHotKey(IntPtr h, int id, uint mods, uint vk);
         [DllImport("user32.dll")] static extern bool UnregisterHotKey(IntPtr h, int id);
         [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+        [DllImport("user32.dll")] static extern short GetAsyncKeyState(int vk);
+
+        // ---- push-to-talk / push-to-mute: reads the key state directly (no keyboard hook, so anti-cheat friendly)
+        DateTime pttRelease; bool pttActive; int captureKey;   // captureKey: 0 = not waiting, 1 = waiting for a key press
+        TextBlock pttKeyText; Button pttKeyBtn;
+        static string KeyName(int vk)
+        {
+            if (vk == 4) return "Middle mouse button"; if (vk == 5) return "Mouse back button"; if (vk == 6) return "Mouse forward button";
+            var k = KeyInterop.KeyFromVirtualKey(vk); return k == Key.None ? "Key " + vk : k.ToString();
+        }
+        void TickPtt()
+        {
+            if (captureKey == 1)
+            {
+                if ((GetAsyncKeyState(0x1B) & 0x8000) != 0) { captureKey = 0; pttKeyBtn.Content = "Change"; return; }   // Esc = cancel
+                for (int vk = 3; vk < 255; vk++)
+                {
+                    if (vk == 0x1B || vk == 0x10 || vk == 0x11 || vk == 0x12) continue;   // Esc and the plain Shift/Ctrl/Alt codes
+                    if ((GetAsyncKeyState(vk) & 0x8000) != 0)
+                    {
+                        eng.S.PttKey = vk; eng.S.Save(); captureKey = 0;
+                        pttKeyBtn.Content = "Change"; pttKeyText.Text = KeyName(vk); Status("Push-to-talk key: " + KeyName(vk)); return;
+                    }
+                }
+                return;
+            }
+            var mode = eng.S.MicMode ?? "off";
+            if (mode == "off") { if (pttActive) { pttActive = false; SetMicMute(false); } return; }
+            pttActive = true;
+            bool held = (GetAsyncKeyState(eng.S.PttKey) & 0x8000) != 0;
+            if (held) pttRelease = DateTime.UtcNow.AddMilliseconds(250);   // small tail so your last word isn't cut off
+            bool wantMute = mode == "ptt" ? DateTime.UtcNow >= pttRelease : held;
+            if (wantMute != (mic.Mute.IsChecked == true)) SetMicMute(wantMute);
+        }
         [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
 
         // Ctrl+Alt+Up/Down: volume of the app you're in (its own slider inside its channel)
@@ -193,6 +227,22 @@ namespace HallowMixer
             Content = Build();
             SourceInitialized += (s, e) => OnHandle();
             Closing += (s, e) => { if (!exiting) { e.Cancel = true; HideToTray(); } };
+            // remember size and place (only if it's still on a screen)
+            var vs = new Rect(SystemParameters.VirtualScreenLeft, SystemParameters.VirtualScreenTop, SystemParameters.VirtualScreenWidth, SystemParameters.VirtualScreenHeight);
+            if (eng.S.WinWidth >= MinWidth && eng.S.WinHeight >= MinHeight && vs.Contains(new Point(eng.S.WinLeft + 60, eng.S.WinTop + 30)))
+            {
+                WindowStartupLocation = WindowStartupLocation.Manual;
+                Left = eng.S.WinLeft; Top = eng.S.WinTop; Width = eng.S.WinWidth; Height = eng.S.WinHeight;
+            }
+            if (eng.S.WinMax) WindowState = WindowState.Maximized;
+            EventHandler placeChanged = (s, e) =>
+            {
+                if (!IsLoaded) return;
+                eng.S.WinMax = WindowState == WindowState.Maximized;
+                if (WindowState == WindowState.Normal) { eng.S.WinLeft = Left; eng.S.WinTop = Top; eng.S.WinWidth = ActualWidth; eng.S.WinHeight = ActualHeight; }
+                dirty = true;
+            };
+            LocationChanged += placeChanged; StateChanged += placeChanged; SizeChanged += (s, e) => placeChanged(s, EventArgs.Empty);
             SetupTray();
             eng.Refresh(); eng.LevelsSwitched = false; RebuildApps(); LoadValues(); UpdateDefaults();
             meterTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) }; meterTimer.Tick += (s, e) => TickMeters(); meterTimer.Start();
@@ -284,18 +334,9 @@ namespace HallowMixer
             balanceText = new TextBlock { Foreground = (Brush)FindResource("Muted"), Margin = new Thickness(14, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, Width = 170 };
             bl.Children.Add(balanceText);
             DockPanel.SetDock(bl, Dock.Left); bg.Children.Add(bl);
-            var pr = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
-            pr.Children.Add(Label("Presets", 0, 8));
-            foreach (var p in eng.S.Presets)
-            {
-                var preset = p;
-                var b = new Button { Content = p.Name, Style = (Style)FindResource("Btn"), Margin = new Thickness(0, 0, 6, 0), MinWidth = 70,
-                    ToolTip = "Click to use " + p.Name + ". Right-click to save the current levels as " + p.Name + "." };
-                b.Click += (s, e) => UsePreset(preset);
-                b.MouseRightButtonUp += (s, e) => { eng.SavePreset(preset); Status("Saved the current levels as " + preset.Name + "."); };
-                pr.Children.Add(b);
-            }
-            bg.Children.Add(pr);
+            presetBar = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
+            RebuildPresets();
+            bg.Children.Add(presetBar);
             bar.Child = bg;
             Grid.SetRow(bar, 2); root.Children.Add(bar);
 
@@ -355,6 +396,19 @@ namespace HallowMixer
             pick("Headset", 0, () => eng.S.PrimaryOut, v => eng.S.PrimaryOut = v);
             pick("Fallback", 1, () => eng.S.FallbackOut, v => eng.S.FallbackOut = v);
             sp.Children.Add(ag);
+            var pm = new DockPanel { Margin = new Thickness(0, 8, 0, 4) };
+            var pml = new TextBlock { Text = "Mic", Width = 52, VerticalAlignment = VerticalAlignment.Center };
+            var mode = new ComboBox { Style = (Style)FindResource("Combo"), Width = 150 };
+            mode.ItemsSource = new[] { "Always on", "Push to talk", "Push to mute" };
+            mode.SelectedIndex = eng.S.MicMode == "ptt" ? 1 : eng.S.MicMode == "ptm" ? 2 : 0;
+            mode.SelectionChanged += (s, e) => { eng.S.MicMode = mode.SelectedIndex == 1 ? "ptt" : mode.SelectedIndex == 2 ? "ptm" : "off"; eng.S.Save();
+                Status(mode.SelectedIndex == 1 ? "Push to talk: your mic is muted until you hold " + KeyName(eng.S.PttKey) + "." : mode.SelectedIndex == 2 ? "Push to mute: hold " + KeyName(eng.S.PttKey) + " to mute your mic." : "Mic always on."); };
+            pttKeyText = new TextBlock { Text = KeyName(eng.S.PttKey), Foreground = (Brush)FindResource("Muted"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 8, 0), TextTrimming = TextTrimming.CharacterEllipsis };
+            pttKeyBtn = new Button { Content = "Change", Style = (Style)FindResource("Btn"), ToolTip = "Then press the key or mouse button you want (Esc = cancel)" };
+            pttKeyBtn.Click += (s, e) => { captureKey = 0; pttKeyBtn.Content = "Press a key..."; Dispatcher.BeginInvoke(new Action(() => { captureKey = 1; }), DispatcherPriority.Background); };
+            DockPanel.SetDock(pml, Dock.Left); DockPanel.SetDock(mode, Dock.Left); DockPanel.SetDock(pttKeyBtn, Dock.Right);
+            pm.Children.Add(pml); pm.Children.Add(mode); pm.Children.Add(pttKeyBtn); pm.Children.Add(pttKeyText);
+            sp.Children.Add(pm);
             var st = sw("Start with Windows (in the tray)", StartsWithWindows(), v => { SetStartWithWindows(v); if (trayStartup != null) trayStartup.Checked = v; });
             var games = new Button { Content = "Forget saved game levels", Style = (Style)FindResource("Btn"), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 10, 0, 0) };
             games.Click += (s, e) => { int n = eng.S.GameLevels.Count; eng.S.GameLevels.Clear(); eng.S.Save(); Status("Forgot the saved levels for " + n + " game(s)."); };
@@ -618,6 +672,7 @@ namespace HallowMixer
         void UpdateDefaults() { try { defOut = CoreAudio.DefaultId(0); defMic = CoreAudio.DefaultId(1); } catch { } }
         void TickMeters()
         {
+            TickPtt();
             var peaks = new Dictionary<string, float>();
             foreach (var id in Engine.ChannelIds) peaks[id] = 0;
             foreach (var a in eng.Apps) { float pk = a.Peak(); if (pk > peaks[a.Channel]) peaks[a.Channel] = pk; }
@@ -658,6 +713,76 @@ namespace HallowMixer
             eng.ApplyPreset(p); eng.NoteLevelsChanged(); LoadValues();
             Status(p.Name + " preset on.");
             ShowTrayTip(p.Name + " preset on.", false);
+        }
+
+        // ---- presets bar: click = use, right-click = save here / rename / delete, + = new from the current levels
+        StackPanel presetBar; WF.ToolStripMenuItem trayPresets;
+        void RebuildPresets()
+        {
+            if (presetBar != null)
+            {
+                presetBar.Children.Clear();
+                presetBar.Children.Add(Label("Presets", 0, 8));
+                foreach (var p in eng.S.Presets)
+                {
+                    var preset = p;
+                    var b = new Button { Content = p.Name, Style = (Style)FindResource("Btn"), Margin = new Thickness(0, 0, 6, 0), MinWidth = 64,
+                        ToolTip = "Click to use " + p.Name + ". Right-click to save, rename or delete." };
+                    b.Click += (s, e) => UsePreset(preset);
+                    var cm = new ContextMenu();
+                    var save = new MenuItem { Header = "Save the current levels here" };
+                    save.Click += (s, e) => { eng.SavePreset(preset); Status("Saved the current levels as " + preset.Name + "."); };
+                    var ren = new MenuItem { Header = "Rename..." };
+                    ren.Click += (s, e) =>
+                    {
+                        var n = Ask("Rename preset", "New name for " + preset.Name + ":", preset.Name);
+                        if (!string.IsNullOrWhiteSpace(n)) { preset.Name = n.Trim().Length > 18 ? n.Trim().Substring(0, 18) : n.Trim(); eng.S.Save(); RebuildPresets(); }
+                    };
+                    var del = new MenuItem { Header = "Delete", IsEnabled = eng.S.Presets.Count > 1 };
+                    del.Click += (s, e) => { eng.S.Presets.Remove(preset); eng.S.Save(); RebuildPresets(); Status("Deleted the " + preset.Name + " preset."); };
+                    cm.Items.Add(save); cm.Items.Add(ren); cm.Items.Add(new Separator()); cm.Items.Add(del);
+                    b.ContextMenu = cm;
+                    presetBar.Children.Add(b);
+                }
+                if (eng.S.Presets.Count < 8)
+                {
+                    var add = new Button { Content = "+", Style = (Style)FindResource("Btn"), MinWidth = 30, ToolTip = "New preset from the current levels" };
+                    add.Click += (s, e) =>
+                    {
+                        var n = Ask("New preset", "Name for a preset with the current levels:", "Preset " + (eng.S.Presets.Count + 1));
+                        if (string.IsNullOrWhiteSpace(n)) return;
+                        var p = new Preset { Name = n.Trim().Length > 18 ? n.Trim().Substring(0, 18) : n.Trim() };
+                        eng.S.Presets.Add(p); eng.SavePreset(p); RebuildPresets(); Status("Saved the current levels as " + p.Name + ".");
+                    };
+                    presetBar.Children.Add(add);
+                }
+            }
+            if (trayPresets != null)
+            {
+                trayPresets.DropDownItems.Clear();
+                foreach (var p in eng.S.Presets) { var preset = p; var it = new WF.ToolStripMenuItem(p.Name); it.Click += (s, e) => UsePreset(preset); trayPresets.DropDownItems.Add(it); }
+            }
+        }
+
+        // Small dark text prompt (used for preset names).
+        string Ask(string title, string question, string value)
+        {
+            var w = new Window { Title = title, Owner = this, Width = 360, SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.NoResize,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner, Background = (Brush)FindResource("Bg"), Foreground = (Brush)FindResource("Text"), FontFamily = FontFamily };
+            var sp = new StackPanel { Margin = new Thickness(18) };
+            sp.Children.Add(new TextBlock { Text = question, Margin = new Thickness(0, 0, 0, 8), TextWrapping = TextWrapping.Wrap });
+            var box = new TextBox { Text = value, Background = (Brush)FindResource("PanelHi"), Foreground = (Brush)FindResource("Text"), BorderBrush = (Brush)FindResource("Line"), Padding = new Thickness(6, 4, 6, 4), CaretBrush = Brushes.White };
+            sp.Children.Add(box);
+            var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 12, 0, 0) };
+            var ok = new Button { Content = "OK", Style = (Style)FindResource("Accent"), IsDefault = true, MinWidth = 70, Margin = new Thickness(0, 0, 8, 0) };
+            var cancel = new Button { Content = "Cancel", Style = (Style)FindResource("Btn"), IsCancel = true, MinWidth = 70 };
+            string result = null;
+            ok.Click += (s, e) => { result = box.Text; w.DialogResult = true; };
+            row.Children.Add(ok); row.Children.Add(cancel); sp.Children.Add(row);
+            w.Content = sp;
+            w.Loaded += (s, e) => { box.Focus(); box.SelectAll(); };
+            w.ShowDialog();
+            return result;
         }
 
         // Record 5 s from the default mic on a background thread, then play it back.
@@ -746,9 +871,9 @@ namespace HallowMixer
             var menu = new WF.ContextMenuStrip();
             var open = new WF.ToolStripMenuItem("Open Hallow Mixer"); open.Font = new System.Drawing.Font(open.Font, System.Drawing.FontStyle.Bold);
             open.Click += (s, e) => ShowFromTray(); menu.Items.Add(open);
-            var presets = new WF.ToolStripMenuItem("Presets");
-            foreach (var p in eng.S.Presets) { var preset = p; var it = new WF.ToolStripMenuItem(p.Name); it.Click += (s, e) => UsePreset(preset); presets.DropDownItems.Add(it); }
-            menu.Items.Add(presets);
+            trayPresets = new WF.ToolStripMenuItem("Presets");
+            RebuildPresets();
+            menu.Items.Add(trayPresets);
             var miniItem = new WF.ToolStripMenuItem("Mini mixer (always on top)"); miniItem.Click += (s, e) => ToggleMini(); menu.Items.Add(miniItem);
             var center = new WF.ToolStripMenuItem("Balance game / chat"); center.Click += (s, e) => { balance.Value = 0; }; menu.Items.Add(center);
             trayMicMute = new WF.ToolStripMenuItem("Mute mic   Ctrl+Alt+M"); trayMicMute.Click += (s, e) => SetMicMute(!(mic.Mute.IsChecked == true)); menu.Items.Add(trayMicMute);
