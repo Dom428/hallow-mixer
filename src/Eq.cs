@@ -161,7 +161,13 @@ namespace HallowMixer
             Title = "Hallow Mixer - EQ"; Width = 640; SizeToContent = SizeToContent.Height; ResizeMode = ResizeMode.CanMinimize;
             Background = (Brush)FindResource("Bg"); Foreground = (Brush)FindResource("Text"); FontFamily = new FontFamily("Segoe UI"); FontSize = 12.5;
             WindowStartupLocation = WindowStartupLocation.CenterOwner;
-            writeTimer.Tick += (o, e) => { writeTimer.Stop(); Eq.Write(s.Eq); s.Save(); };
+            writeTimer.Tick += (o, e) =>
+            {
+                writeTimer.Stop(); Eq.Write(s.Eq);
+                var st = Cur(); string game = st != null && !st.Capture && OnChanged != null ? OnChanged() : null;
+                s.Save();
+                if (game != null) Status("Saved for " + game + " - this EQ comes back whenever " + game + " runs.");
+            };
 
             var sp = new StackPanel { Margin = new Thickness(20, 16, 20, 16) };
             var head = new DockPanel();
@@ -295,5 +301,6 @@ namespace HallowMixer
 
         void Changed() { writeTimer.Stop(); writeTimer.Start(); }
         public void Reload() { LoadDevice(); }
+        public Func<string> OnChanged;   // returns the running game's name when the change was saved for it
     }
 }

@@ -22,14 +22,14 @@ using WF = System.Windows.Forms;
 [assembly: AssemblyTitle("Hallow Mixer")]
 [assembly: AssemblyProduct("Hallow Mixer")]
 [assembly: AssemblyDescription("Per-app volume mixer: game, chat, music, media")]
-[assembly: AssemblyVersion("1.7.0.0")]
-[assembly: AssemblyFileVersion("1.7.0.0")]
+[assembly: AssemblyVersion("1.8.0.0")]
+[assembly: AssemblyFileVersion("1.8.0.0")]
 
 namespace HallowMixer
 {
     public static class Program
     {
-        public const string Version = "1.7";
+        public const string Version = "1.8";
         [STAThread]
         public static void Main(string[] args)
         {
@@ -254,6 +254,7 @@ namespace HallowMixer
                 KeepMicLevel();
                 if (eng.Refresh()) RebuildApps(); else UpdateSubs();
                 if (eng.LevelsSwitched) { eng.LevelsSwitched = false; LoadValues(); Status(eng.LevelsNote); if (eng.S.Overlay) osd.Flash(eng.LevelsNote, -1); }
+                if (eng.EqSwitched) { eng.EqSwitched = false; if (eqWin != null && eqWin.IsLoaded) eqWin.Reload(); }
             };
             refreshTimer.Start();
             saveTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) }; saveTimer.Tick += (s, e) => { if (dirty) { dirty = false; eng.S.Save(); } }; saveTimer.Start();
@@ -298,7 +299,7 @@ namespace HallowMixer
             var eqBtn = new Button { Content = "EQ", Style = (Style)FindResource("Btn"), Margin = new Thickness(0, 0, 8, 0), ToolTip = "Equalizer for each headset, speaker and mic" };
             eqBtn.Click += (s, e) =>
             {
-                if (eqWin == null || !eqWin.IsLoaded) { eqWin = new EqWindow(eng.S) { Owner = this }; eqWin.Closed += (o, a) => { eng.S.Save(); }; eqWin.Show(); }
+                if (eqWin == null || !eqWin.IsLoaded) { eqWin = new EqWindow(eng.S) { Owner = this, OnChanged = eng.NoteEqChanged }; eqWin.Closed += (o, a) => { eng.S.Save(); }; eqWin.Show(); }
                 else eqWin.Activate();
             };
             mp.Children.Add(eqBtn);
@@ -366,7 +367,7 @@ namespace HallowMixer
         {
             var b = new Border { Background = B("#241E2E"), BorderBrush = B("#3A3248"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8),
                 Padding = new Thickness(18, 14, 18, 14), Width = 400, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top,
-                Margin = new Thickness(0, 58, 18, 0), Visibility = Visibility.Collapsed };
+                Margin = new Thickness(0, 58, 18, 18), Visibility = Visibility.Collapsed };
             b.Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 24, Opacity = 0.5, ShadowDepth = 4 };
             var sp = new StackPanel();
             sp.Children.Add(new TextBlock { Text = "Settings", FontWeight = FontWeights.Bold, FontSize = 15, Margin = new Thickness(0, 0, 0, 8) });
@@ -385,6 +386,8 @@ namespace HallowMixer
             ds.ValueChanged += (s, e) => { eng.S.DuckAmount = (int)Math.Round(ds.Value / 5) * 5; dtext(); dirty = true; };
             dtext(); DockPanel.SetDock(dl, Dock.Left); dr.Children.Add(dl); dr.Children.Add(ds); sp.Children.Add(dr);
             sw("Remember my levels for each game (they come back when the game starts)", eng.S.PerGame, v => eng.S.PerGame = v);
+            sw("EQ follows the game (each game remembers its headset EQ)", eng.S.EqPerGame, v => eng.S.EqPerGame = v);
+            sw("Even out Media: loud ads and explosions down, quiet talking up", eng.S.LevelMedia, v => eng.S.LevelMedia = v);
             sw("Show a pop-up on screen when I use the hotkeys", eng.S.Overlay, v => eng.S.Overlay = v);
             sw("Headset first: use it whenever it's on, otherwise use the fallback", eng.S.AutoSwitch, v => { eng.S.AutoSwitch = v; lastAuto = null; });
             var ag = new Grid { Margin = new Thickness(52, 2, 0, 6) };
@@ -451,7 +454,7 @@ namespace HallowMixer
             ur.Children.Add(checkNow); ur.Children.Add(exp); ur.Children.Add(imp);
             sp.Children.Add(ur);
             sp.Children.Add(new TextBlock { Text = "Hallow Mixer v" + Program.Version, Foreground = (Brush)FindResource("Muted"), FontSize = 11, Margin = new Thickness(0, 12, 0, 0) });
-            b.Child = sp;
+            b.Child = new ScrollViewer { Content = sp, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
             return b;
         }
 
@@ -721,7 +724,8 @@ namespace HallowMixer
             foreach (var id in Engine.ChannelIds) peaks[id] = 0;
             foreach (var a in eng.Apps) { float pk = a.Peak(); if (pk > peaks[a.Channel]) peaks[a.Channel] = pk; }
             float micPk = (eng.S.DuckOnMic || IsVisible) ? CoreAudio.DevicePeak(defMic) : 0;
-            if (eng.UpdateDuck(peaks["chat"], micPk)) eng.Apply();
+            bool lv = eng.UpdateLevel(peaks["media"]);
+            if (eng.UpdateDuck(peaks["chat"], micPk) | lv) eng.Apply();
             if (eng.Ducking != wasDucking) { wasDucking = eng.Ducking; UpdateSubs(); }
             if (!IsVisible) return;
             foreach (var st in strips.Values) SetMeter(st, peaks[st.Id]);

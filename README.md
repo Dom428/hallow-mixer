@@ -24,6 +24,8 @@ A per-app volume mixer for Windows 10/11 - one fader per kind of sound, a game/c
 - **Noise removal:** one click to switch to NVIDIA Broadcast's noise-removed mic (free, RTX cards).
 - **Discord-ready mic:** one click unmutes, sets a good level that stays put, and adds voice EQ + an 80 Hz rumble cut.
 - **Keep my mic level:** if Discord's automatic gain, a game or Windows moves your mic level, it's put back.
+- **EQ follows the game:** change the headset EQ while a game runs and it comes back every time that game starts.
+- **Even out Media:** loud ads and explosions in videos turn down, quiet talking comes up.
 - **Updates:** checks GitHub when it starts and asks before installing; the download's checksum is verified.
 - **Settings backup:** save and restore all levels, presets, EQ and app choices.
 - **Tray app:** close the window and it keeps running by the clock; optional start with Windows. Exit puts every app back to full volume and its normal output.

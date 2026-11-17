@@ -61,6 +61,10 @@ namespace HallowMixer
         // v1.7
         [DataMember] public bool MicKeep;                 // put the mic level back if Discord, a game or Windows changes it
         [DataMember] public int MicKeepLevel = -1;        // 0..100, -1 = take the current level
+        // v1.8
+        [DataMember] public bool EqPerGame = true;        // each game remembers its headset/speaker EQ
+        [DataMember] public Dictionary<string, Dictionary<string, EqState>> GameEq = new Dictionary<string, Dictionary<string, EqState>>();
+        [DataMember] public bool LevelMedia;              // even out loud and quiet moments in the Media channel
 
         // The JSON reader skips field initialisers, so set the defaults here (values in the file then override them).
         [OnDeserializing] void Defaults(StreamingContext c)
@@ -68,7 +72,7 @@ namespace HallowMixer
             DuckOnChat = true; DuckAmount = 50; PerGame = true; Overlay = true;
             PrimaryOut = ""; FallbackOut = ""; MiniLeft = -1; MiniTop = -1;
             Eq = new Dictionary<string, EqState>(); AppOutput = new Dictionary<string, string>();
-            AutoUpdate = true; LastUpdateCheck = ""; MicKeepLevel = -1; MicMode = "off"; PttKey = 0x05; WinLeft = -1; WinTop = -1; WinWidth = -1; WinHeight = -1;
+            AutoUpdate = true; LastUpdateCheck = ""; MicKeepLevel = -1; EqPerGame = true; GameEq = new Dictionary<string, Dictionary<string, EqState>>(); MicMode = "off"; PttKey = 0x05; WinLeft = -1; WinTop = -1; WinWidth = -1; WinHeight = -1;
             MutedApps = new List<string>(); GameLevels = new Dictionary<string, Preset>();
             AppChannel = new Dictionary<string, string>(); AppVolume = new Dictionary<string, int>();
         }
@@ -95,6 +99,7 @@ namespace HallowMixer
             if (s.Eq == null) s.Eq = new Dictionary<string, EqState>();
             if (s.AppOutput == null) s.AppOutput = new Dictionary<string, string>();
             if (s.GameLevels == null) s.GameLevels = new Dictionary<string, Preset>();
+            if (s.GameEq == null) s.GameEq = new Dictionary<string, Dictionary<string, EqState>>();
             if (s.DuckAmount <= 0 || s.DuckAmount > 100) s.DuckAmount = 50;
             foreach (var c in Engine.ChannelIds) if (!s.Channels.Any(x => x.Id == c)) s.Channels.Add(new ChannelState { Id = c });
             return s;
@@ -314,7 +319,53 @@ namespace HallowMixer
             float f = 1f;
             if (ch == "game" || ch == "music" || ch == "media") f *= DuckChat;
             if (ch == "music" || ch == "media") f *= DuckMic;
+            if (ch == "media") f *= LevelMediaGain;
             return f;
+        }
+
+        // ---- loudness levelling for Media: loud moments (ads, explosions) go down, quiet ones come up a little.
+        // Windows reports each app's level before its volume is applied, so this always sees the real loudness.
+        public float LevelMediaGain = 1f; float mediaEnv;
+        public bool UpdateLevel(float mediaPeak)
+        {
+            float old = LevelMediaGain;
+            if (!S.LevelMedia) { mediaEnv = 0; LevelMediaGain = 1f; return Math.Abs(old - 1f) > 0.004f; }
+            mediaEnv += (mediaPeak - mediaEnv) * (mediaPeak > mediaEnv ? 0.7f : 0.015f);   // follows loud parts fast, lets go slowly
+            if (mediaEnv > 0.02f)   // only while something is playing (silence keeps the last setting)
+            {
+                float target = Math.Max(0.3f, Math.Min(1.4f, 0.5f / mediaEnv));
+                LevelMediaGain += (target - LevelMediaGain) * (target < LevelMediaGain ? 0.55f : 0.02f);
+            }
+            return Math.Abs(old - LevelMediaGain) > 0.004f;
+        }
+
+        // ---- EQ per game: a game's headset/speaker EQ comes back when it starts; your normal EQ when it closes. Mic EQ is never touched.
+        Dictionary<string, EqState> eqNormal;
+        public bool EqSwitched;
+        static EqState CloneEq(EqState e) { return new EqState { Name = e.Name, Capture = e.Capture, On = e.On, Preset = e.Preset, LowCut = e.LowCut, Gains = e.Gains == null ? new int[10] : (int[])e.Gains.Clone() }; }
+        Dictionary<string, EqState> OutputEq() { return S.Eq.Where(kv => !kv.Value.Capture).ToDictionary(kv => kv.Key, kv => CloneEq(kv.Value)); }
+        void UseOutputEq(Dictionary<string, EqState> src)
+        {
+            foreach (var k in S.Eq.Where(kv => !kv.Value.Capture).Select(kv => kv.Key).ToList()) S.Eq.Remove(k);
+            foreach (var kv in src) S.Eq[kv.Key] = CloneEq(kv.Value);
+            EqSwitched = true;
+        }
+        void SwitchEq(string key)
+        {
+            if (!S.EqPerGame) return;
+            if (CurrentGame == null && key != null) eqNormal = OutputEq();
+            Dictionary<string, EqState> saved;
+            if (key != null && S.GameEq.TryGetValue(key, out saved)) UseOutputEq(saved);
+            else if (eqNormal != null && (key == null || CurrentGame != null)) UseOutputEq(eqNormal);   // game closed, or a game without its own EQ
+            if (key == null) eqNormal = null;
+            if (EqSwitched) Eq.Write(S.Eq);
+        }
+        // The EQ window calls this after a change: while a game runs, the change is remembered for that game.
+        public string NoteEqChanged()
+        {
+            if (!S.EqPerGame || CurrentGame == null) return null;
+            S.GameEq[CurrentGame] = OutputEq();
+            return CurrentGameName;
         }
 
         // ---- levels per game: when a game starts its own levels come back; when it closes, your normal ones do
@@ -337,7 +388,8 @@ namespace HallowMixer
             var g = Apps.FirstOrDefault(a => a.Channel == "game" && a.Key != "system");
             string key = g == null ? null : g.Key;
             if (key == CurrentGame) return false;
-            if (!S.PerGame) { CurrentGame = key; CurrentGameName = g == null ? null : g.Name; return false; }
+            SwitchEq(key);
+            if (!S.PerGame) { CurrentGame = key; CurrentGameName = g == null ? null : g.Name; S.Save(); return false; }
             if (CurrentGame == null && key != null) beforeGame = Snapshot("before");
             if (key != null)
             {
