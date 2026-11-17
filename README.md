@@ -36,6 +36,10 @@ Runs on the .NET Framework that comes with Windows 10 and 11. The app isn't code
 - EQ goes through Equalizer APO (install it once and tick your devices). Hallow Mixer can't create virtual sound devices.
 - Settings live in `%APPDATA%\HallowMixer`.
 
+## Roadmap
+
+See [ROADMAP.md](ROADMAP.md) - what's done and what's coming next.
+
 ## Build it yourself
 
 ```powershell
