@@ -475,6 +475,12 @@ namespace HallowMixer
         }
         public string KeyForPid(uint pid) { var exe = Proc.Path(pid); return exe == null ? null : Path.GetFileNameWithoutExtension(exe).ToLowerInvariant(); }
 
+        // After app choices changed from outside (an imported setup): put running apps in their channels again.
+        public void ReapplyChannels()
+        {
+            foreach (var a in Apps) { a.Channel = Guess(a.Key, a.ExePath); a.AutoChannel = !S.AppChannel.ContainsKey(a.Key); }
+            Apply();
+        }
         public void MoveApp(MixApp a, string channel)
         {
             a.Channel = channel; a.AutoChannel = false;

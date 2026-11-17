@@ -22,14 +22,14 @@ using WF = System.Windows.Forms;
 [assembly: AssemblyTitle("Hallow Mixer")]
 [assembly: AssemblyProduct("Hallow Mixer")]
 [assembly: AssemblyDescription("Per-app volume mixer: game, chat, music, media")]
-[assembly: AssemblyVersion("2.3.0.0")]
-[assembly: AssemblyFileVersion("2.3.0.0")]
+[assembly: AssemblyVersion("2.4.0.0")]
+[assembly: AssemblyFileVersion("2.4.0.0")]
 
 namespace HallowMixer
 {
     public static class Program
     {
-        public const string Version = "2.3";
+        public const string Version = "2.4";
         [STAThread]
         public static void Main(string[] args)
         {
@@ -1003,8 +1003,7 @@ namespace HallowMixer
                 if (ready) DiscordReady();
                 UpdateCleanButton();
                 // rebuild the settings flyout so its switches and device boxes show what setup chose
-                var parent = settingsPanel.Parent as Grid; var vis = settingsPanel.Visibility;
-                if (parent != null) { parent.Children.Remove(settingsPanel); settingsPanel = BuildSettings(); settingsPanel.Visibility = vis; parent.Children.Add(settingsPanel); }
+                RebuildSettings();
                 Status(mode == "sonar" ? "Set up to work with Sonar." : mode == "replace" ? "Set up to replace Sonar. Turn Sonar off in SteelSeries GG when you're ready." : "Set up as a mixer.");
             }) { Owner = this };
             setupWin.Closed += (s, e) => eng.S.Save();
@@ -1016,9 +1015,40 @@ namespace HallowMixer
         void StartApi()
         {
             if (api != null) return;
-            api = new MixerApi(ApiState, ApiDo, Dispatcher);
+            api = new MixerApi(ApiState, ApiDo, Dispatcher) { ShareJson = ShareJson, ApplyShare = ApplyShare };
             if (!api.Start()) { api = null; return; }
             Dispatcher.ShutdownStarted += (s, e) => StopApi();
+        }
+        // ---- v2.4 Share your setup (through Hallow Toolkit)
+        AudioDevice DefaultDevice(int flow) { var id = CoreAudio.DefaultId(flow); return id == null ? null : CoreAudio.Devices(flow).FirstOrDefault(d => d.Id == id); }
+        AudioDevice ShareOutput()
+        {
+            // the headset if headset-first is set up, else Windows' default output
+            if (!string.IsNullOrEmpty(eng.S.PrimaryOut)) { var p = CoreAudio.Devices(0).FirstOrDefault(d => d.Id == eng.S.PrimaryOut); if (p != null) return p; }
+            var def = DefaultDevice(0); if (def != null && !Setup.IsSonar(def)) return def;
+            return Setup.GuessHeadset(CoreAudio.Devices(0));   // Sonar's virtual devices don't count - EQ belongs on the real headset
+        }
+        AudioDevice ShareMic() { var d = DefaultDevice(1); return d != null && !Setup.IsSonar(d) ? d : Setup.GuessMic(CoreAudio.Devices(1)); }
+        string ShareJson()
+        {
+            var o = ShareOutput(); var m = ShareMic();
+            return Share.ToJson(Share.Make(eng.S, o == null ? null : o.Id, m == null ? null : m.Id));
+        }
+        string ApplyShare(string json)
+        {
+            SharedMix m;
+            try { m = Share.FromJson(json); } catch { return "!That isn't Hallow Mixer settings."; }
+            if (m == null) return "!That isn't Hallow Mixer settings.";
+            var done = Share.Apply(eng, m, ShareOutput(), ShareMic());
+            RebuildPresets(); RebuildApps(); LoadValues(); RebuildSettings();
+            if (eqWin != null && eqWin.IsLoaded) eqWin.Reload();
+            var text = "Imported a friend's setup: " + string.Join(", ", done);
+            Status(text); return text;
+        }
+        void RebuildSettings()
+        {
+            var parent = settingsPanel.Parent as Grid; var vis = settingsPanel.Visibility;
+            if (parent != null) { parent.Children.Remove(settingsPanel); settingsPanel = BuildSettings(); settingsPanel.Visibility = vis; parent.Children.Add(settingsPanel); }
         }
         void StopApi() { if (api != null) { api.Stop(); api = null; } }
         string ApiState()

@@ -21,11 +21,14 @@ The goal: everything SteelSeries Sonar does for a gamer - and the things it does
 | **2.1** | Hallow family: Hallow Toolkit 4.5 installs/opens Hallow Mixer; its phone dashboard changes channel levels, mute, mic and presets; local control API (127.0.0.1 only, with a key) |
 | **2.2** | Ready for everyone: first-run setup - "With Sonar / Replacing Sonar / Just a mixer" - guesses your headset, fallback and mic, shows what will change, then sets channels, outputs and mic; "Run setup again" in Settings |
 | **2.3** | Clean chat voices: "Clean voices" on the Chat strip sends Chat through NVIDIA Broadcast's speaker effects (noise and echo removed from friends' voices); turns itself off and puts Chat back if NVIDIA Broadcast goes away |
+| **2.4** | Hallow family, part 2: settings travel with Hallow Toolkit 4.6's "Share your setup" - presets, app choices, ducking, mic mode and headset/mic EQ (checked on import; EQ lands on your own real headset and mic, never Sonar's virtual devices) |
 
 ## Next
 
-### 2.4 - Hallow family, part 2
-- Hallow Mixer settings travel with the Toolkit's "Share your setup"
+### 2.5 - Now playing
+- See the song or video that's playing (Music and Media) in the mixer, the Mini mixer and the phone dashboard, with play/pause and skip
+
+### Later - Hallow family, part 3
 - Hallow Discord bot: post "now playing" and mic status if you want it
 
 ### Later - closing the gap to Sonar
