@@ -22,14 +22,14 @@ using WF = System.Windows.Forms;
 [assembly: AssemblyTitle("Hallow Mixer")]
 [assembly: AssemblyProduct("Hallow Mixer")]
 [assembly: AssemblyDescription("Per-app volume mixer: game, chat, music, media")]
-[assembly: AssemblyVersion("3.1.0.0")]
-[assembly: AssemblyFileVersion("3.1.0.0")]
+[assembly: AssemblyVersion("3.2.0.0")]
+[assembly: AssemblyFileVersion("3.2.0.0")]
 
 namespace HallowMixer
 {
     public static class Program
     {
-        public const string Version = "3.1";
+        public const string Version = "3.2";
         [STAThread]
         public static void Main(string[] args)
         {
@@ -415,6 +415,7 @@ namespace HallowMixer
             sw("Remember my levels for each game (they come back when the game starts)", eng.S.PerGame, v => eng.S.PerGame = v);
             sw("EQ follows the game (each game remembers its headset EQ)", eng.S.EqPerGame, v => eng.S.EqPerGame = v);
             sw("Even out Media: loud ads and explosions down, quiet talking up", eng.S.LevelMedia, v => eng.S.LevelMedia = v);
+            sw("Loud-sound guard: sudden blasts in any channel (a flashbang, a scream, a mic squeal in Chat) are turned down for a moment", eng.S.Guard, v => eng.S.Guard = v);
             sw("Show a pop-up on screen when I use the hotkeys", eng.S.Overlay, v => eng.S.Overlay = v);
             sw("Preset hotkeys: Ctrl+Alt+1 to 9 for your presets, Ctrl+Alt+0 for the next one", eng.S.PresetKeys, v => { eng.S.PresetKeys = v; RegisterPresetKeys(v); });
             sw("Show what's playing (song or video, with play/pause and skip)", eng.S.NowPlayingOn, v => { eng.S.NowPlayingOn = v; ShowNow(v ? NowPlaying.Current : null); });
@@ -794,7 +795,9 @@ namespace HallowMixer
             foreach (var a in eng.Apps) { float pk = a.Peak(); if (pk > peaks[a.Channel]) peaks[a.Channel] = pk; }
             float micPk = (eng.S.DuckOnMic || IsVisible) ? CoreAudio.DevicePeak(defMic) : 0;
             bool lv = eng.UpdateLevel(peaks["media"]);
-            if (eng.UpdateDuck(peaks["chat"], micPk) | lv) eng.Apply();
+            bool gd = eng.UpdateGuard(peaks, DateTime.UtcNow);
+            if (eng.UpdateDuck(peaks["chat"], micPk) | lv | gd) eng.Apply();
+            if (eng.GuardNote != null) { Status(eng.GuardNote + " (loud-sound guard)."); eng.GuardNote = null; }
             if (eng.Ducking != wasDucking) { wasDucking = eng.Ducking; UpdateSubs(); }
             if (!IsVisible) return;
             foreach (var st in strips.Values) SetMeter(st, peaks[st.Id]);

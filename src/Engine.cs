@@ -65,6 +65,8 @@ namespace HallowMixer
         [DataMember] public bool EqPerGame = true;        // each game remembers its headset/speaker EQ
         [DataMember] public Dictionary<string, Dictionary<string, EqState>> GameEq = new Dictionary<string, Dictionary<string, EqState>>();
         [DataMember] public bool LevelMedia;              // even out loud and quiet moments in the Media channel
+        // v3.2
+        [DataMember] public bool Guard;                 // loud-sound guard: sudden blasts turn their channel down for a moment
         // v3.1
         [DataMember] public Dictionary<string, int> BgLevel = new Dictionary<string, int>();   // app -> 0..99 % while you're in another app (0 = muted)
         // v2.8
@@ -358,9 +360,40 @@ namespace HallowMixer
             if (Math.Abs(DuckMic - tMic) < 0.005f) DuckMic = tMic;
             return Math.Abs(oc - DuckChat) > 0.004f || Math.Abs(om - DuckMic) > 0.004f;
         }
+        // ---- v3.2 loud-sound guard. The meters read each app before its volume, so a jump is seen the same at any fader level.
+        readonly Dictionary<string, float> guardEnv = new Dictionary<string, float>(), guardGain = new Dictionary<string, float>();
+        readonly Dictionary<string, DateTime> guardHold = new Dictionary<string, DateTime>();
+        public string GuardNote;   // set when the guard catches something (the window shows it)
+        // Called ~20 times a second with each channel's peak. Returns true when volumes need re-applying.
+        public bool UpdateGuard(Dictionary<string, float> peaks, DateTime now)
+        {
+            bool changed = false;
+            foreach (var ch in ChannelIds)
+            {
+                float pk; peaks.TryGetValue(ch, out pk);
+                float env; if (!guardEnv.TryGetValue(ch, out env)) env = pk;
+                float g; if (!guardGain.TryGetValue(ch, out g)) g = 1f;
+                DateTime hold; guardHold.TryGetValue(ch, out hold);
+                float old = g;
+                if (S.Guard && pk > 0.7f && pk > env * 3.5f && env < 0.25f)
+                {
+                    // a sudden blast: far above what this channel was just playing
+                    g = Math.Min(g, 0.35f); guardHold[ch] = now.AddMilliseconds(600);
+                    GuardNote = ChannelNames[ch] + ": sudden loud sound turned down";
+                }
+                else if (!S.Guard) g = 1f;
+                else if (now > hold) g += (1f - g) * 0.06f;          // ease back over about 2 seconds
+                if (g > 0.995f) g = 1f;
+                guardGain[ch] = g;
+                guardEnv[ch] = env * 0.97f + pk * 0.03f;               // what's "normal" for this channel (about 1.5 s)
+                if (Math.Abs(old - g) > 0.004f) changed = true;
+            }
+            return changed;
+        }
+        public float GuardFactor(string ch) { float g; return guardGain.TryGetValue(ch, out g) ? g : 1f; }
         float DuckFactor(string ch)
         {
-            float f = 1f;
+            float f = GuardFactor(ch);
             if (ch == "game" || ch == "music" || ch == "media") f *= DuckChat;
             if (ch == "music" || ch == "media") f *= DuckMic;
             if (ch == "media") f *= LevelMediaGain;

@@ -29,11 +29,9 @@ The goal: everything SteelSeries Sonar does for a gamer - and the things it does
 | **2.9** | Game profiles: a Games window lists every game Hallow Mixer remembers, with its five channel levels (change them, or take the mixer's current ones) and its EQ; forget a game's EQ or the whole game; the running game moves right away |
 | **3.0** | Headphone space: crossfeed for headphones in the EQ window (Light / Medium / Strong, the bs2b levels) - bass and low-mids from one side reach both ears like speakers in a room, treble keeps its width, centre sounds untouched; mid/side through Equalizer APO's own Copy and shelf filters (only the device's L and R) |
 | **3.1** | Background mute: right-click an app > "When I'm in another app" > keep playing / turn down to 20% / mute; it comes back the moment you switch to it (checks the window in front 4 times a second, only when an app uses it) |
+| **3.2** | Loud-sound guard (Settings, off by default): a sudden blast far above what a channel was just playing (3.5x its recent level, out of a quiet moment) turns that channel down to 35% at once, holds 0.6 s and eases back over ~2 s; loud gameplay and music swells are left alone |
 
 ## Next
-
-### 3.2 - Loud-sound guard
-- Catches sudden blasts (a flashbang, a screaming stream, a mic squeal in Chat) and turns that channel down for a moment; optional max level per channel
 
 ### 3.3 - "You're muted" warning
 - If you start talking while your mic is muted, a pop-up tells you (no more talking to nobody)
