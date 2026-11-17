@@ -28,7 +28,7 @@ namespace HallowMixer
         static EqState Copy(EqState e)
         {
             if (e == null) return null;
-            return new EqState { Name = e.Name, Capture = e.Capture, On = e.On, Preset = e.Preset, Gains = (e.Gains ?? new int[10]).ToArray(), LowCut = e.LowCut, Param = e.Param,
+            return new EqState { Name = e.Name, Capture = e.Capture, On = e.On, Preset = e.Preset, Gains = (e.Gains ?? new int[10]).ToArray(), LowCut = e.LowCut, Param = e.Param, Space = e.Space,
                 PBands = e.PBands == null ? null : e.PBands.Select(b => b.Clone()).ToList() };
         }
 
@@ -58,7 +58,7 @@ namespace HallowMixer
             if (e == null) return null;
             var g = new int[10]; if (e.Gains != null) for (int i = 0; i < 10 && i < e.Gains.Length; i++) g[i] = Clamp(e.Gains[i], -15, 15);
             var r = new EqState { Name = name, Capture = capture, On = e.On, Preset = string.IsNullOrEmpty(e.Preset) ? "Custom" : e.Preset.Length > 60 ? e.Preset.Substring(0, 60) : e.Preset,
-                Gains = g, LowCut = capture && Eq.LowCuts.Contains(e.LowCut) ? e.LowCut : 0, Param = e.Param };
+                Gains = g, LowCut = capture && Eq.LowCuts.Contains(e.LowCut) ? e.LowCut : 0, Param = e.Param, Space = capture ? 0 : Math.Max(0, Math.Min(3, e.Space)) };
             if (e.PBands != null)
                 r.PBands = e.PBands.Where(b => b != null).Take(10).Select(b => new PBand {
                     Type = Types.Contains(b.Type) ? b.Type : "PK", Freq = Clamp(b.Freq, 20, 20000), Gain = Clamp(b.Gain, -15, 15), Q = Clamp(b.Q, 0.1, 10), On = b.On }).ToList();

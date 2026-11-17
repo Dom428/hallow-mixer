@@ -37,6 +37,7 @@ WHAT IT DOES
 - EQ > Parametric EQ: drag the dots on the curve; presets for many games and for mics (QuadCast 2S).
 - Clean voices (Chat strip): with an RTX card, sends Chat through NVIDIA Broadcast to remove noise from your friends' voices.
 - Setup: the first time it opens, pick With Sonar / Replacing Sonar / Just a mixer (Settings > Run setup again to redo it).
+- EQ > Headphone space: crossfeed for headphones (Light / Medium / Strong).
 - Games (top bar): every game's saved levels and EQ - change them or forget a game.
 - Ctrl+Alt+1 to 9 = your presets, Ctrl+Alt+0 = next preset.
 - Ducking only reacts to real talking (Settings > "Only for real talking" to change it).

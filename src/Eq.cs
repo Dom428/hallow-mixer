@@ -28,6 +28,7 @@ namespace HallowMixer
         [DataMember] public int LowCut;        // v1.7: high-pass filter in Hz for mics (0 = off) - removes rumble, desk bumps, fan hum
         [DataMember] public bool Param;        // v1.9: parametric mode (PBands) instead of the 10 graphic bands
         [DataMember] public List<PBand> PBands;
+        [DataMember] public int Space;         // v3.0: headphone space (crossfeed) for outputs - 0 off, 1 light, 2 medium, 3 strong
     }
 
     public static class Eq
@@ -105,6 +106,29 @@ namespace HallowMixer
         }
 
         public static readonly int[] LowCuts = { 0, 60, 80, 100, 120 };
+        public static readonly string[] SpaceNames = { "Off", "Light", "Medium", "Strong" };
+
+        // Headphone space (crossfeed): on headphones, bass and low-mids from one side should reach both ears, like
+        // speakers in a room. Done with mid/side so it needs only the device's own L and R channels: the side (L-R)
+        // part gets a low shelf, so low sounds are narrowed while treble keeps its full width and anything in the
+        // centre is untouched. For a sound hard on one side, the other ear gets the bs2b crossfeed levels
+        // (light 9.5 dB, medium 6 dB, strong 4.5 dB quieter) below the shelf frequency.
+        public static string[] SpaceLines(int strength)
+        {
+            if (strength <= 0) return new string[0];
+            int s = Math.Min(3, strength);
+            double fc = s == 1 ? 650 : 700, feedDb = s == 1 ? 9.5 : s == 2 ? 6.0 : 4.5;
+            double g = Math.Pow(10, -feedDb / 20), side = (1 - g) / (1 + g), shelf = 20 * Math.Log10(side);
+            Func<double, string> f = x => x.ToString("0.###", CultureInfo.InvariantCulture);
+            return new[] {
+                "# Headphone space: " + SpaceNames[s] + " (crossfeed below " + f(fc) + " Hz, other ear " + f(feedDb) + " dB down)",
+                "Copy: L=0.5*L+0.5*R R=0.5*L+-0.5*R",
+                "Channel: R",
+                "Filter: ON LSC Fc " + f(fc) + " Hz Gain " + f(shelf) + " dB Q 0.707",
+                "Channel: L R",
+                "Copy: L=L+R R=L+-1.0*R",
+                "Channel: all" };
+        }
 
         // One click: the Discord-ready mic sound on this mic (voice EQ + 80 Hz low cut).
         public static EqState MakeDiscordReady(Dictionary<string, EqState> eq, string micId, string micName)
@@ -129,7 +153,8 @@ namespace HallowMixer
                 var e = kv.Value; if (!e.On || e.Gains == null) continue;
                 bool param = e.Param && e.PBands != null;
                 var act = param ? e.PBands.Where(PEq.Active).ToList() : null;
-                if ((param ? act.Count == 0 : e.Gains.All(g => g == 0)) && e.LowCut <= 0) continue;
+                int space = e.Capture ? 0 : e.Space;
+                if ((param ? act.Count == 0 : e.Gains.All(g => g == 0)) && e.LowCut <= 0 && space <= 0) continue;
                 sb.AppendLine();
                 sb.AppendLine("# " + (e.Name ?? kv.Key) + " - " + e.Preset + (param ? " (parametric)" : ""));
                 sb.AppendLine("Device: " + Guid(kv.Key));
@@ -139,6 +164,7 @@ namespace HallowMixer
                 else if (e.Gains.Any(g => g != 0))
                     sb.AppendLine("GraphicEQ: " + string.Join("; ", Bands.Select((f, i) => f.ToString(CultureInfo.InvariantCulture) + " " + e.Gains[i].ToString(CultureInfo.InvariantCulture))));
                 if (e.LowCut > 0) sb.AppendLine("Filter: ON HP Fc " + e.LowCut.ToString(CultureInfo.InvariantCulture) + " Hz");   // true 12 dB/oct high-pass
+                foreach (var line in SpaceLines(space)) sb.AppendLine(line);
             }
             sb.AppendLine();
             sb.AppendLine("Device: all");
@@ -155,7 +181,7 @@ namespace HallowMixer
     public class EqWindow : Window
     {
         readonly Settings s;
-        ComboBox device, lowCut; DockPanel lowCutRow; CheckBox onSwitch; WrapPanel presetRow; TextBlock status, apoText; Button connectBtn, configBtn;
+        ComboBox device, lowCut, space; DockPanel lowCutRow, spaceRow; CheckBox onSwitch; WrapPanel presetRow; TextBlock status, apoText; Button connectBtn, configBtn;
         readonly Slider[] bands = new Slider[10]; readonly TextBlock[] vals = new TextBlock[10];
         Button modeG, modeP; Border shell; PEqEditor peq;
         bool loading; readonly DispatcherTimer writeTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
@@ -218,6 +244,16 @@ namespace HallowMixer
             DockPanel.SetDock(lcl, Dock.Left); DockPanel.SetDock(lowCut, Dock.Left);
             lowCutRow.Children.Add(lcl); lowCutRow.Children.Add(lowCut); lowCutRow.Children.Add(lch);
             sp.Children.Add(lowCutRow);
+            spaceRow = new DockPanel { Margin = new Thickness(0, 0, 0, 12) };
+            var spl = new TextBlock { Text = "Headphone space", Foreground = (Brush)FindResource("Muted"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) };
+            space = new ComboBox { Style = (Style)FindResource("Combo"), Width = 120, ItemsSource = Eq.SpaceNames,
+                ToolTip = "Crossfeed: each ear hears a little of the other side, softened and slightly delayed - like speakers in a room. Less tiring on headphones, and hard-left/right sounds stop feeling stuck inside one ear." };
+            System.Windows.Automation.AutomationProperties.SetName(space, "Headphone space");
+            space.SelectionChanged += (o, e) => { if (loading) return; var st = Cur(); if (st == null || space.SelectedIndex < 0) return; st.Space = space.SelectedIndex; if (st.Space > 0) { st.On = true; onSwitch.IsChecked = true; } Changed(); };
+            var sph = new TextBlock { Text = "headphones only - speakers in a room, not inside your head", Foreground = (Brush)FindResource("Muted"), FontSize = 11, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0) };
+            DockPanel.SetDock(spl, Dock.Left); DockPanel.SetDock(space, Dock.Left);
+            spaceRow.Children.Add(spl); spaceRow.Children.Add(space); spaceRow.Children.Add(sph);
+            sp.Children.Add(spaceRow);
 
             var grid = new Grid { Height = 210, Background = (Brush)FindResource("Panel") };
             for (int i = 0; i < 10; i++)
@@ -296,6 +332,8 @@ namespace HallowMixer
             for (int i = 0; i < 10; i++) { bands[i].Value = st.Gains[i]; vals[i].Text = (st.Gains[i] > 0 ? "+" : "") + st.Gains[i]; }
             lowCutRow.Visibility = st.Capture ? Visibility.Visible : Visibility.Collapsed;
             lowCut.SelectedIndex = Math.Max(0, Array.IndexOf(Eq.LowCuts, st.LowCut));
+            spaceRow.Visibility = st.Capture ? Visibility.Collapsed : Visibility.Visible;
+            space.SelectedIndex = Math.Max(0, Math.Min(3, st.Space));
             bool pm = st.Param && st.PBands != null;
             shell.Visibility = pm ? Visibility.Collapsed : Visibility.Visible;
             peq.Visibility = pm ? Visibility.Visible : Visibility.Collapsed;

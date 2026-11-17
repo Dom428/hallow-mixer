@@ -27,15 +27,16 @@ The goal: everything SteelSeries Sonar does for a gamer - and the things it does
 | **2.7** | Hallow family, part 3: now playing tells Hallow Toolkit which channel the app is in, so Toolkit 4.8's Discord posts can share songs from Music apps (never browser videos) and mic muted / back on - both off until you turn them on |
 | **2.8** | Preset hotkeys: Ctrl+Alt+1 to 9 for your presets, Ctrl+Alt+0 for the next one, with the on-screen pop-up; skips keys that type a character on AltGr keyboards (German, French...) or that another app uses; Settings switch |
 | **2.9** | Game profiles: a Games window lists every game Hallow Mixer remembers, with its five channel levels (change them, or take the mixer's current ones) and its EQ; forget a game's EQ or the whole game; the running game moves right away |
+| **3.0** | Headphone space: crossfeed for headphones in the EQ window (Light / Medium / Strong, the bs2b levels) - bass and low-mids from one side reach both ears like speakers in a room, treble keeps its width, centre sounds untouched; mid/side through Equalizer APO's own Copy and shelf filters (only the device's L and R) |
 
 ## Next
 
-### 3.0 - Headphone space
-- Crossfeed for headphones (each ear hears a little of the other side, slightly delayed and softened - like speakers in a room), built from Equalizer APO's own filters; three strengths
+### 3.1 - Fixes from testing at home
+- Whatever comes up on the real A50, QuadCast 2S, Equalizer APO, OBS and Discord
 
 
 ### Later - closing the gap to Sonar
-- 360 spatial audio (virtual surround) through Equalizer APO's convolution filter - needs 3D sound profiles we're allowed to ship
+- 360 spatial audio (true virtual surround) through Equalizer APO's convolution filter - needs 3D sound profiles (HRTFs) we're allowed to ship, and Equalizer APO's convolution can't mix one ear into the other on its own. Headphone space (3.0) covers the "speakers in a room" part
 - Mic noise gate, compressor and limiter: Equalizer APO has none built in, so this needs our own audio plugin
 - Quick switch for Windows spatial sound (Windows Sonic / Dolby Atmos): Windows has no public way for apps to change it, so this needs research first
 

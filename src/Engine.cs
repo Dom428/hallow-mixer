@@ -375,7 +375,7 @@ namespace HallowMixer
         // ---- EQ per game: a game's headset/speaker EQ comes back when it starts; your normal EQ when it closes. Mic EQ is never touched.
         Dictionary<string, EqState> eqNormal;
         public bool EqSwitched;
-        static EqState CloneEq(EqState e) { return new EqState { Name = e.Name, Capture = e.Capture, On = e.On, Preset = e.Preset, LowCut = e.LowCut, Gains = e.Gains == null ? new int[10] : (int[])e.Gains.Clone(), Param = e.Param, PBands = e.PBands == null ? null : PEq.Copy(e.PBands) }; }
+        static EqState CloneEq(EqState e) { return new EqState { Name = e.Name, Capture = e.Capture, On = e.On, Preset = e.Preset, LowCut = e.LowCut, Space = e.Space, Gains = e.Gains == null ? new int[10] : (int[])e.Gains.Clone(), Param = e.Param, PBands = e.PBands == null ? null : PEq.Copy(e.PBands) }; }
         Dictionary<string, EqState> OutputEq() { return S.Eq.Where(kv => !kv.Value.Capture).ToDictionary(kv => kv.Key, kv => CloneEq(kv.Value)); }
         void UseOutputEq(Dictionary<string, EqState> src)
         {
