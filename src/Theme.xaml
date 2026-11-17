@@ -135,6 +135,32 @@
         <Setter Property="FontWeight" Value="SemiBold"/>
     </Style>
 
+    <!-- On/off switch: green = on, grey = off -->
+    <Style x:Key="Switch" TargetType="CheckBox">
+        <Setter Property="Foreground" Value="#ECE8F4"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Margin" Value="0,6,0,6"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="CheckBox">
+                    <DockPanel Background="Transparent">
+                        <Border x:Name="track" DockPanel.Dock="Left" Width="40" Height="22" CornerRadius="11" Background="#58566A" VerticalAlignment="Center">
+                            <Ellipse x:Name="knob" Width="16" Height="16" Fill="#CDCAD6" HorizontalAlignment="Left" Margin="3,0,3,0"/>
+                        </Border>
+                        <ContentPresenter Margin="12,0,0,0" VerticalAlignment="Center"/>
+                    </DockPanel>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="track" Property="Background" Value="#6ED28C"/>
+                            <Setter TargetName="knob" Property="HorizontalAlignment" Value="Right"/>
+                            <Setter TargetName="knob" Property="Fill" Value="#FFFFFF"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <Style TargetType="ComboBoxItem">
         <Setter Property="Foreground" Value="#ECE8F4"/>
         <Setter Property="Template">

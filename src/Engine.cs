@@ -32,6 +32,22 @@ namespace HallowMixer
         [DataMember] public List<Preset> Presets = new List<Preset>();
         [DataMember] public bool TrayTipShown;
         [DataMember] public bool StartMinimized;
+        // v1.1
+        [DataMember] public bool DuckOnChat = true;       // someone talks in Chat -> game, music and media go down
+        [DataMember] public int DuckAmount = 50;          // ... by this many percent
+        [DataMember] public bool DuckOnMic;               // you talk -> music and media go down
+        [DataMember] public bool PerGame = true;          // remember channel levels for each game
+        [DataMember] public bool Overlay = true;          // on-screen pop-up for hotkeys
+        [DataMember] public List<string> MutedApps = new List<string>();
+        [DataMember] public Dictionary<string, Preset> GameLevels = new Dictionary<string, Preset>();
+
+        // The JSON reader skips field initialisers, so set the defaults here (values in the file then override them).
+        [OnDeserializing] void Defaults(StreamingContext c)
+        {
+            DuckOnChat = true; DuckAmount = 50; PerGame = true; Overlay = true;
+            MutedApps = new List<string>(); GameLevels = new Dictionary<string, Preset>();
+            AppChannel = new Dictionary<string, string>(); AppVolume = new Dictionary<string, int>();
+        }
 
         static string Dir { get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "HallowMixer"); } }
         static string FilePath { get { return Path.Combine(Dir, "settings.json"); } }
@@ -44,6 +60,9 @@ namespace HallowMixer
             if (s.AppChannel == null) s.AppChannel = new Dictionary<string, string>();
             if (s.AppVolume == null) s.AppVolume = new Dictionary<string, int>();
             if (s.Presets == null || s.Presets.Count == 0) s.Presets = DefaultPresets();
+            if (s.MutedApps == null) s.MutedApps = new List<string>();
+            if (s.GameLevels == null) s.GameLevels = new Dictionary<string, Preset>();
+            if (s.DuckAmount <= 0 || s.DuckAmount > 100) s.DuckAmount = 50;
             foreach (var c in Engine.ChannelIds) if (!s.Channels.Any(x => x.Id == c)) s.Channels.Add(new ChannelState { Id = c });
             return s;
         }
@@ -138,7 +157,7 @@ namespace HallowMixer
             foreach (var d in DriveInfo.GetDrives())
             {
                 if (d.DriveType != DriveType.Fixed) continue;
-                foreach (var sub in new[] { "XboxGames", "Xbox", @"Program Files\Epic Games", "Epic Games", "Riot Games", "Games", @"Program Files\EA Games", @"Program Files (x86)\Ubisoft\Ubisoft Game Launcher\games", @"Program Files\WindowsApps" })
+                foreach (var sub in new[] { "XboxGames", "Xbox", @"Program Files\Epic Games", "Epic Games", "Riot Games", "Games", @"Program Files\EA Games", @"Program Files (x86)\Ubisoft\Ubisoft Game Launcher\games" })
                     AddRoot(Path.Combine(d.RootDirectory.FullName, sub));
             }
         }
@@ -218,6 +237,7 @@ namespace HallowMixer
             bool changed = byKey.Count != Apps.Count || byKey.Keys.Any(k => !old.ContainsKey(k));
             Apps = byKey.Values.OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase).ToList();
             if (exeCache.Count > 500) exeCache.Clear();
+            if (CheckGame()) LevelsSwitched = true;
             Apply();
             return changed;
         }
@@ -229,6 +249,80 @@ namespace HallowMixer
             return 1f;
         }
         public int AppVolume(string key) { int v; return S.AppVolume.TryGetValue(key, out v) ? v : 100; }
+        public bool AppMuted(string key) { return S.MutedApps.Contains(key); }
+        public void ToggleAppMute(MixApp a)
+        {
+            if (!S.MutedApps.Remove(a.Key)) S.MutedApps.Add(a.Key);
+            S.Save(); Apply();
+        }
+
+        // ---- auto-ducking: someone talks in Chat (or you talk) -> other channels go down, then fade back
+        public float DuckChat = 1f, DuckMic = 1f;          // current multipliers (1 = not ducked)
+        DateTime chatHold, micHold;
+        public bool Ducking { get { return DuckChat < 0.97f || DuckMic < 0.97f; } }
+        // Called ~20 times a second with the live levels. Returns true when the volumes need re-applying.
+        public bool UpdateDuck(float chatPeak, float micPeak)
+        {
+            var now = DateTime.UtcNow;
+            if (chatPeak > 0.03f) chatHold = now.AddMilliseconds(700);
+            if (micPeak > 0.08f) micHold = now.AddMilliseconds(700);
+            float low = 1f - S.DuckAmount / 100f;
+            float tChat = S.DuckOnChat && now < chatHold ? low : 1f;
+            float tMic = S.DuckOnMic && now < micHold ? low : 1f;
+            float oc = DuckChat, om = DuckMic;
+            DuckChat += (tChat - DuckChat) * (tChat < DuckChat ? 0.45f : 0.07f);   // down fast, back up gently
+            DuckMic += (tMic - DuckMic) * (tMic < DuckMic ? 0.45f : 0.07f);
+            if (Math.Abs(DuckChat - tChat) < 0.005f) DuckChat = tChat;
+            if (Math.Abs(DuckMic - tMic) < 0.005f) DuckMic = tMic;
+            return Math.Abs(oc - DuckChat) > 0.004f || Math.Abs(om - DuckMic) > 0.004f;
+        }
+        float DuckFactor(string ch)
+        {
+            float f = 1f;
+            if (ch == "game" || ch == "music" || ch == "media") f *= DuckChat;
+            if (ch == "music" || ch == "media") f *= DuckMic;
+            return f;
+        }
+
+        // ---- levels per game: when a game starts its own levels come back; when it closes, your normal ones do
+        public string CurrentGame, CurrentGameName, LevelsNote;
+        Preset beforeGame;
+        Preset Snapshot(string name)
+        {
+            var p = new Preset { Name = name, ChatMix = S.ChatMix };
+            foreach (var c in S.Channels) p.Volumes[c.Id] = c.Volume;
+            return p;
+        }
+        void LoadLevels(Preset p)
+        {
+            foreach (var kv in p.Volumes) { var c = S.Channels.FirstOrDefault(x => x.Id == kv.Key); if (c != null) c.Volume = kv.Value; }
+            S.ChatMix = p.ChatMix;
+        }
+        // Returns true when it switched levels (the window then reloads its faders).
+        bool CheckGame()
+        {
+            var g = Apps.FirstOrDefault(a => a.Channel == "game" && a.Key != "system");
+            string key = g == null ? null : g.Key;
+            if (key == CurrentGame) return false;
+            if (!S.PerGame) { CurrentGame = key; CurrentGameName = g == null ? null : g.Name; return false; }
+            if (CurrentGame == null && key != null) beforeGame = Snapshot("before");
+            if (key != null)
+            {
+                Preset saved;
+                if (S.GameLevels.TryGetValue(key, out saved)) { LoadLevels(saved); LevelsNote = "Your " + g.Name + " levels are back."; }
+                else { S.GameLevels[key] = Snapshot(g.Name); LevelsNote = g.Name + " started - changes you make now are remembered for it."; }
+            }
+            else if (beforeGame != null) { LoadLevels(beforeGame); beforeGame = null; LevelsNote = CurrentGameName + " closed - your normal levels are back."; }
+            CurrentGame = key; CurrentGameName = g == null ? null : g.Name;
+            S.Save();
+            return true;
+        }
+        // The window calls this after you move a fader: while a game runs, its levels are updated.
+        public void NoteLevelsChanged()
+        {
+            if (S.PerGame && CurrentGame != null) S.GameLevels[CurrentGame] = Snapshot(CurrentGameName);
+        }
+        public bool LevelsSwitched;
 
         // Pushes the mixer's numbers onto every app stream (only where something changed).
         public void Apply()
@@ -236,9 +330,9 @@ namespace HallowMixer
             foreach (var a in Apps)
             {
                 var c = Chan(a.Channel);
-                float v = c.Volume / 100f * ChannelFactor(a.Channel) * AppVolume(a.Key) / 100f;
+                float v = c.Volume / 100f * ChannelFactor(a.Channel) * DuckFactor(a.Channel) * AppVolume(a.Key) / 100f;
                 v = Math.Max(0f, Math.Min(1f, v));
-                foreach (var s in a.Sessions) s.Set(v, c.Muted);
+                foreach (var s in a.Sessions) s.Set(v, c.Muted || AppMuted(a.Key));
                 if (CoreAudio.CanRoutePerApp)
                     foreach (var pid in a.Pids)
                     {

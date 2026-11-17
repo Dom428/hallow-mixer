@@ -16,7 +16,12 @@ WHAT IT DOES
 - Game / chat balance: drag toward CHAT to turn the game down while you talk.
 - Mic: level, mute and live meter, and which mic Windows uses.
 - Presets: Gaming, Movie, Chill. Click to use, right-click to save your current levels into one.
-- Hotkeys: Ctrl+Alt+PageUp / PageDown = game/chat balance, Ctrl+Alt+M = mute mic.
+- Auto-ducking: when someone talks in Chat, game, music and media dip and fade back after.
+  Optionally music dips while you talk. (Settings button, top right.)
+- Levels per game: each game gets its own levels - they come back when it starts.
+- Click an app's icon to mute just that app. Scroll over a channel to change it.
+- Hotkeys: Ctrl+Alt+PageUp / PageDown = game/chat balance, Ctrl+Alt+M = mute mic,
+  with an on-screen pop-up that shows over borderless games.
 - Closing the window keeps it running by the clock (your levels stay on). Tray menu:
   presets, mute mic, Start with Windows, Exit.
 - Exit puts every app back to full volume and its normal output.

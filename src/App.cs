@@ -1,4 +1,4 @@
-// Hallow Mixer - window, tray icon and hotkeys. WPF built in code (C# 5 / .NET Framework 4.8, no installs needed).
+﻿// Hallow Mixer - window, tray icon and hotkeys. WPF built in code (C# 5 / .NET Framework 4.8, no installs needed).
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -22,14 +22,14 @@ using WF = System.Windows.Forms;
 [assembly: AssemblyTitle("Hallow Mixer")]
 [assembly: AssemblyProduct("Hallow Mixer")]
 [assembly: AssemblyDescription("Per-app volume mixer: game, chat, music, media")]
-[assembly: AssemblyVersion("1.0.0.0")]
-[assembly: AssemblyFileVersion("1.0.0.0")]
+[assembly: AssemblyVersion("1.1.0.0")]
+[assembly: AssemblyFileVersion("1.1.0.0")]
 
 namespace HallowMixer
 {
     public static class Program
     {
-        public const string Version = "1.0";
+        public const string Version = "1.1";
         [STAThread]
         public static void Main(string[] args)
         {
@@ -54,6 +54,43 @@ namespace HallowMixer
         public string Id; public Color Color;
         public Slider Fader; public TextBlock Pct, Sub; public ToggleButton Mute; public ComboBox Output;
         public Rectangle Meter; public StackPanel AppList; public double MeterLevel;
+    }
+
+    // Small pop-up near the bottom of the screen for hotkeys - can't be clicked and never takes focus from a game.
+    public class Osd : Window
+    {
+        [DllImport("user32.dll")] static extern int GetWindowLong(IntPtr h, int i);
+        [DllImport("user32.dll")] static extern int SetWindowLong(IntPtr h, int i, int v);
+        readonly TextBlock text = new TextBlock { Foreground = new SolidColorBrush(Color.FromRgb(0xEC, 0xE8, 0xF4)), FontSize = 15, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center };
+        readonly Border barBack, barFill;
+        readonly DispatcherTimer hide = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1500) };
+        public Osd()
+        {
+            WindowStyle = WindowStyle.None; AllowsTransparency = true; Background = Brushes.Transparent; Topmost = true;
+            ShowInTaskbar = false; ShowActivated = false; SizeToContent = SizeToContent.WidthAndHeight; ResizeMode = ResizeMode.NoResize; Focusable = false;
+            barFill = new Border { Background = new SolidColorBrush(Color.FromRgb(0xF0, 0x78, 0x20)), CornerRadius = new CornerRadius(3), HorizontalAlignment = HorizontalAlignment.Left, Height = 6, Width = 0 };
+            barBack = new Border { Background = new SolidColorBrush(Color.FromRgb(0x3A, 0x32, 0x48)), CornerRadius = new CornerRadius(3), Height = 6, Width = 260, Margin = new Thickness(0, 10, 0, 0), Child = barFill };
+            var sp = new StackPanel(); sp.Children.Add(text); sp.Children.Add(barBack);
+            Content = new Border { Background = new SolidColorBrush(Color.FromArgb(235, 0x1C, 0x17, 0x24)), CornerRadius = new CornerRadius(10), Padding = new Thickness(22, 14, 22, 14),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(0x3A, 0x32, 0x48)), BorderThickness = new Thickness(1), Child = sp, MinWidth = 300 };
+            hide.Tick += (s, e) => { hide.Stop(); Hide(); };
+            SourceInitialized += (s, e) =>
+            {
+                var h = new WindowInteropHelper(this).Handle;
+                SetWindowLong(h, -20, GetWindowLong(h, -20) | 0x20 | 0x80 | 0x08000000);   // click-through, tool window, never activates
+            };
+        }
+        public void Flash(string message, double bar)
+        {
+            text.Text = message;
+            barBack.Visibility = bar >= 0 ? Visibility.Visible : Visibility.Collapsed;
+            if (bar >= 0) barFill.Width = 260 * Math.Max(0, Math.Min(1, bar));
+            if (!IsVisible) Show();
+            UpdateLayout();
+            var wa = SystemParameters.WorkArea;
+            Left = wa.Left + (wa.Width - ActualWidth) / 2; Top = wa.Bottom - ActualHeight - 90;
+            hide.Stop(); hide.Start();
+        }
     }
 
     public class MixerWindow : Window
@@ -87,9 +124,15 @@ namespace HallowMixer
             SourceInitialized += (s, e) => OnHandle();
             Closing += (s, e) => { if (!exiting) { e.Cancel = true; HideToTray(); } };
             SetupTray();
-            eng.Refresh(); RebuildApps(); LoadValues();
+            eng.Refresh(); eng.LevelsSwitched = false; RebuildApps(); LoadValues(); UpdateDefaults();
             meterTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) }; meterTimer.Tick += (s, e) => TickMeters(); meterTimer.Start();
-            refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) }; refreshTimer.Tick += (s, e) => { if (eng.Refresh()) RebuildApps(); else UpdateSubs(); }; refreshTimer.Start();
+            refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) }; refreshTimer.Tick += (s, e) =>
+            {
+                UpdateDefaults();
+                if (eng.Refresh()) RebuildApps(); else UpdateSubs();
+                if (eng.LevelsSwitched) { eng.LevelsSwitched = false; LoadValues(); Status(eng.LevelsNote); if (eng.S.Overlay) osd.Flash(eng.LevelsNote, -1); }
+            };
+            refreshTimer.Start();
             saveTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) }; saveTimer.Tick += (s, e) => { if (dirty) { dirty = false; eng.S.Save(); } }; saveTimer.Start();
             if (!startHidden) Show(); else { WindowState = WindowState.Minimized; Show(); Hide(); WindowState = WindowState.Normal; }
         }
@@ -116,6 +159,10 @@ namespace HallowMixer
             title.Children.Add(new TextBlock { Text = "  MIXER", FontSize = 13, FontWeight = FontWeights.Bold, Foreground = B("#A98BE0"), VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 5) });
             DockPanel.SetDock(title, Dock.Left); head.Children.Add(title);
             var mp = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            var gear = new ToggleButton { Content = "Settings", Style = (Style)FindResource("Btn"), Margin = new Thickness(0, 0, 16, 0) };
+            gear.Checked += (s, e) => { settingsPanel.Visibility = Visibility.Visible; };
+            gear.Unchecked += (s, e) => { settingsPanel.Visibility = Visibility.Collapsed; };
+            mp.Children.Add(gear);
             mp.Children.Add(Label("Output", 0, 8));
             outputPick = new ComboBox { Width = 250, Style = (Style)FindResource("Combo"), ToolTip = "Windows' default output - where apps play unless a channel sends them somewhere else" };
             outputPick.DropDownOpened += (s, e) => FillDevices(outputPick, 0, null, false);
@@ -148,7 +195,7 @@ namespace HallowMixer
             bl.Children.Add(new TextBlock { Text = "GAME", FontWeight = FontWeights.Bold, Foreground = B("#F07820"), VerticalAlignment = VerticalAlignment.Center });
             balance = new Slider { Style = (Style)FindResource("Balance"), Minimum = -100, Maximum = 100, Width = 300, Margin = new Thickness(12, 0, 12, 0), VerticalAlignment = VerticalAlignment.Center,
                 ToolTip = "Game / chat balance. Drag toward CHAT to turn the game down while you talk. Ctrl+Alt+PageUp / PageDown. Double-click to centre." };
-            balance.ValueChanged += (s, e) => { if (loading) return; eng.S.ChatMix = (int)Math.Round(balance.Value); eng.Apply(); dirty = true; UpdateBalanceText(); };
+            balance.ValueChanged += (s, e) => { if (loading) return; eng.S.ChatMix = (int)Math.Round(balance.Value); eng.Apply(); eng.NoteLevelsChanged(); dirty = true; UpdateBalanceText(); };
             balance.MouseDoubleClick += (s, e) => { balance.Value = 0; };
             bl.Children.Add(balance);
             bl.Children.Add(new TextBlock { Text = "CHAT", FontWeight = FontWeights.Bold, Foreground = B("#A98BE0"), VerticalAlignment = VerticalAlignment.Center });
@@ -173,9 +220,48 @@ namespace HallowMixer
             // ---- status line
             status = new TextBlock { Foreground = (Brush)FindResource("Muted"), FontSize = 11.5, Margin = new Thickness(6, 10, 6, 0), TextTrimming = TextTrimming.CharacterEllipsis };
             Grid.SetRow(status, 3); root.Children.Add(status);
-            Status(CoreAudio.CanRoutePerApp ? "Right-click an app to move it to another channel.  Ctrl+Alt+PageUp/PageDown = game/chat balance,  Ctrl+Alt+M = mute mic."
+            Status(CoreAudio.CanRoutePerApp ? "Right-click an app to move it, click its icon to mute it, scroll over a channel to change it.  Ctrl+Alt+PageUp/PageDown = game/chat,  Ctrl+Alt+M = mute mic."
                                             : "Per-channel output isn't supported on this Windows version - volumes still work.");
-            return root;
+            var outer = new Grid();
+            outer.Children.Add(root);
+            settingsPanel = BuildSettings();
+            outer.Children.Add(settingsPanel);
+            return outer;
+        }
+
+        // ---- settings flyout (top right)
+        Border settingsPanel;
+        Border BuildSettings()
+        {
+            var b = new Border { Background = B("#241E2E"), BorderBrush = B("#3A3248"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8),
+                Padding = new Thickness(18, 14, 18, 14), Width = 400, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top,
+                Margin = new Thickness(0, 58, 18, 0), Visibility = Visibility.Collapsed };
+            b.Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 24, Opacity = 0.5, ShadowDepth = 4 };
+            var sp = new StackPanel();
+            sp.Children.Add(new TextBlock { Text = "Settings", FontWeight = FontWeights.Bold, FontSize = 15, Margin = new Thickness(0, 0, 0, 8) });
+            Func<string, bool, Action<bool>, CheckBox> sw = (text, on, set) =>
+            {
+                var c = new CheckBox { Content = new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap }, IsChecked = on, Style = (Style)FindResource("Switch") };
+                c.Click += (s, e) => { set(c.IsChecked == true); eng.S.Save(); eng.Apply(); };
+                sp.Children.Add(c); return c;
+            };
+            sw("Turn game, music and media down when someone talks in Chat", eng.S.DuckOnChat, v => eng.S.DuckOnChat = v);
+            sw("Turn music and media down when I talk", eng.S.DuckOnMic, v => eng.S.DuckOnMic = v);
+            var dr = new DockPanel { Margin = new Thickness(52, 2, 0, 8) };
+            var dl = new TextBlock { Width = 110, Foreground = (Brush)FindResource("Muted"), VerticalAlignment = VerticalAlignment.Center };
+            var ds = new Slider { Style = (Style)FindResource("HFader"), Minimum = 10, Maximum = 90, Value = eng.S.DuckAmount, Foreground = B("#F07820"), VerticalAlignment = VerticalAlignment.Center };
+            Action dtext = () => { dl.Text = "Turn down by " + eng.S.DuckAmount + "%"; };
+            ds.ValueChanged += (s, e) => { eng.S.DuckAmount = (int)Math.Round(ds.Value / 5) * 5; dtext(); dirty = true; };
+            dtext(); DockPanel.SetDock(dl, Dock.Left); dr.Children.Add(dl); dr.Children.Add(ds); sp.Children.Add(dr);
+            sw("Remember my levels for each game (they come back when the game starts)", eng.S.PerGame, v => eng.S.PerGame = v);
+            sw("Show a pop-up on screen when I use the hotkeys", eng.S.Overlay, v => eng.S.Overlay = v);
+            var st = sw("Start with Windows (in the tray)", StartsWithWindows(), v => { SetStartWithWindows(v); if (trayStartup != null) trayStartup.Checked = v; });
+            var games = new Button { Content = "Forget saved game levels", Style = (Style)FindResource("Btn"), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 10, 0, 0) };
+            games.Click += (s, e) => { int n = eng.S.GameLevels.Count; eng.S.GameLevels.Clear(); eng.S.Save(); Status("Forgot the saved levels for " + n + " game(s)."); };
+            sp.Children.Add(games);
+            sp.Children.Add(new TextBlock { Text = "Hallow Mixer v" + Program.Version, Foreground = (Brush)FindResource("Muted"), FontSize = 11, Margin = new Thickness(0, 12, 0, 0) });
+            b.Child = sp;
+            return b;
         }
 
         static TextBlock Label(string t, double left, double right)
@@ -218,9 +304,10 @@ namespace HallowMixer
             strips[id] = st;
             var shell = StripShell(st, Engine.ChannelNames[id]);
             var dp = (DockPanel)shell.Child;
-            var body = new StackPanel(); DockPanel.SetDock(body, Dock.Top);
-            body.Children.Add(FaderBlock(st, "Volume of every app in " + Engine.ChannelNames[id]));
-            st.Fader.ValueChanged += (s, e) => { if (loading) return; eng.Chan(id).Volume = (int)Math.Round(st.Fader.Value); st.Pct.Text = (int)st.Fader.Value + "%"; eng.Apply(); dirty = true; };
+            var body = new StackPanel { Background = Brushes.Transparent }; DockPanel.SetDock(body, Dock.Top);
+            body.Children.Add(FaderBlock(st, "Volume of every app in " + Engine.ChannelNames[id] + " (scroll to change)"));
+            st.Fader.ValueChanged += (s, e) => { if (loading) return; eng.Chan(id).Volume = (int)Math.Round(st.Fader.Value); st.Pct.Text = (int)st.Fader.Value + "%"; eng.Apply(); eng.NoteLevelsChanged(); dirty = true; };
+            body.PreviewMouseWheel += (s, e) => { st.Fader.Value = Math.Max(0, Math.Min(100, Math.Round(st.Fader.Value) + (e.Delta > 0 ? 3 : -3))); e.Handled = true; };
             st.Pct = new TextBlock { HorizontalAlignment = HorizontalAlignment.Center, FontSize = 15, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 8) };
             body.Children.Add(st.Pct);
             st.Mute = new ToggleButton { Content = "Mute", Style = (Style)FindResource("Toggle"), Margin = new Thickness(0, 0, 0, 8) };
@@ -249,8 +336,9 @@ namespace HallowMixer
             mic = st;
             var shell = StripShell(st, "Mic");
             var dp = (DockPanel)shell.Child;
-            var body = new StackPanel(); DockPanel.SetDock(body, Dock.Top);
+            var body = new StackPanel { Background = Brushes.Transparent }; DockPanel.SetDock(body, Dock.Top);
             body.Children.Add(FaderBlock(st, "Your mic level (what games and Discord get)"));
+            body.PreviewMouseWheel += (s, e) => { st.Fader.Value = Math.Max(0, Math.Min(100, Math.Round(st.Fader.Value) + (e.Delta > 0 ? 3 : -3))); e.Handled = true; };
             st.Fader.ValueChanged += (s, e) => { if (loading) return; var mid = CoreAudio.DefaultId(1); if (mid != null) CoreAudio.SetLevel(mid, (float)(st.Fader.Value / 100)); st.Pct.Text = (int)st.Fader.Value + "%"; };
             st.Pct = new TextBlock { HorizontalAlignment = HorizontalAlignment.Center, FontSize = 15, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 8) };
             body.Children.Add(st.Pct);
@@ -331,7 +419,9 @@ namespace HallowMixer
             foreach (var st in strips.Values)
             {
                 var apps = eng.Apps.Where(a => a.Channel == st.Id).ToList();
-                st.Sub.Text = apps.Count == 0 ? "No apps playing" : apps.Count == 1 ? "1 app" : apps.Count + " apps";
+                st.Sub.Text = (apps.Count == 0 ? "No apps playing" : apps.Count == 1 ? "1 app" : apps.Count + " apps")
+                    + (eng.DuckChat < 0.97f && (st.Id == "game" || st.Id == "music" || st.Id == "media") ? "  -  turned down (chat)" : "")
+                    + (eng.DuckMic < 0.97f && (st.Id == "music" || st.Id == "media") ? "  -  turned down (you)" : "");
             }
         }
 
@@ -349,8 +439,16 @@ namespace HallowMixer
         UIElement AppRow(MixApp a, Strip st)
         {
             var p = new StackPanel { Margin = new Thickness(0, 4, 0, 4), Background = Brushes.Transparent };
-            var name = new TextBlock { Text = a.Name, FontSize = 11.5, TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = (a.ExePath ?? a.Name) + (a.AutoChannel ? "" : "\n(you put this here)") };
-            p.Children.Add(name);
+            var line = new DockPanel();
+            var icon = new Image { Width = 16, Height = 16, Margin = new Thickness(0, 0, 6, 0), Source = AppIcon(a.ExePath), Cursor = Cursors.Hand,
+                ToolTip = "Click to mute / unmute just " + a.Name };
+            var muted = eng.AppMuted(a.Key);
+            var name = new TextBlock { Text = a.Name, FontSize = 11.5, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center,
+                ToolTip = (a.ExePath ?? a.Name) + (a.AutoChannel ? "" : "\n(you put this here)") };
+            Action look = () => { var m = eng.AppMuted(a.Key); icon.Opacity = m ? 0.3 : 1; name.Opacity = m ? 0.45 : 1; name.TextDecorations = m ? TextDecorations.Strikethrough : null; };
+            icon.MouseLeftButtonUp += (o, e) => { eng.ToggleAppMute(a); look(); Status(a.Name + (eng.AppMuted(a.Key) ? " muted." : " unmuted.")); };
+            DockPanel.SetDock(icon, Dock.Left); line.Children.Add(icon); line.Children.Add(name);
+            p.Children.Add(line); look();
             var s = new Slider { Style = (Style)FindResource("HFader"), Minimum = 0, Maximum = 100, Foreground = B(Color.FromArgb(170, st.Color.R, st.Color.G, st.Color.B)), Height = 20,
                 Value = eng.AppVolume(a.Key), ToolTip = "This app's level inside the channel" };
             s.ValueChanged += (o, e) => { eng.S.AppVolume[a.Key] = (int)Math.Round(s.Value); if (eng.S.AppVolume[a.Key] == 100) eng.S.AppVolume.Remove(a.Key); eng.Apply(); dirty = true; };
@@ -372,17 +470,39 @@ namespace HallowMixer
             return p;
         }
 
+        // Runs 20 times a second, also while hidden in the tray (ducking needs the live levels).
+        bool wasDucking;
+        string defOut, defMic;   // default device ids, refreshed every 2 s (looking them up is too slow for 20x a second)
+        void UpdateDefaults() { try { defOut = CoreAudio.DefaultId(0); defMic = CoreAudio.DefaultId(1); } catch { } }
         void TickMeters()
         {
+            var peaks = new Dictionary<string, float>();
+            foreach (var id in Engine.ChannelIds) peaks[id] = 0;
+            foreach (var a in eng.Apps) { float pk = a.Peak(); if (pk > peaks[a.Channel]) peaks[a.Channel] = pk; }
+            float micPk = (eng.S.DuckOnMic || IsVisible) ? CoreAudio.DevicePeak(defMic) : 0;
+            if (eng.UpdateDuck(peaks["chat"], micPk)) eng.Apply();
+            if (eng.Ducking != wasDucking) { wasDucking = eng.Ducking; UpdateSubs(); }
             if (!IsVisible) return;
-            foreach (var st in strips.Values)
-            {
-                float pk = 0; foreach (var a in eng.Apps) if (a.Channel == st.Id) pk = Math.Max(pk, a.Peak());
-                SetMeter(st, pk);
-            }
-            SetMeter(mic, CoreAudio.DevicePeak(CoreAudio.DefaultId(1)));
-            var outPk = CoreAudio.DevicePeak(CoreAudio.DefaultId(0));
+            foreach (var st in strips.Values) SetMeter(st, peaks[st.Id]);
+            SetMeter(mic, micPk);
+            var outPk = CoreAudio.DevicePeak(defOut);
             masterMeter.Width = Math.Max(0, 190 * Math.Sqrt(outPk));
+        }
+
+        static readonly Dictionary<string, ImageSource> icons = new Dictionary<string, ImageSource>(StringComparer.OrdinalIgnoreCase);
+        static ImageSource AppIcon(string exe)
+        {
+            string k = exe ?? "";
+            ImageSource src;
+            if (icons.TryGetValue(k, out src)) return src;
+            try
+            {
+                var ico = exe != null && File.Exists(exe) ? System.Drawing.Icon.ExtractAssociatedIcon(exe) : System.Drawing.SystemIcons.Application;
+                src = Imaging.CreateBitmapSourceFromHIcon(ico.Handle, Int32Rect.Empty, System.Windows.Media.Imaging.BitmapSizeOptions.FromWidthAndHeight(16, 16));
+                src.Freeze();
+            }
+            catch { src = null; }
+            icons[k] = src; return src;
         }
         static void SetMeter(Strip st, float peak)
         {
@@ -393,7 +513,7 @@ namespace HallowMixer
 
         void UsePreset(Preset p)
         {
-            eng.ApplyPreset(p); LoadValues();
+            eng.ApplyPreset(p); eng.NoteLevelsChanged(); LoadValues();
             Status(p.Name + " preset on.");
             ShowTrayTip(p.Name + " preset on.", false);
         }
@@ -424,9 +544,9 @@ namespace HallowMixer
             if (id == 1 || id == 2)
             {
                 balance.Value = Math.Max(-100, Math.Min(100, balance.Value + (id == 1 ? 20 : -20)));
-                ShowTrayTip(balanceText.Text, true);
+                Notice("Game / chat:  " + balanceText.Text, (balance.Value + 100) / 200.0);
             }
-            else if (id == 3) { SetMicMute(!(mic.Mute.IsChecked == true)); ShowTrayTip(mic.Mute.IsChecked == true ? "Mic muted" : "Mic on", true); }
+            else if (id == 3) { SetMicMute(!(mic.Mute.IsChecked == true)); Notice(mic.Mute.IsChecked == true ? "Mic muted" : "Mic on", -1); }
             handled = true; return IntPtr.Zero;
         }
 
@@ -463,6 +583,13 @@ namespace HallowMixer
             var exit = new WF.ToolStripMenuItem("Exit (apps go back to full volume)"); exit.Click += (s, e) => ExitApp(); menu.Items.Add(exit);
             tray.ContextMenuStrip = menu;
             tray.MouseClick += (s, e) => { if (e.Button == WF.MouseButtons.Left) ShowFromTray(); };
+        }
+        readonly Osd osd = new Osd();
+        // hotkey feedback: on-screen pop-up (works over borderless games), or a tray balloon if pop-ups are off
+        void Notice(string text, double bar)
+        {
+            if (IsVisible && IsActive) return;
+            if (eng.S.Overlay) osd.Flash(text, bar); else ShowTrayTip(text, true);
         }
         void ShowTrayTip(string text, bool onlyIfHidden)
         {
