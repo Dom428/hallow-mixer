@@ -32,11 +32,14 @@ The goal: everything SteelSeries Sonar does for a gamer - and the things it does
 | **3.2** | Loud-sound guard (Settings, off by default): a sudden blast far above what a channel was just playing (3.5x its recent level, out of a quiet moment) turns that channel down to 35% at once, holds 0.6 s and eases back over ~2 s; loud gameplay and music swells are left alone |
 | **3.3** | "You're muted" warning: while the mic is muted in Windows (not push-to-talk), every mic is listened to - the real one behind Sonar too - with the same voice detector as ducking; real talking shows "You're muted - Ctrl+Alt+M to unmute" on screen (at most every 20 s); Settings switch |
 | **3.4** | Shortcuts for Stream Deck and scripts: `--preset`, `--channel <ch> 60 / +10`, `--mute / --unmute / --toggle-mute <ch>`, `--mute-mic / --unmute-mic / --toggle-mic`, `--media playpause / next / prev`; sent to the running mixer through its local API, or run at start; Settings > "Shortcuts for Stream Deck..." copies ready-made lines |
+| **3.5** | Quiet hours (Settings, off by default): pick from / to (wraps past midnight) and a cap (20-70%); while on, the master volume can't go above the cap (lower is fine) and Windows sounds are halved; pop-up when they start and end |
 
 ## Next
 
-### 3.5 - Quiet hours
-- At night: a cap on master volume and Windows sounds turned down, on a schedule you pick
+### 3.6 - Ideas (not started)
+- Per-app EQ: a Spotify-only or Discord-only sound, by moving that app to its own output with its own EQ
+- Mixer profiles for different people on one PC
+- Volume schedule for kids' accounts
 
 ### Fixes from testing at home
 - Whatever comes up on the real A50, QuadCast 2S, Equalizer APO, OBS and Discord

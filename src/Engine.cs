@@ -65,6 +65,10 @@ namespace HallowMixer
         [DataMember] public bool EqPerGame = true;        // each game remembers its headset/speaker EQ
         [DataMember] public Dictionary<string, Dictionary<string, EqState>> GameEq = new Dictionary<string, Dictionary<string, EqState>>();
         [DataMember] public bool LevelMedia;              // even out loud and quiet moments in the Media channel
+        // v3.5 - quiet hours
+        [DataMember] public bool QuietOn;
+        [DataMember] public int QuietFrom = 23, QuietTo = 7;   // hours, 0..23 (can wrap past midnight)
+        [DataMember] public int QuietMax = 40;                 // master volume cap in %
         // v3.3
         [DataMember] public bool MutedWarn = true;      // pop-up if you talk while your mic is muted
         // v3.2
@@ -102,7 +106,7 @@ namespace HallowMixer
             DuckOnChat = true; DuckAmount = 50; PerGame = true; Overlay = true;
             PrimaryOut = ""; FallbackOut = ""; MiniLeft = -1; MiniTop = -1;
             Eq = new Dictionary<string, EqState>(); AppOutput = new Dictionary<string, string>();
-            AutoUpdate = true; LastUpdateCheck = ""; MicKeepLevel = -1; ApiOn = true; NowPlayingOn = true; SmartDuck = true; PresetKeys = true; MutedWarn = true; BgLevel = new Dictionary<string, int>(); SetupMode = ""; ChatCleanPrev = ""; ObsHost = "localhost"; ObsPort = 4455; ObsPass = ""; EqPerGame = true; GameEq = new Dictionary<string, Dictionary<string, EqState>>(); MicMode = "off"; PttKey = 0x05; WinLeft = -1; WinTop = -1; WinWidth = -1; WinHeight = -1;
+            AutoUpdate = true; LastUpdateCheck = ""; MicKeepLevel = -1; ApiOn = true; NowPlayingOn = true; SmartDuck = true; PresetKeys = true; MutedWarn = true; QuietFrom = 23; QuietTo = 7; QuietMax = 40; BgLevel = new Dictionary<string, int>(); SetupMode = ""; ChatCleanPrev = ""; ObsHost = "localhost"; ObsPort = 4455; ObsPass = ""; EqPerGame = true; GameEq = new Dictionary<string, Dictionary<string, EqState>>(); MicMode = "off"; PttKey = 0x05; WinLeft = -1; WinTop = -1; WinWidth = -1; WinHeight = -1;
             MutedApps = new List<string>(); GameLevels = new Dictionary<string, Preset>();
             AppChannel = new Dictionary<string, string>(); AppVolume = new Dictionary<string, int>();
         }
@@ -392,10 +396,18 @@ namespace HallowMixer
             }
             return changed;
         }
+        // ---- v3.5 quiet hours: from..to (wraps past midnight); while on, Windows sounds (System & other) are halved
+        public static bool InQuiet(int hour, int from, int to)
+        {
+            if (from == to) return false;
+            return from < to ? hour >= from && hour < to : hour >= from || hour < to;
+        }
+        public bool QuietNow;
         public float GuardFactor(string ch) { float g; return guardGain.TryGetValue(ch, out g) ? g : 1f; }
         float DuckFactor(string ch)
         {
             float f = GuardFactor(ch);
+            if (QuietNow && ch == "other") f *= 0.5f;
             if (ch == "game" || ch == "music" || ch == "media") f *= DuckChat;
             if (ch == "music" || ch == "media") f *= DuckMic;
             if (ch == "media") f *= LevelMediaGain;

@@ -31,6 +31,7 @@ A per-app volume mixer for Windows 10/11 - one fader per kind of sound, a game/c
 - **Loud-sound guard:** sudden blasts (a flashbang, a scream in Chat) are turned down for a moment - off until you turn it on.
 - **You're
 - **Stream Deck and shortcuts:** `HallowMixer.exe --preset Gaming`, `--toggle-mic`, `--channel game 60`, `--media next` - Settings copies ready-made lines.
+- **Quiet hours:** at night the volume is capped and Windows sounds are turned down, on your schedule.
 - **Headphone space:** crossfeed for headphones (EQ window) - sound feels like speakers in front of you instead of inside your head.
 - **Game profiles:** the Games window shows every game's saved levels and EQ - change them or forget a game.
 - **Preset hotkeys:** Ctrl+Alt+1 to 9 switch presets from inside a game, Ctrl+Alt+0 goes to the next one.

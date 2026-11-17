@@ -22,14 +22,14 @@ using WF = System.Windows.Forms;
 [assembly: AssemblyTitle("Hallow Mixer")]
 [assembly: AssemblyProduct("Hallow Mixer")]
 [assembly: AssemblyDescription("Per-app volume mixer: game, chat, music, media")]
-[assembly: AssemblyVersion("3.4.0.0")]
-[assembly: AssemblyFileVersion("3.4.0.0")]
+[assembly: AssemblyVersion("3.5.0.0")]
+[assembly: AssemblyFileVersion("3.5.0.0")]
 
 namespace HallowMixer
 {
     public static class Program
     {
-        public const string Version = "3.4";
+        public const string Version = "3.5";
         public static List<CliCommand> StartupCommands = new List<CliCommand>();
         [STAThread]
         public static void Main(string[] args)
@@ -264,6 +264,7 @@ namespace HallowMixer
                 CheckAutoSwitch();
                 UpdateDefaults();
                 KeepMicLevel();
+                TickQuiet();
                 if (eng.S.NowPlayingOn) NowPlaying.Poll(m => Dispatcher.BeginInvoke(new Action(() => ShowNow(m))));
                 if (++cleanTick % 5 == 0 && eng.S.ChatClean && eng.CheckChatClean(CoreAudio.Devices(0)))
                 { LoadValues(); UpdateCleanButton(); Status("NVIDIA Broadcast's speaker is gone, so Chat is back on its normal output."); }
@@ -463,6 +464,22 @@ namespace HallowMixer
             pm.Children.Add(pml); pm.Children.Add(mode); pm.Children.Add(pttKeyBtn); pm.Children.Add(pttKeyText);
             sp.Children.Add(pm);
             sw("Tell me when I talk while my mic is muted (pop-up on screen)", eng.S.MutedWarn, v => eng.S.MutedWarn = v);
+            sw("Quiet hours: cap the volume and turn Windows sounds down at night", eng.S.QuietOn, v => { eng.S.QuietOn = v; TickQuiet(); });
+            var qr = new WrapPanel { Margin = new Thickness(52, 0, 0, 8) };
+            Func<string, IEnumerable<string>, int, Action<int>, ComboBox> qc = (label, items, sel, set) =>
+            {
+                qr.Children.Add(new TextBlock { Text = label, Foreground = (Brush)FindResource("Muted"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0) });
+                var c = new ComboBox { Style = (Style)FindResource("Combo"), Width = 72, Margin = new Thickness(0, 0, 10, 0), ItemsSource = items.ToList(), SelectedIndex = sel };
+                System.Windows.Automation.AutomationProperties.SetName(c, "Quiet hours " + label);
+                c.SelectionChanged += (s, e) => { if (c.SelectedIndex >= 0) { set(c.SelectedIndex); eng.S.Save(); TickQuiet(); } };
+                qr.Children.Add(c); return c;
+            };
+            var hours = Enumerable.Range(0, 24).Select(h => h.ToString("00") + ":00");
+            var caps = new[] { 20, 30, 40, 50, 60, 70 };
+            qc("from", hours, eng.S.QuietFrom, i => eng.S.QuietFrom = i);
+            qc("to", hours, eng.S.QuietTo, i => eng.S.QuietTo = i);
+            qc("max", caps.Select(c => c + "%"), Math.Max(0, Array.IndexOf(caps, eng.S.QuietMax)), i => eng.S.QuietMax = caps[i]);
+            sp.Children.Add(qr);
             micKeepSwitch = sw("Keep my mic level (puts it back if Discord, a game or Windows changes it)", eng.S.MicKeep, v =>
             {
                 eng.S.MicKeep = v; keptMic = null;
@@ -798,6 +815,21 @@ namespace HallowMixer
             catch { }
         }
         void UpdateDefaults() { try { defOut = CoreAudio.DefaultId(0); defMic = CoreAudio.DefaultId(1); micIds = CoreAudio.Devices(1).Select(d => d.Id).ToList(); } catch { } }
+
+        // ---- v3.5 quiet hours: caps the master volume and halves Windows sounds on a schedule
+        void TickQuiet()
+        {
+            bool q = eng.S.QuietOn && Engine.InQuiet(DateTime.Now.Hour, eng.S.QuietFrom, eng.S.QuietTo);
+            if (q != eng.QuietNow)
+            {
+                eng.QuietNow = q; eng.Apply();
+                var msg = q ? "Quiet hours until " + eng.S.QuietTo.ToString("00") + ":00 - volume capped at " + eng.S.QuietMax + "%" : "Quiet hours are over";
+                Status(msg + "."); if (eng.S.Overlay) osd.Flash(msg, -1);
+            }
+            if (!q || defOut == null) return;
+            var l = CoreAudio.GetLevel(defOut);
+            if (l > eng.S.QuietMax / 100f + 0.005f) { CoreAudio.SetLevel(defOut, eng.S.QuietMax / 100f); LoadMaster(); }
+        }
 
         // ---- v3.3 "you're muted": while your mic is muted (and you're not using push-to-talk), listen on every mic -
         // the real one behind Sonar too - and say so when you're really talking (not a cough or a key click).
