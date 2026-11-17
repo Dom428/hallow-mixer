@@ -22,14 +22,14 @@ using WF = System.Windows.Forms;
 [assembly: AssemblyTitle("Hallow Mixer")]
 [assembly: AssemblyProduct("Hallow Mixer")]
 [assembly: AssemblyDescription("Per-app volume mixer: game, chat, music, media")]
-[assembly: AssemblyVersion("1.3.0.0")]
-[assembly: AssemblyFileVersion("1.3.0.0")]
+[assembly: AssemblyVersion("1.4.0.0")]
+[assembly: AssemblyFileVersion("1.4.0.0")]
 
 namespace HallowMixer
 {
     public static class Program
     {
-        public const string Version = "1.3";
+        public const string Version = "1.4";
         [STAThread]
         public static void Main(string[] args)
         {
@@ -150,6 +150,24 @@ namespace HallowMixer
         [DllImport("dwmapi.dll")] static extern int DwmSetWindowAttribute(IntPtr h, int attr, ref int val, int size);
         [DllImport("user32.dll")] static extern bool RegisterHotKey(IntPtr h, int id, uint mods, uint vk);
         [DllImport("user32.dll")] static extern bool UnregisterHotKey(IntPtr h, int id);
+        [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+        [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+
+        // Ctrl+Alt+Up/Down: volume of the app you're in (its own slider inside its channel)
+        void FrontAppVolume(int step)
+        {
+            uint pid; GetWindowThreadProcessId(GetForegroundWindow(), out pid);
+            var a = eng.AppForPid(pid);
+            if (a == null)
+            {
+                var k = eng.KeyForPid(pid);
+                Notice(k == null ? "Can't tell which app is in front" : "No sound from " + k + " right now", -1); return;
+            }
+            int v = Math.Max(0, Math.Min(100, eng.AppVolume(a.Key) + step));
+            if (v == 100) eng.S.AppVolume.Remove(a.Key); else eng.S.AppVolume[a.Key] = v;
+            eng.Apply(); dirty = true; RebuildApps();
+            Notice(a.Name + "  " + v + "%", v / 100.0);
+        }
 
         static readonly Dictionary<string, Color> Colors = new Dictionary<string, Color> {
             { "game", C("#F07820") }, { "chat", C("#A98BE0") }, { "music", C("#6ED28C") }, { "media", C("#5AB4F0") }, { "other", C("#8F88A0") }, { "mic", C("#F05A8C") } };
@@ -427,6 +445,9 @@ namespace HallowMixer
             st.Mute = new ToggleButton { Content = "Mute", Style = (Style)FindResource("Toggle"), Margin = new Thickness(0, 0, 0, 8), ToolTip = "Ctrl+Alt+M" };
             st.Mute.Click += (s, e) => SetMicMute(st.Mute.IsChecked == true);
             body.Children.Add(st.Mute);
+            var test = new Button { Content = "Test mic", Style = (Style)FindResource("Btn"), Margin = new Thickness(0, 0, 0, 8), ToolTip = "Records 5 seconds, then plays it back - exactly what Discord and games hear" };
+            test.Click += (s, e) => TestMic(test);
+            body.Children.Add(test);
             st.Output = new ComboBox { Style = (Style)FindResource("Combo"), Margin = new Thickness(0, 0, 0, 10), ToolTip = "Which mic Windows uses (default for games and calls)" };
             st.Output.DropDownOpened += (s, e) => FillDevices(st.Output, 1, null, false);
             st.Output.SelectionChanged += (s, e) => { if (loading) return; var d = st.Output.SelectedItem as AudioDevice; if (d != null) { CoreAudio.SetDefault(d.Id); LoadMic(); Status(d.Name + " is now your mic for games and calls."); } };
@@ -545,6 +566,25 @@ namespace HallowMixer
                 move.Items.Add(mi);
             }
             cm.Items.Add(move);
+            var playOn = new MenuItem { Header = "Play on", IsEnabled = CoreAudio.CanRoutePerApp };
+            playOn.Items.Add(new MenuItem { Header = "(loading)" });
+            playOn.SubmenuOpened += (o, e) =>
+            {
+                if (e.OriginalSource != playOn) return;
+                playOn.Items.Clear();
+                string cur; bool own = eng.S.AppOutput.TryGetValue(a.Key, out cur);
+                var same = new MenuItem { Header = "Same as " + Engine.ChannelNames[a.Channel], IsChecked = !own };
+                same.Click += (o2, e2) => { eng.SetAppOutput(a, null); Status(a.Name + " follows its channel's output again."); };
+                playOn.Items.Add(same); playOn.Items.Add(new Separator());
+                foreach (var d in CoreAudio.Devices(0))
+                {
+                    var dev = d;
+                    var mi = new MenuItem { Header = d.Name, IsChecked = own && cur == d.Id };
+                    mi.Click += (o2, e2) => { eng.SetAppOutput(a, dev.Id); Status(a.Name + " now plays on " + dev.Name + ". Some apps switch after a restart."); };
+                    playOn.Items.Add(mi);
+                }
+            };
+            cm.Items.Add(playOn);
             var reset = new MenuItem { Header = "Back to automatic" };
             reset.Click += (o, e) => { eng.ResetApp(a); RebuildApps(); };
             cm.Items.Add(reset);
@@ -619,6 +659,36 @@ namespace HallowMixer
             Status(p.Name + " preset on.");
             ShowTrayTip(p.Name + " preset on.", false);
         }
+
+        // Record 5 s from the default mic on a background thread, then play it back.
+        void TestMic(Button btn)
+        {
+            var id = CoreAudio.DefaultId(1); if (id == null) { Status("No mic found."); return; }
+            if (mic.Mute.IsChecked == true) { Status("Your mic is muted - unmute it first."); return; }
+            btn.IsEnabled = false; btn.Content = "Talk now... 5"; Status("Recording 5 seconds - say something at your normal volume.");
+            var countdown = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) }; int left = 5;
+            countdown.Tick += (o, e) => { left--; if (left > 0) btn.Content = "Talk now... " + left; else countdown.Stop(); };
+            countdown.Start();
+            var t = new Thread(() =>
+            {
+                byte[] wav = null; float peak = 0; string err = null;
+                try { wav = MicTest.Record(id, 5, out peak); } catch (Exception ex) { err = ex.Message; }
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    countdown.Stop();
+                    if (err != null) { btn.Content = "Test mic"; btn.IsEnabled = true; Status("Mic test failed: " + err); return; }
+                    btn.Content = "Playing back...";
+                    string verdict = peak < 0.05f ? "very quiet - raise your mic level" : peak < 0.2f ? "a bit quiet" : peak > 0.97f ? "clipping (too loud) - lower your mic level" : "a good level";
+                    Status("Playing back what others hear. Loudest point: " + (int)(peak * 100) + "% - " + verdict + ".");
+                    var player = new System.Media.SoundPlayer(new MemoryStream(wav));
+                    var pt = new Thread(() => { try { player.PlaySync(); } catch { } Dispatcher.BeginInvoke(new Action(() => { btn.Content = "Test mic"; btn.IsEnabled = true; })); }) { IsBackground = true };
+                    pt.Start();
+                }));
+            }) { IsBackground = true };
+            t.SetApartmentState(ApartmentState.MTA);
+            t.Start();
+        }
+
         void SetMicMute(bool m)
         {
             var id = CoreAudio.DefaultId(1); if (id == null) return;
@@ -637,6 +707,8 @@ namespace HallowMixer
             if (!RegisterHotKey(h, 1, 0x4003, 0x21)) bad.Add("Ctrl+Alt+PageUp");   // MOD_ALT|MOD_CONTROL|MOD_NOREPEAT
             if (!RegisterHotKey(h, 2, 0x4003, 0x22)) bad.Add("Ctrl+Alt+PageDown");
             if (!RegisterHotKey(h, 3, 0x4003, 0x4D)) bad.Add("Ctrl+Alt+M");
+            if (!RegisterHotKey(h, 4, 0x4003, 0x26)) bad.Add("Ctrl+Alt+Up");
+            if (!RegisterHotKey(h, 5, 0x4003, 0x28)) bad.Add("Ctrl+Alt+Down");
             if (bad.Count > 0) Status("Another app already uses " + string.Join(", ", bad) + " - those hotkeys are off.");
         }
         IntPtr WndProc(IntPtr h, int msg, IntPtr w, IntPtr l, ref bool handled)
@@ -649,6 +721,7 @@ namespace HallowMixer
                 Notice("Game / chat:  " + balanceText.Text, (balance.Value + 100) / 200.0);
             }
             else if (id == 3) { SetMicMute(!(mic.Mute.IsChecked == true)); Notice(mic.Mute.IsChecked == true ? "Mic muted" : "Mic on", -1); }
+            else if (id == 4 || id == 5) FrontAppVolume(id == 4 ? 5 : -5);
             handled = true; return IntPtr.Zero;
         }
 
@@ -727,7 +800,7 @@ namespace HallowMixer
         {
             exiting = true;
             try { eng.S.Save(); eng.ResetAllApps(); } catch { }
-            var h = new WindowInteropHelper(this).Handle; for (int i = 1; i <= 3; i++) UnregisterHotKey(h, i);
+            var h = new WindowInteropHelper(this).Handle; for (int i = 1; i <= 5; i++) UnregisterHotKey(h, i);
             tray.Visible = false; tray.Dispose();
             Application.Current.Shutdown();
         }

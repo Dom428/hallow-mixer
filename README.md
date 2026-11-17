@@ -14,6 +14,9 @@ A per-app volume mixer for Windows 10/11 - one fader per kind of sound, a game/c
 - **Levels per game:** each game gets its own channel levels - they come back when it starts, and your normal levels return when it closes.
 - **Per-app mute:** click an app's icon. Scroll over any channel to change it.
 - **EQ:** 10-band EQ for each headset, speaker and mic with presets (Bass boost, Footsteps (FPS), Voice clarity, Movie, Music; mic: Clear voice, Warm, Bright, Cut rumble). Uses the free, open-source [Equalizer APO](https://sourceforge.net/projects/equalizerapo/) - Hallow Mixer controls it for you.
+- **App in front:** `Ctrl+Alt+Up` / `Down` changes the volume of just the game or app you're in.
+- **Per-app output:** right-click an app > Play on, to send one app somewhere other than its channel.
+- **Mic test:** records 5 seconds and plays it back - exactly what Discord and games hear - and tells you if you're too quiet or clipping.
 - **Mini mixer:** a small always-on-top panel with every channel, your mic and the game/chat balance.
 - **Headset first:** when your headset turns on, sound goes to it; when it turns off, it falls back to your speakers - and back again.
 - **Hotkeys:** `Ctrl+Alt+PageUp` / `PageDown` = game/chat balance, `Ctrl+Alt+M` = mute mic - with an on-screen pop-up that shows over borderless games.

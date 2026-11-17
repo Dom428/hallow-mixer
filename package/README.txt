@@ -20,6 +20,9 @@ WHAT IT DOES
   Optionally music dips while you talk. (Settings button, top right.)
 - Levels per game: each game gets its own levels - they come back when it starts.
 - Click an app's icon to mute just that app. Scroll over a channel to change it.
+- Ctrl+Alt+Up / Down: volume of just the game or app you're in.
+- Right-click an app > Play on: send one app somewhere other than its channel.
+- Mic > Test mic: records 5 seconds and plays it back so you hear what others hear.
 - Mini mixer (button at the top, or the tray menu): small always-on-top panel with every channel.
 - EQ (button at the top): 10-band EQ for each headset, speaker and mic, with presets (Bass boost,
   Footsteps, Voice clarity, Movie, Music; mic: Clear voice, Warm...). Needs the free Equalizer APO.

@@ -48,13 +48,15 @@ namespace HallowMixer
         [DataMember] public bool MiniOpen;
         // v1.3: EQ per device id (through Equalizer APO)
         [DataMember] public Dictionary<string, EqState> Eq = new Dictionary<string, EqState>();
+        // v1.4: process name -> device id, for an app that should play somewhere other than its channel
+        [DataMember] public Dictionary<string, string> AppOutput = new Dictionary<string, string>();
 
         // The JSON reader skips field initialisers, so set the defaults here (values in the file then override them).
         [OnDeserializing] void Defaults(StreamingContext c)
         {
             DuckOnChat = true; DuckAmount = 50; PerGame = true; Overlay = true;
             PrimaryOut = ""; FallbackOut = ""; MiniLeft = -1; MiniTop = -1;
-            Eq = new Dictionary<string, EqState>();
+            Eq = new Dictionary<string, EqState>(); AppOutput = new Dictionary<string, string>();
             MutedApps = new List<string>(); GameLevels = new Dictionary<string, Preset>();
             AppChannel = new Dictionary<string, string>(); AppVolume = new Dictionary<string, int>();
         }
@@ -72,6 +74,7 @@ namespace HallowMixer
             if (s.Presets == null || s.Presets.Count == 0) s.Presets = DefaultPresets();
             if (s.MutedApps == null) s.MutedApps = new List<string>();
             if (s.Eq == null) s.Eq = new Dictionary<string, EqState>();
+            if (s.AppOutput == null) s.AppOutput = new Dictionary<string, string>();
             if (s.GameLevels == null) s.GameLevels = new Dictionary<string, Preset>();
             if (s.DuckAmount <= 0 || s.DuckAmount > 100) s.DuckAmount = 50;
             foreach (var c in Engine.ChannelIds) if (!s.Channels.Any(x => x.Id == c)) s.Channels.Add(new ChannelState { Id = c });
@@ -347,7 +350,8 @@ namespace HallowMixer
                 if (CoreAudio.CanRoutePerApp)
                     foreach (var pid in a.Pids)
                     {
-                        string want = c.OutputId ?? "", have;
+                        string want, have;
+                        if (!S.AppOutput.TryGetValue(a.Key, out want)) want = c.OutputId ?? "";
                         if (!routed.TryGetValue(pid, out have)) have = null;
                         if (have != want && !(have == null && want == ""))
                         {
@@ -357,6 +361,22 @@ namespace HallowMixer
             }
         }
 
+        public void SetAppOutput(MixApp a, string deviceId)
+        {
+            if (deviceId == null) S.AppOutput.Remove(a.Key); else S.AppOutput[a.Key] = deviceId;
+            S.Save(); Apply();
+        }
+        // The app that owns a process (for "volume of the app in front"). Matches by process, then by exe name.
+        public MixApp AppForPid(uint pid)
+        {
+            var a = Apps.FirstOrDefault(x => x.Pids.Contains(pid));
+            if (a != null) return a;
+            var exe = Proc.Path(pid); if (exe == null) return null;
+            var key = Path.GetFileNameWithoutExtension(exe).ToLowerInvariant();
+            return Apps.FirstOrDefault(x => x.Key == key);
+        }
+        public string KeyForPid(uint pid) { var exe = Proc.Path(pid); return exe == null ? null : Path.GetFileNameWithoutExtension(exe).ToLowerInvariant(); }
+
         public void MoveApp(MixApp a, string channel)
         {
             a.Channel = channel; a.AutoChannel = false;
@@ -364,7 +384,7 @@ namespace HallowMixer
         }
         public void ResetApp(MixApp a)
         {
-            S.AppChannel.Remove(a.Key); S.AppVolume.Remove(a.Key);
+            S.AppChannel.Remove(a.Key); S.AppVolume.Remove(a.Key); S.AppOutput.Remove(a.Key); S.MutedApps.Remove(a.Key);
             a.Channel = Guess(a.Key, a.ExePath); a.AutoChannel = true; S.Save(); Apply();
         }
         public void ApplyPreset(Preset p)
