@@ -13,6 +13,8 @@ A per-app volume mixer for Windows 10/11 - one fader per kind of sound, a game/c
 - **Auto-ducking:** when someone talks in Chat, game, music and media dip (by an amount you pick) and fade back after. Optionally music dips while *you* talk.
 - **Levels per game:** each game gets its own channel levels - they come back when it starts, and your normal levels return when it closes.
 - **Per-app mute:** click an app's icon. Scroll over any channel to change it.
+- **Mini mixer:** a small always-on-top panel with every channel, your mic and the game/chat balance.
+- **Headset first:** when your headset turns on, sound goes to it; when it turns off, it falls back to your speakers - and back again.
 - **Hotkeys:** `Ctrl+Alt+PageUp` / `PageDown` = game/chat balance, `Ctrl+Alt+M` = mute mic - with an on-screen pop-up that shows over borderless games.
 - **Tray app:** close the window and it keeps running by the clock; optional start with Windows. Exit puts every app back to full volume and its normal output.
 

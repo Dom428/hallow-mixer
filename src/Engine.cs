@@ -40,11 +40,18 @@ namespace HallowMixer
         [DataMember] public bool Overlay = true;          // on-screen pop-up for hotkeys
         [DataMember] public List<string> MutedApps = new List<string>();
         [DataMember] public Dictionary<string, Preset> GameLevels = new Dictionary<string, Preset>();
+        // v1.2
+        [DataMember] public bool AutoSwitch;              // headset first: use PrimaryOut whenever it's on, else FallbackOut
+        [DataMember] public string PrimaryOut = "";
+        [DataMember] public string FallbackOut = "";
+        [DataMember] public double MiniLeft = -1, MiniTop = -1;
+        [DataMember] public bool MiniOpen;
 
         // The JSON reader skips field initialisers, so set the defaults here (values in the file then override them).
         [OnDeserializing] void Defaults(StreamingContext c)
         {
             DuckOnChat = true; DuckAmount = 50; PerGame = true; Overlay = true;
+            PrimaryOut = ""; FallbackOut = ""; MiniLeft = -1; MiniTop = -1;
             MutedApps = new List<string>(); GameLevels = new Dictionary<string, Preset>();
             AppChannel = new Dictionary<string, string>(); AppVolume = new Dictionary<string, int>();
         }

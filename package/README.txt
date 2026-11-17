@@ -20,6 +20,8 @@ WHAT IT DOES
   Optionally music dips while you talk. (Settings button, top right.)
 - Levels per game: each game gets its own levels - they come back when it starts.
 - Click an app's icon to mute just that app. Scroll over a channel to change it.
+- Mini mixer (button at the top, or the tray menu): small always-on-top panel with every channel.
+- Headset first (Settings): headset on = sound goes to it, headset off = your speakers.
 - Hotkeys: Ctrl+Alt+PageUp / PageDown = game/chat balance, Ctrl+Alt+M = mute mic,
   with an on-screen pop-up that shows over borderless games.
 - Closing the window keeps it running by the clock (your levels stay on). Tray menu:
