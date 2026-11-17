@@ -65,6 +65,9 @@ namespace HallowMixer
         [DataMember] public bool EqPerGame = true;        // each game remembers its headset/speaker EQ
         [DataMember] public Dictionary<string, Dictionary<string, EqState>> GameEq = new Dictionary<string, Dictionary<string, EqState>>();
         [DataMember] public bool LevelMedia;              // even out loud and quiet moments in the Media channel
+        // v3.7 - split headset
+        [DataMember] public bool Split;
+        [DataMember] public string SplitPrev = "";       // Chat's output before
         // v3.6
         [DataMember] public string ProfileName = "Default";
         public static bool Frozen;                       // set while switching profile / restoring a backup
@@ -109,7 +112,7 @@ namespace HallowMixer
             DuckOnChat = true; DuckAmount = 50; PerGame = true; Overlay = true;
             PrimaryOut = ""; FallbackOut = ""; MiniLeft = -1; MiniTop = -1;
             Eq = new Dictionary<string, EqState>(); AppOutput = new Dictionary<string, string>();
-            AutoUpdate = true; LastUpdateCheck = ""; MicKeepLevel = -1; ApiOn = true; NowPlayingOn = true; SmartDuck = true; PresetKeys = true; MutedWarn = true; QuietFrom = 23; QuietTo = 7; QuietMax = 40; ProfileName = "Default"; BgLevel = new Dictionary<string, int>(); SetupMode = ""; ChatCleanPrev = ""; ObsHost = "localhost"; ObsPort = 4455; ObsPass = ""; EqPerGame = true; GameEq = new Dictionary<string, Dictionary<string, EqState>>(); MicMode = "off"; PttKey = 0x05; WinLeft = -1; WinTop = -1; WinWidth = -1; WinHeight = -1;
+            AutoUpdate = true; LastUpdateCheck = ""; MicKeepLevel = -1; ApiOn = true; NowPlayingOn = true; SmartDuck = true; PresetKeys = true; MutedWarn = true; QuietFrom = 23; QuietTo = 7; QuietMax = 40; ProfileName = "Default"; SplitPrev = ""; BgLevel = new Dictionary<string, int>(); SetupMode = ""; ChatCleanPrev = ""; ObsHost = "localhost"; ObsPort = 4455; ObsPass = ""; EqPerGame = true; GameEq = new Dictionary<string, Dictionary<string, EqState>>(); MicMode = "off"; PttKey = 0x05; WinLeft = -1; WinTop = -1; WinWidth = -1; WinHeight = -1;
             MutedApps = new List<string>(); GameLevels = new Dictionary<string, Preset>();
             AppChannel = new Dictionary<string, string>(); AppVolume = new Dictionary<string, int>();
         }
@@ -146,6 +149,7 @@ namespace HallowMixer
             if (Profiles.Clean(s.ProfileName) == null) s.ProfileName = "Default";
             if (s.BgLevel == null) s.BgLevel = new Dictionary<string, int>();
             if (s.ChatCleanPrev == null) s.ChatCleanPrev = "";
+            if (s.SplitPrev == null) s.SplitPrev = "";
             if (string.IsNullOrEmpty(s.ObsHost)) s.ObsHost = "localhost";
             if (s.ObsPort <= 0) s.ObsPort = 4455;
             if (s.DuckAmount <= 0 || s.DuckAmount > 100) s.DuckAmount = 50;
@@ -605,6 +609,7 @@ namespace HallowMixer
             if (on)
             {
                 if (string.IsNullOrEmpty(broadcastId)) return;
+                if (S.Split) { S.Split = false; S.SplitPrev = ""; }
                 if (!S.ChatClean) S.ChatCleanPrev = c.OutputId ?? "";
                 c.OutputId = broadcastId; S.ChatClean = true;
             }
@@ -612,6 +617,30 @@ namespace HallowMixer
             {
                 if (S.ChatClean) c.OutputId = S.ChatCleanPrev ?? "";
                 S.ChatClean = false; S.ChatCleanPrev = "";
+            }
+            S.Save(); Apply();
+        }
+        // ---- v3.7 split headset: Chat plays on the headset's chat/voice output, so its game/chat dial (and a voice EQ) work
+        public void SetSplit(bool on, AudioDevice chatOut)
+        {
+            var c = Chan("chat");
+            if (on)
+            {
+                if (chatOut == null) return;
+                if (S.ChatClean) { S.ChatClean = false; S.ChatCleanPrev = ""; }
+                if (!S.Split) S.SplitPrev = c.OutputId ?? "";
+                c.OutputId = chatOut.Id; S.Split = true;
+                EqState e;
+                if (!S.Eq.TryGetValue(chatOut.Id, out e) || (!e.On && e.Space == 0))
+                {
+                    S.Eq[chatOut.Id] = new EqState { Name = chatOut.Name, On = true, Preset = "Voice clarity", Gains = (int[])Eq.OutPresets["Voice clarity"].Clone() };
+                    Eq.Write(S.Eq);
+                }
+            }
+            else
+            {
+                if (S.Split) c.OutputId = S.SplitPrev ?? "";
+                S.Split = false; S.SplitPrev = "";
             }
             S.Save(); Apply();
         }

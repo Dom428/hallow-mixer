@@ -69,6 +69,21 @@ namespace HallowMixer
         }
         public static AudioDevice GuessMic(List<AudioDevice> ins) { return Best(ins, MicScore, 0); }
 
+        // v3.7: a headset that shows up as two outputs, "Headphones (A50 Game)" + "Headset Earphone (A50 Voice)" or
+        // "(Arctis Nova 7 Game)" + "(Arctis Nova 7 Chat)". Returns the game and chat outputs, or null.
+        static string Inner(string n) { int i = n.LastIndexOf('('); return i >= 0 && n.EndsWith(")") ? n.Substring(i + 1, n.Length - i - 2).Trim() : null; }
+        public static Tuple<AudioDevice, AudioDevice> FindSplit(List<AudioDevice> outs)
+        {
+            foreach (var g in outs.Where(d => !IsSonar(d)))
+            {
+                var gi = Inner(g.Name); if (gi == null || !gi.EndsWith(" Game", StringComparison.OrdinalIgnoreCase)) continue;
+                var model = gi.Substring(0, gi.Length - 5);
+                var c = outs.FirstOrDefault(d => { var ci = Inner(d.Name); return ci != null && (string.Equals(ci, model + " Chat", StringComparison.OrdinalIgnoreCase) || string.Equals(ci, model + " Voice", StringComparison.OrdinalIgnoreCase)); });
+                if (c != null) return Tuple.Create(g, c);
+            }
+            return null;
+        }
+
         // What setup will do. mode: "sonar", "replace" or "mixer". Devices may be null (= leave it).
         public static List<SetupStep> Plan(Engine eng, string mode, List<AudioDevice> outs, AudioDevice headset, AudioDevice fallback, AudioDevice mic)
         {

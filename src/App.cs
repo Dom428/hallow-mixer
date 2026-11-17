@@ -22,14 +22,14 @@ using WF = System.Windows.Forms;
 [assembly: AssemblyTitle("Hallow Mixer")]
 [assembly: AssemblyProduct("Hallow Mixer")]
 [assembly: AssemblyDescription("Per-app volume mixer: game, chat, music, media")]
-[assembly: AssemblyVersion("3.6.0.0")]
-[assembly: AssemblyFileVersion("3.6.0.0")]
+[assembly: AssemblyVersion("3.7.0.0")]
+[assembly: AssemblyFileVersion("3.7.0.0")]
 
 namespace HallowMixer
 {
     public static class Program
     {
-        public const string Version = "3.6";
+        public const string Version = "3.7";
         public static List<CliCommand> StartupCommands = new List<CliCommand>();
         [STAThread]
         public static void Main(string[] args)
@@ -286,7 +286,7 @@ namespace HallowMixer
             saveTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) }; saveTimer.Tick += (s, e) => { if (dirty) { dirty = false; eng.S.Save(); } }; saveTimer.Start();
             if (!startHidden) Show(); else { WindowState = WindowState.Minimized; Show(); Hide(); WindowState = WindowState.Normal; }
             if (eng.S.MiniOpen) { eng.S.MiniOpen = false; ToggleMini(); }
-            UpdateNoiseButton(); UpdateCleanButton();
+            UpdateNoiseButton(); UpdateCleanButton(); UpdateSplitButton();
             if (Settings.FirstRun && !eng.S.SetupDone && !startHidden) Dispatcher.BeginInvoke(new Action(OpenSetup), DispatcherPriority.ApplicationIdle);
             DateTime lastCheck;
             if (eng.S.AutoUpdate && (!DateTime.TryParse(eng.S.LastUpdateCheck, out lastCheck) || (DateTime.Now - lastCheck).TotalHours > 20)) CheckForUpdate(false);
@@ -624,6 +624,9 @@ namespace HallowMixer
                 cleanBtn = new ToggleButton { Style = (Style)FindResource("Toggle"), Margin = new Thickness(0, 0, 0, 10), Visibility = Visibility.Collapsed };
                 cleanBtn.Click += (s, e) => CleanChat();
                 body.Children.Add(cleanBtn);
+                splitBtn = new ToggleButton { Style = (Style)FindResource("Toggle"), Margin = new Thickness(0, 0, 0, 10), Visibility = Visibility.Collapsed };
+                splitBtn.Click += (s, e) => SplitHeadset();
+                body.Children.Add(splitBtn);
             }
             dp.Children.Add(body);
             st.AppList = new StackPanel();
@@ -854,6 +857,30 @@ namespace HallowMixer
             if (!q || defOut == null) return;
             var l = CoreAudio.GetLevel(defOut);
             if (l > eng.S.QuietMax / 100f + 0.005f) { CoreAudio.SetLevel(defOut, eng.S.QuietMax / 100f); LoadMaster(); }
+        }
+
+        // ---- v3.7 split headset
+        ToggleButton splitBtn;
+        void UpdateSplitButton()
+        {
+            if (splitBtn == null) return;
+            var pair = Setup.FindSplit(CoreAudio.Devices(0));
+            if (pair == null && !eng.S.Split) { splitBtn.Visibility = Visibility.Collapsed; return; }
+            splitBtn.Visibility = Visibility.Visible; splitBtn.IsChecked = eng.S.Split;
+            splitBtn.Content = eng.S.Split ? "Split headset: on" : "Split headset";
+            splitBtn.ToolTip = pair == null ? "Your split headset isn't connected" :
+                "Chat plays on " + pair.Item2.Name + " with a voice EQ, games stay on " + pair.Item1.Name + " - your headset's game/chat dial balances them";
+        }
+        void SplitHeadset()
+        {
+            if (eng.S.Split) { eng.SetSplit(false, null); LoadValues(); UpdateSplitButton(); UpdateCleanButton(); Status("Split headset off - Chat plays on its normal output again."); return; }
+            var pair = Setup.FindSplit(CoreAudio.Devices(0));
+            if (pair == null) { splitBtn.IsChecked = false; Status("No headset with separate game and chat outputs is connected."); return; }
+            eng.SetSplit(true, pair.Item2); LoadValues(); UpdateSplitButton(); UpdateCleanButton();
+            if (eqWin != null && eqWin.IsLoaded) eqWin.Reload();
+            var sonar = Setup.IsSonar(DefaultDevice(0));
+            Status("Chat now plays on " + pair.Item2.Name + " with a voice EQ; games stay on " + pair.Item1.Name + ". Your headset's game/chat dial balances them." +
+                (sonar ? " Note: Chat now skips Sonar." : " Some apps switch after a restart."));
         }
 
         // ---- v3.3 "you're muted": while your mic is muted (and you're not using push-to-talk), listen on every mic -
@@ -1118,7 +1145,7 @@ namespace HallowMixer
         {
             if (eng.S.ChatClean)
             {
-                eng.SetChatClean(false, null); LoadValues(); UpdateCleanButton();
+                eng.SetChatClean(false, null); LoadValues(); UpdateCleanButton(); UpdateSplitButton();
                 Status("Clean voices off - Chat plays on its normal output again.");
                 return;
             }
@@ -1130,7 +1157,7 @@ namespace HallowMixer
                 Status("Opened NVIDIA Broadcast's page. After installing, come back and click Clean voices.");
                 return;
             }
-            eng.SetChatClean(true, bs.Id); LoadValues(); UpdateCleanButton();
+            eng.SetChatClean(true, bs.Id); LoadValues(); UpdateCleanButton(); UpdateSplitButton();
             Status("Chat now goes through NVIDIA Broadcast. In the NVIDIA Broadcast app, under Speakers, pick your headset and turn on Noise Removal. Some apps switch after a restart.");
         }
 
