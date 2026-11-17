@@ -22,14 +22,14 @@ using WF = System.Windows.Forms;
 [assembly: AssemblyTitle("Hallow Mixer")]
 [assembly: AssemblyProduct("Hallow Mixer")]
 [assembly: AssemblyDescription("Per-app volume mixer: game, chat, music, media")]
-[assembly: AssemblyVersion("1.2.0.0")]
-[assembly: AssemblyFileVersion("1.2.0.0")]
+[assembly: AssemblyVersion("1.3.0.0")]
+[assembly: AssemblyFileVersion("1.3.0.0")]
 
 namespace HallowMixer
 {
     public static class Program
     {
-        public const string Version = "1.2";
+        public const string Version = "1.3";
         [STAThread]
         public static void Main(string[] args)
         {
@@ -219,6 +219,13 @@ namespace HallowMixer
             var miniBtn = new Button { Content = "Mini", Style = (Style)FindResource("Btn"), Margin = new Thickness(0, 0, 8, 0), ToolTip = "Small always-on-top mixer" };
             miniBtn.Click += (s, e) => ToggleMini();
             mp.Children.Add(miniBtn);
+            var eqBtn = new Button { Content = "EQ", Style = (Style)FindResource("Btn"), Margin = new Thickness(0, 0, 8, 0), ToolTip = "Equalizer for each headset, speaker and mic" };
+            eqBtn.Click += (s, e) =>
+            {
+                if (eqWin == null || !eqWin.IsLoaded) { eqWin = new EqWindow(eng.S) { Owner = this }; eqWin.Closed += (o, a) => { eng.S.Save(); }; eqWin.Show(); }
+                else eqWin.Activate();
+            };
+            mp.Children.Add(eqBtn);
             mp.Children.Add(gear);
             mp.Children.Add(Label("Output", 0, 8));
             outputPick = new ComboBox { Width = 250, Style = (Style)FindResource("Combo"), ToolTip = "Windows' default output - where apps play unless a channel sends them somewhere else" };
@@ -682,6 +689,7 @@ namespace HallowMixer
         }
         readonly Osd osd = new Osd();
         MiniWindow mini;
+        EqWindow eqWin;
         void ToggleMini()
         {
             if (mini == null)

@@ -46,12 +46,15 @@ namespace HallowMixer
         [DataMember] public string FallbackOut = "";
         [DataMember] public double MiniLeft = -1, MiniTop = -1;
         [DataMember] public bool MiniOpen;
+        // v1.3: EQ per device id (through Equalizer APO)
+        [DataMember] public Dictionary<string, EqState> Eq = new Dictionary<string, EqState>();
 
         // The JSON reader skips field initialisers, so set the defaults here (values in the file then override them).
         [OnDeserializing] void Defaults(StreamingContext c)
         {
             DuckOnChat = true; DuckAmount = 50; PerGame = true; Overlay = true;
             PrimaryOut = ""; FallbackOut = ""; MiniLeft = -1; MiniTop = -1;
+            Eq = new Dictionary<string, EqState>();
             MutedApps = new List<string>(); GameLevels = new Dictionary<string, Preset>();
             AppChannel = new Dictionary<string, string>(); AppVolume = new Dictionary<string, int>();
         }
@@ -68,6 +71,7 @@ namespace HallowMixer
             if (s.AppVolume == null) s.AppVolume = new Dictionary<string, int>();
             if (s.Presets == null || s.Presets.Count == 0) s.Presets = DefaultPresets();
             if (s.MutedApps == null) s.MutedApps = new List<string>();
+            if (s.Eq == null) s.Eq = new Dictionary<string, EqState>();
             if (s.GameLevels == null) s.GameLevels = new Dictionary<string, Preset>();
             if (s.DuckAmount <= 0 || s.DuckAmount > 100) s.DuckAmount = 50;
             foreach (var c in Engine.ChannelIds) if (!s.Channels.Any(x => x.Id == c)) s.Channels.Add(new ChannelState { Id = c });

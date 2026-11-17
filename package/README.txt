@@ -1,4 +1,4 @@
-HALLOW MIXER - one fader per kind of sound: Game, Chat, Music, Media, System, plus your mic
+﻿HALLOW MIXER - one fader per kind of sound: Game, Chat, Music, Media, System, plus your mic
 
 HOW TO INSTALL
 1. Right-click the zip > Properties > tick "Unblock" > OK
@@ -21,6 +21,8 @@ WHAT IT DOES
 - Levels per game: each game gets its own levels - they come back when it starts.
 - Click an app's icon to mute just that app. Scroll over a channel to change it.
 - Mini mixer (button at the top, or the tray menu): small always-on-top panel with every channel.
+- EQ (button at the top): 10-band EQ for each headset, speaker and mic, with presets (Bass boost,
+  Footsteps, Voice clarity, Movie, Music; mic: Clear voice, Warm...). Needs the free Equalizer APO.
 - Headset first (Settings): headset on = sound goes to it, headset off = your speakers.
 - Hotkeys: Ctrl+Alt+PageUp / PageDown = game/chat balance, Ctrl+Alt+M = mute mic,
   with an on-screen pop-up that shows over borderless games.

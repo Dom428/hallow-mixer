@@ -1,4 +1,4 @@
-# Hallow Mixer
+﻿# Hallow Mixer
 
 A per-app volume mixer for Windows 10/11 - one fader per kind of sound, a game/chat balance, your mic, presets and hotkeys. Free, tiny (under 100 KB), nothing else to install.
 
@@ -13,6 +13,7 @@ A per-app volume mixer for Windows 10/11 - one fader per kind of sound, a game/c
 - **Auto-ducking:** when someone talks in Chat, game, music and media dip (by an amount you pick) and fade back after. Optionally music dips while *you* talk.
 - **Levels per game:** each game gets its own channel levels - they come back when it starts, and your normal levels return when it closes.
 - **Per-app mute:** click an app's icon. Scroll over any channel to change it.
+- **EQ:** 10-band EQ for each headset, speaker and mic with presets (Bass boost, Footsteps (FPS), Voice clarity, Movie, Music; mic: Clear voice, Warm, Bright, Cut rumble). Uses the free, open-source [Equalizer APO](https://sourceforge.net/projects/equalizerapo/) - Hallow Mixer controls it for you.
 - **Mini mixer:** a small always-on-top panel with every channel, your mic and the game/chat balance.
 - **Headset first:** when your headset turns on, sound goes to it; when it turns off, it falls back to your speakers - and back again.
 - **Hotkeys:** `Ctrl+Alt+PageUp` / `PageDown` = game/chat balance, `Ctrl+Alt+M` = mute mic - with an on-screen pop-up that shows over borderless games.
@@ -29,7 +30,7 @@ Runs on the .NET Framework that comes with Windows 10 and 11. The app isn't code
 ## Good to know
 
 - Hallow Mixer changes each app's own volume (the same thing Windows' volume mixer does), so it works with any headset or speakers, and alongside other audio software.
-- It can't create virtual sound devices or add EQ/noise removal - those need an audio driver.
+- EQ goes through Equalizer APO (install it once and tick your devices). Hallow Mixer can't create virtual sound devices.
 - Settings live in `%APPDATA%\HallowMixer`.
 
 ## Build it yourself
