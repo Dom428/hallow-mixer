@@ -35,6 +35,7 @@ namespace HallowMixer
                 switch (a)
                 {
                     case "--preset": C("/preset").Query["name"] = next(); break;
+                    case "--profile": C("/profile").Query["name"] = next(); break;
                     case "--mute-mic": C("/mic").Query["mute"] = "1"; break;
                     case "--unmute-mic": C("/mic").Query["mute"] = "0"; break;
                     case "--toggle-mic": C("/mic").Query["mute"] = "toggle"; break;

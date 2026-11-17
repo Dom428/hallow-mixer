@@ -42,6 +42,7 @@ WHAT IT DOES
 - Talk while muted and a pop-up tells you (Settings to turn off).
 - Stream Deck / shortcuts: HallowMixer.exe --preset Gaming, --toggle-mic, --channel game 60 (Settings > Shortcuts for Stream Deck).
 - Settings > Quiet hours: a volume cap and quieter Windows sounds at night.
+- Profiles (Settings or tray): whole setups for different people or uses on one PC.
 - EQ > Headphone space: crossfeed for headphones (Light / Medium / Strong).
 - Games (top bar): every game's saved levels and EQ - change them or forget a game.
 - Ctrl+Alt+1 to 9 = your presets, Ctrl+Alt+0 = next preset.

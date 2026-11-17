@@ -22,19 +22,25 @@ using WF = System.Windows.Forms;
 [assembly: AssemblyTitle("Hallow Mixer")]
 [assembly: AssemblyProduct("Hallow Mixer")]
 [assembly: AssemblyDescription("Per-app volume mixer: game, chat, music, media")]
-[assembly: AssemblyVersion("3.5.0.0")]
-[assembly: AssemblyFileVersion("3.5.0.0")]
+[assembly: AssemblyVersion("3.6.0.0")]
+[assembly: AssemblyFileVersion("3.6.0.0")]
 
 namespace HallowMixer
 {
     public static class Program
     {
-        public const string Version = "3.5";
+        public const string Version = "3.6";
         public static List<CliCommand> StartupCommands = new List<CliCommand>();
         [STAThread]
         public static void Main(string[] args)
         {
             if (args.Contains("--reset")) { try { new Engine().ResetForUninstall(); } catch { } return; }
+            int ai = Array.IndexOf(args, "--after"); int afterPid;
+            if (ai >= 0 && ai + 1 < args.Length && int.TryParse(args[ai + 1], out afterPid))
+            {
+                try { var old = Process.GetProcessById(afterPid); old.WaitForExit(15000); } catch { }   // restarting: let the old copy finish first
+                args = args.Where((a, i) => i != ai && i != ai + 1).ToArray();
+            }
             List<CliCommand> cmds;
             try { cmds = Cli.Parse(args); }
             catch (ArgumentException ex) { MessageBox.Show(ex.Message, "Hallow Mixer", MessageBoxButton.OK, MessageBoxImage.Information); return; }
@@ -409,6 +415,26 @@ namespace HallowMixer
             b.Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 24, Opacity = 0.5, ShadowDepth = 4 };
             var sp = new StackPanel();
             sp.Children.Add(new TextBlock { Text = "Settings", FontWeight = FontWeights.Bold, FontSize = 15, Margin = new Thickness(0, 0, 0, 8) });
+            var pr = new DockPanel { Margin = new Thickness(0, 0, 0, 10) };
+            var prl = new TextBlock { Text = "Profile", Width = 52, VerticalAlignment = VerticalAlignment.Center };
+            profileBox = new ComboBox { Style = (Style)FindResource("Combo"), Width = 150, ToolTip = "A whole mixer setup - levels, presets, app choices, EQ and switches. Switching restarts Hallow Mixer for a moment." };
+            System.Windows.Automation.AutomationProperties.SetName(profileBox, "Profile");
+            profileBox.SelectionChanged += (s, e) => { if (loading) return; var n = profileBox.SelectedItem as string; if (n != null) UseProfile(n, false); };
+            var prNew = new Button { Content = "New...", Style = (Style)FindResource("Btn"), Margin = new Thickness(8, 0, 0, 0), ToolTip = "Start a new profile from your current setup" };
+            prNew.Click += (s, e) => NewProfile();
+            profileDel = new Button { Content = "Delete", Style = (Style)FindResource("Btn"), Margin = new Thickness(6, 0, 0, 0), ToolTip = "Delete the profile you're using and switch to another one" };
+            profileDel.Click += (s, e) =>
+            {
+                var cur = eng.S.ProfileName; var others = Profiles.List(cur).Where(x => !string.Equals(x, cur, StringComparison.OrdinalIgnoreCase)).ToList();
+                if (others.Count == 0) return;
+                if (MessageBox.Show(this, "Delete the \"" + cur + "\" profile and switch to \"" + others[0] + "\"?\n\nIts levels, presets, app choices and EQ are deleted (this can't be undone).", "Hallow Mixer", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+                try { File.Copy(System.IO.Path.Combine(Profiles.Dir, others[0] + ".json"), Settings.FilePathPublic, true); Profiles.Delete(cur); Restart(); }
+                catch (Exception ex) { Status("Couldn't delete the profile: " + ex.Message); }
+            };
+            DockPanel.SetDock(prl, Dock.Left); DockPanel.SetDock(profileBox, Dock.Left); DockPanel.SetDock(prNew, Dock.Left);
+            pr.Children.Add(prl); pr.Children.Add(profileBox); pr.Children.Add(prNew); pr.Children.Add(profileDel);
+            sp.Children.Add(pr);
+            Dispatcher.BeginInvoke(new Action(RebuildProfiles));
             Func<string, bool, Action<bool>, CheckBox> sw = (text, on, set) =>
             {
                 var c = new CheckBox { Content = new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap }, IsChecked = on, Style = (Style)FindResource("Switch") };
@@ -525,8 +551,7 @@ namespace HallowMixer
                 if (d.ShowDialog(this) != true) return;
                 if (!Settings.LooksValid(d.FileName)) { Status("That file isn't a Hallow Mixer settings file."); return; }
                 File.Copy(d.FileName, Settings.FilePathPublic, true);
-                exiting = true; tray.Visible = false;
-                Process.Start(Assembly.GetExecutingAssembly().Location); Application.Current.Shutdown();
+                Restart();
             };
             ur.Children.Add(checkNow); ur.Children.Add(exp); ur.Children.Add(imp);
             sp.Children.Add(ur);
@@ -1244,6 +1269,15 @@ namespace HallowMixer
                     SetMicMute(m == "1" ? true : m == "0" ? false : !CoreAudio.GetMute(mid));
                     return CoreAudio.GetMute(mid) ? "Mic muted" : "Mic on";
                 }
+                case "/profile":
+                {
+                    string n; q.TryGetValue("name", out n);
+                    var match = Profiles.List(eng.S.ProfileName).FirstOrDefault(x => string.Equals(x, n, StringComparison.OrdinalIgnoreCase));
+                    if (match == null) return "no profile called " + n;
+                    if (string.Equals(match, eng.S.ProfileName, StringComparison.OrdinalIgnoreCase)) return match + " is already on";
+                    Dispatcher.BeginInvoke(new Action(() => UseProfile(match, false)));   // after this answer is sent
+                    return "Switching to " + match;
+                }
                 case "/media":
                 {
                     string d; q.TryGetValue("do", out d);
@@ -1431,6 +1465,53 @@ namespace HallowMixer
             }
         }
 
+        // Starts a fresh copy (after this one has closed) without saving anything over settings.json.
+        void Restart()
+        {
+            Settings.Frozen = true; exiting = true; StopApi(); tray.Visible = false;
+            Process.Start(Assembly.GetExecutingAssembly().Location, "--after " + Process.GetCurrentProcess().Id + (IsVisible ? "" : " --tray"));
+            Application.Current.Shutdown();
+        }
+
+        // ---- v3.6 profiles
+        WF.ToolStripMenuItem trayProfiles;
+        void UseProfile(string name, bool newCopy)
+        {
+            if (string.Equals(name, eng.S.ProfileName, StringComparison.OrdinalIgnoreCase) && !newCopy) return;
+            try { Profiles.Switch(eng.S, name, newCopy); }
+            catch (Exception ex) { Status("Couldn't switch profile: " + ex.Message); return; }
+            if (newCopy) { Status("New profile \"" + name + "\" (a copy of your current setup) - change anything, it's saved to this profile."); RebuildProfiles(); return; }
+            Restart();
+        }
+        void NewProfile()
+        {
+            var n = Profiles.Clean(Ask("New profile", "Name for the new profile (it starts as a copy of your current setup):", ""));
+            if (n == null) return;
+            if (Profiles.List(eng.S.ProfileName).Contains(n, StringComparer.OrdinalIgnoreCase)) { Status("There's already a profile called " + n + "."); return; }
+            UseProfile(n, true);
+        }
+        void RebuildProfiles()
+        {
+            var names = Profiles.List(eng.S.ProfileName);
+            if (trayProfiles != null)
+            {
+                trayProfiles.DropDownItems.Clear();
+                foreach (var n in names)
+                {
+                    var name = n; var mi = new WF.ToolStripMenuItem(n) { Checked = string.Equals(n, eng.S.ProfileName, StringComparison.OrdinalIgnoreCase) };
+                    mi.Click += (s, e) => UseProfile(name, false); trayProfiles.DropDownItems.Add(mi);
+                }
+                trayProfiles.DropDownItems.Add(new WF.ToolStripSeparator());
+                var add = new WF.ToolStripMenuItem("New profile..."); add.Click += (s, e) => { ShowFromTray(); NewProfile(); }; trayProfiles.DropDownItems.Add(add);
+            }
+            if (profileBox != null)
+            {
+                loading = true; profileBox.ItemsSource = names; profileBox.SelectedItem = names.FirstOrDefault(x => string.Equals(x, eng.S.ProfileName, StringComparison.OrdinalIgnoreCase)); loading = false;
+                if (profileDel != null) profileDel.IsEnabled = names.Count > 1;
+            }
+        }
+        ComboBox profileBox; Button profileDel;
+
         void SetupTray()
         {
             tray = new WF.NotifyIcon { Text = "Hallow Mixer", Visible = true };
@@ -1441,6 +1522,7 @@ namespace HallowMixer
             trayPresets = new WF.ToolStripMenuItem("Presets");
             RebuildPresets();
             menu.Items.Add(trayPresets);
+            trayProfiles = new WF.ToolStripMenuItem("Profile"); menu.Items.Add(trayProfiles);
             var miniItem = new WF.ToolStripMenuItem("Mini mixer (always on top)"); miniItem.Click += (s, e) => ToggleMini(); menu.Items.Add(miniItem);
             var center = new WF.ToolStripMenuItem("Balance game / chat"); center.Click += (s, e) => { balance.Value = 0; }; menu.Items.Add(center);
             trayMicMute = new WF.ToolStripMenuItem("Mute mic   Ctrl+Alt+M"); trayMicMute.Click += (s, e) => SetMicMute(!(mic.Mute.IsChecked == true)); menu.Items.Add(trayMicMute);
@@ -1450,6 +1532,7 @@ namespace HallowMixer
             menu.Items.Add(trayStartup);
             var exit = new WF.ToolStripMenuItem("Exit (apps go back to full volume)"); exit.Click += (s, e) => ExitApp(); menu.Items.Add(exit);
             tray.ContextMenuStrip = menu;
+            RebuildProfiles();
             tray.MouseClick += (s, e) => { if (e.Button == WF.MouseButtons.Left) ShowFromTray(); };
         }
         readonly Osd osd = new Osd();

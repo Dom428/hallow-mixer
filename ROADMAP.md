@@ -33,13 +33,15 @@ The goal: everything SteelSeries Sonar does for a gamer - and the things it does
 | **3.3** | "You're muted" warning: while the mic is muted in Windows (not push-to-talk), every mic is listened to - the real one behind Sonar too - with the same voice detector as ducking; real talking shows "You're muted - Ctrl+Alt+M to unmute" on screen (at most every 20 s); Settings switch |
 | **3.4** | Shortcuts for Stream Deck and scripts: `--preset`, `--channel <ch> 60 / +10`, `--mute / --unmute / --toggle-mute <ch>`, `--mute-mic / --unmute-mic / --toggle-mic`, `--media playpause / next / prev`; sent to the running mixer through its local API, or run at start; Settings > "Shortcuts for Stream Deck..." copies ready-made lines |
 | **3.5** | Quiet hours (Settings, off by default): pick from / to (wraps past midnight) and a cap (20-70%); while on, the master volume can't go above the cap (lower is fine) and Windows sounds are halved; pop-up when they start and end |
+| **3.6** | Profiles: whole mixer setups for different people or uses on one PC (Settings and tray menu; New / Delete; `--profile Name` shortcut); switching restarts Hallow Mixer cleanly - fixes a race where a restart (also Restore settings) could exit instead of reopening |
 
 ## Next
 
-### 3.6 - Ideas (not started)
-- Per-app EQ: a Spotify-only or Discord-only sound, by moving that app to its own output with its own EQ
-- Mixer profiles for different people on one PC
-- Volume schedule for kids' accounts
+### 3.7 - Split headset
+- Headsets with two outputs (A50 Game + Voice, Arctis Game + Chat): one click sends Chat to the voice output with a voice EQ, while games keep their own EQ - then the headset's game/chat dial works on Hallow Mixer's channels
+
+### Later
+- Volume schedule for kids' accounts: quiet hours (3.5) and profiles (3.6) cover most of it; a PIN lock would need care so it can't lock you out
 
 ### Fixes from testing at home
 - Whatever comes up on the real A50, QuadCast 2S, Equalizer APO, OBS and Discord
