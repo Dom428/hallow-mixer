@@ -22,14 +22,14 @@ using WF = System.Windows.Forms;
 [assembly: AssemblyTitle("Hallow Mixer")]
 [assembly: AssemblyProduct("Hallow Mixer")]
 [assembly: AssemblyDescription("Per-app volume mixer: game, chat, music, media")]
-[assembly: AssemblyVersion("2.8.0.0")]
-[assembly: AssemblyFileVersion("2.8.0.0")]
+[assembly: AssemblyVersion("2.9.0.0")]
+[assembly: AssemblyFileVersion("2.9.0.0")]
 
 namespace HallowMixer
 {
     public static class Program
     {
-        public const string Version = "2.8";
+        public const string Version = "2.9";
         [STAThread]
         public static void Main(string[] args)
         {
@@ -260,6 +260,7 @@ namespace HallowMixer
                 if (eng.Refresh()) RebuildApps(); else UpdateSubs();
                 if (eng.LevelsSwitched) { eng.LevelsSwitched = false; LoadValues(); Status(eng.LevelsNote); if (eng.S.Overlay) osd.Flash(eng.LevelsNote, -1); }
                 if (eng.EqSwitched) { eng.EqSwitched = false; if (eqWin != null && eqWin.IsLoaded) eqWin.Reload(); }
+                if (gamesWin != null && gamesWin.IsLoaded && eng.CurrentGame != shownGame) { shownGame = eng.CurrentGame; gamesWin.Fill(); }
             };
             refreshTimer.Start();
             if (eng.S.ApiOn) StartApi();
@@ -318,6 +319,13 @@ namespace HallowMixer
                 else streamWin.Activate();
             };
             mp.Children.Add(streamBtn);
+            var gamesBtn = new Button { Content = "Games", Style = (Style)FindResource("Btn"), Margin = new Thickness(0, 0, 8, 0), ToolTip = "Each game's saved levels and EQ" };
+            gamesBtn.Click += (s, e) =>
+            {
+                if (gamesWin == null || !gamesWin.IsLoaded) { gamesWin = new GamesWindow(eng, () => { LoadValues(); if (eqWin != null && eqWin.IsLoaded) eqWin.Reload(); }) { Owner = this }; gamesWin.Show(); }
+                else { gamesWin.Fill(); gamesWin.Activate(); }
+            };
+            mp.Children.Add(gamesBtn);
             mp.Children.Add(gear);
             mp.Children.Add(Label("Output", 0, 8));
             outputPick = new ComboBox { Width = 250, Style = (Style)FindResource("Combo"), ToolTip = "Windows' default output - where apps play unless a channel sends them somewhere else" };
@@ -937,7 +945,7 @@ namespace HallowMixer
         }
 
         // ---- v2.5 now playing
-        NowBar nowBar, miniNow;
+        NowBar nowBar, miniNow; string shownGame;
         void ShowNow(MediaInfo m)
         {
             if (!eng.S.NowPlayingOn) m = null;
@@ -1023,7 +1031,7 @@ namespace HallowMixer
         }
 
         // ---- v2.2 first-run setup
-        SetupWindow setupWin;
+        SetupWindow setupWin; GamesWindow gamesWin;
         void OpenSetup()
         {
             if (setupWin != null && setupWin.IsLoaded) { setupWin.Activate(); return; }

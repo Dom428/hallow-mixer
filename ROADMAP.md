@@ -26,11 +26,12 @@ The goal: everything SteelSeries Sonar does for a gamer - and the things it does
 | **2.6** | Smarter ducking: only real talking ducks (half a second of sound with three or more syllables); join/leave chimes, pings, key clicks and steady background hum are ignored; stays down between words, fades back about a second after talking stops; Settings switch to go back to the old way |
 | **2.7** | Hallow family, part 3: now playing tells Hallow Toolkit which channel the app is in, so Toolkit 4.8's Discord posts can share songs from Music apps (never browser videos) and mic muted / back on - both off until you turn them on |
 | **2.8** | Preset hotkeys: Ctrl+Alt+1 to 9 for your presets, Ctrl+Alt+0 for the next one, with the on-screen pop-up; skips keys that type a character on AltGr keyboards (German, French...) or that another app uses; Settings switch |
+| **2.9** | Game profiles: a Games window lists every game Hallow Mixer remembers, with its five channel levels (change them, or take the mixer's current ones) and its EQ; forget a game's EQ or the whole game; the running game moves right away |
 
 ## Next
 
-### 2.9 - Game profiles
-- One place to see every game Hallow Mixer remembers - its levels and its EQ - and change or forget each one
+### 3.0 - Headphone space
+- Crossfeed for headphones (each ear hears a little of the other side, slightly delayed and softened - like speakers in a room), built from Equalizer APO's own filters; three strengths
 
 
 ### Later - closing the gap to Sonar

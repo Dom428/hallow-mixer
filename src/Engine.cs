@@ -435,6 +435,21 @@ namespace HallowMixer
             S.Save();
             return true;
         }
+        // ---- v2.9 game profiles window
+        public Preset CurrentLevels(string name) { return Snapshot(name); }
+        // Change a game's saved levels; if that game is running, the mixer follows right away.
+        public void SetGameLevels(string key, Preset p, bool save = true)
+        {
+            S.GameLevels[key] = p;
+            if (key == CurrentGame && S.PerGame) { LoadLevels(p); Apply(); }
+            if (save) S.Save();
+        }
+        public void ForgetGame(string key, bool levels, bool eq)
+        {
+            if (levels) S.GameLevels.Remove(key);
+            if (eq && S.GameEq.Remove(key) && key == CurrentGame && eqNormal != null) { UseOutputEq(eqNormal); Eq.Write(S.Eq); }
+            S.Save();
+        }
         // The window calls this after you move a fader: while a game runs, its levels are updated.
         public void NoteLevelsChanged()
         {
