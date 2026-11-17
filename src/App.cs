@@ -22,14 +22,14 @@ using WF = System.Windows.Forms;
 [assembly: AssemblyTitle("Hallow Mixer")]
 [assembly: AssemblyProduct("Hallow Mixer")]
 [assembly: AssemblyDescription("Per-app volume mixer: game, chat, music, media")]
-[assembly: AssemblyVersion("3.2.0.0")]
-[assembly: AssemblyFileVersion("3.2.0.0")]
+[assembly: AssemblyVersion("3.3.0.0")]
+[assembly: AssemblyFileVersion("3.3.0.0")]
 
 namespace HallowMixer
 {
     public static class Program
     {
-        public const string Version = "3.2";
+        public const string Version = "3.3";
         [STAThread]
         public static void Main(string[] args)
         {
@@ -450,6 +450,7 @@ namespace HallowMixer
             DockPanel.SetDock(pml, Dock.Left); DockPanel.SetDock(mode, Dock.Left); DockPanel.SetDock(pttKeyBtn, Dock.Right);
             pm.Children.Add(pml); pm.Children.Add(mode); pm.Children.Add(pttKeyBtn); pm.Children.Add(pttKeyText);
             sp.Children.Add(pm);
+            sw("Tell me when I talk while my mic is muted (pop-up on screen)", eng.S.MutedWarn, v => eng.S.MutedWarn = v);
             micKeepSwitch = sw("Keep my mic level (puts it back if Discord, a game or Windows changes it)", eng.S.MicKeep, v =>
             {
                 eng.S.MicKeep = v; keptMic = null;
@@ -772,7 +773,25 @@ namespace HallowMixer
             }
             catch { }
         }
-        void UpdateDefaults() { try { defOut = CoreAudio.DefaultId(0); defMic = CoreAudio.DefaultId(1); } catch { } }
+        void UpdateDefaults() { try { defOut = CoreAudio.DefaultId(0); defMic = CoreAudio.DefaultId(1); micIds = CoreAudio.Devices(1).Select(d => d.Id).ToList(); } catch { } }
+
+        // ---- v3.3 "you're muted": while your mic is muted (and you're not using push-to-talk), listen on every mic -
+        // the real one behind Sonar too - and say so when you're really talking (not a cough or a key click).
+        List<string> micIds = new List<string>();
+        readonly VoiceDetector mutedVoice = new VoiceDetector(0.08f);
+        DateTime lastMutedWarn = DateTime.MinValue;
+        void TickMutedWarn()
+        {
+            if (!eng.S.MutedWarn || (eng.S.MicMode ?? "off") != "off" || mic.Mute.IsChecked != true) return;
+            float pk = 0; foreach (var id in micIds) pk = Math.Max(pk, CoreAudio.DevicePeak(id));
+            var now = DateTime.UtcNow;
+            if (mutedVoice.Update(pk, now) && (now - lastMutedWarn).TotalSeconds > 20)
+            {
+                lastMutedWarn = now;
+                osd.Flash("You're muted  -  Ctrl+Alt+M to unmute", -1);
+                Status("You were talking while your mic is muted. Ctrl+Alt+M (or the Mic strip) unmutes it.");
+            }
+        }
         IntPtr lastFront; int frontTick;
         void TickFront()
         {
@@ -790,6 +809,7 @@ namespace HallowMixer
         {
             TickPtt();
             TickFront();
+            TickMutedWarn();
             var peaks = new Dictionary<string, float>();
             foreach (var id in Engine.ChannelIds) peaks[id] = 0;
             foreach (var a in eng.Apps) { float pk = a.Peak(); if (pk > peaks[a.Channel]) peaks[a.Channel] = pk; }

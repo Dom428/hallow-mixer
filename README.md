@@ -29,6 +29,7 @@ A per-app volume mixer for Windows 10/11 - one fader per kind of sound, a game/c
 - **First-run setup:** pick "With Sonar", "Replacing Sonar" or "Just a mixer" - it guesses your headset and mic, shows exactly what will change, then sets it up. Run it again from Settings.
 - **Background mute:** an app can go quiet while you're in another app, and comes back when you switch to it.
 - **Loud-sound guard:** sudden blasts (a flashbang, a scream in Chat) are turned down for a moment - off until you turn it on.
+- **You're
 - **Headphone space:** crossfeed for headphones (EQ window) - sound feels like speakers in front of you instead of inside your head.
 - **Game profiles:** the Games window shows every game's saved levels and EQ - change them or forget a game.
 - **Preset hotkeys:** Ctrl+Alt+1 to 9 switch presets from inside a game, Ctrl+Alt+0 goes to the next one.

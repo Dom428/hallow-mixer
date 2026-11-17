@@ -39,6 +39,7 @@ WHAT IT DOES
 - Setup: the first time it opens, pick With Sonar / Replacing Sonar / Just a mixer (Settings > Run setup again to redo it).
 - Right-click an app > When I'm in another app: keep playing, turn down to 20% or mute.
 - Settings > Loud-sound guard: sudden blasts are turned down for a moment.
+- Talk while muted and a pop-up tells you (Settings to turn off).
 - EQ > Headphone space: crossfeed for headphones (Light / Medium / Strong).
 - Games (top bar): every game's saved levels and EQ - change them or forget a game.
 - Ctrl+Alt+1 to 9 = your presets, Ctrl+Alt+0 = next preset.

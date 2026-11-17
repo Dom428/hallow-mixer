@@ -30,11 +30,9 @@ The goal: everything SteelSeries Sonar does for a gamer - and the things it does
 | **3.0** | Headphone space: crossfeed for headphones in the EQ window (Light / Medium / Strong, the bs2b levels) - bass and low-mids from one side reach both ears like speakers in a room, treble keeps its width, centre sounds untouched; mid/side through Equalizer APO's own Copy and shelf filters (only the device's L and R) |
 | **3.1** | Background mute: right-click an app > "When I'm in another app" > keep playing / turn down to 20% / mute; it comes back the moment you switch to it (checks the window in front 4 times a second, only when an app uses it) |
 | **3.2** | Loud-sound guard (Settings, off by default): a sudden blast far above what a channel was just playing (3.5x its recent level, out of a quiet moment) turns that channel down to 35% at once, holds 0.6 s and eases back over ~2 s; loud gameplay and music swells are left alone |
+| **3.3** | "You're muted" warning: while the mic is muted in Windows (not push-to-talk), every mic is listened to - the real one behind Sonar too - with the same voice detector as ducking; real talking shows "You're muted - Ctrl+Alt+M to unmute" on screen (at most every 20 s); Settings switch |
 
 ## Next
-
-### 3.3 - "You're muted" warning
-- If you start talking while your mic is muted, a pop-up tells you (no more talking to nobody)
 
 ### 3.4 - Shortcuts for Stream Deck and scripts
 - Command line: `HallowMixer.exe --preset Gaming`, `--mute-mic`, `--channel game 60` - works with Stream Deck's "Open" action, AutoHotkey or a desktop shortcut
