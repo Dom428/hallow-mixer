@@ -44,6 +44,7 @@ namespace HallowMixer
         [DataMember] public bool AutoSwitch;              // headset first: use PrimaryOut whenever it's on, else FallbackOut
         [DataMember] public string PrimaryOut = "";
         [DataMember] public string FallbackOut = "";
+        [DataMember] public string PrimaryMic = "";       // v3.11: kept as the default mic whenever it's plugged in (with AutoSwitch)
         [DataMember] public double MiniLeft = -1, MiniTop = -1;
         [DataMember] public bool MiniOpen;
         // v1.3: EQ per device id (through Equalizer APO)
@@ -112,7 +113,7 @@ namespace HallowMixer
         [OnDeserializing] void Defaults(StreamingContext c)
         {
             DuckOnChat = true; DuckAmount = 50; PerGame = true; Overlay = true;
-            PrimaryOut = ""; FallbackOut = ""; MiniLeft = -1; MiniTop = -1;
+            PrimaryOut = ""; FallbackOut = ""; PrimaryMic = ""; MiniLeft = -1; MiniTop = -1;
             Eq = new Dictionary<string, EqState>(); AppOutput = new Dictionary<string, string>();
             AutoUpdate = true; LastUpdateCheck = ""; MicKeepLevel = -1; ApiOn = true; NowPlayingOn = true; SmartDuck = true; PresetKeys = true; MutedWarn = true; QuietFrom = 23; QuietTo = 7; QuietMax = 40; ProfileName = "Default"; SplitPrev = ""; LastSeenVersion = ""; BgLevel = new Dictionary<string, int>(); SetupMode = ""; ChatCleanPrev = ""; ObsHost = "localhost"; ObsPort = 4455; ObsPass = ""; EqPerGame = true; GameEq = new Dictionary<string, Dictionary<string, EqState>>(); MicMode = "off"; PttKey = 0x05; WinLeft = -1; WinTop = -1; WinWidth = -1; WinHeight = -1;
             MutedApps = new List<string>(); GameLevels = new Dictionary<string, Preset>();
@@ -408,6 +409,9 @@ namespace HallowMixer
             return changed;
         }
         // ---- v3.5 quiet hours: from..to (wraps past midnight); while on, Windows sounds (System & other) are halved
+        // v3.11: a device appeared in the last 8 seconds, so a default change now is Windows' doing, not yours.
+        public static bool StolenBy(DateTime arrived, DateTime now) { var s = (now - arrived).TotalSeconds; return s >= 0 && s <= 8; }
+
         public static bool InQuiet(int hour, int from, int to)
         {
             if (from == to) return false;

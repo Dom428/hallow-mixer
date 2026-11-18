@@ -22,14 +22,14 @@ using WF = System.Windows.Forms;
 [assembly: AssemblyTitle("Hallow Mixer")]
 [assembly: AssemblyProduct("Hallow Mixer")]
 [assembly: AssemblyDescription("Per-app volume mixer: game, chat, music, media")]
-[assembly: AssemblyVersion("3.10.0.0")]
-[assembly: AssemblyFileVersion("3.10.0.0")]
+[assembly: AssemblyVersion("3.11.0.0")]
+[assembly: AssemblyFileVersion("3.11.0.0")]
 
 namespace HallowMixer
 {
     public static class Program
     {
-        public const string Version = "3.10";
+        public const string Version = "3.11";
         public static List<CliCommand> StartupCommands = new List<CliCommand>();
         [STAThread]
         public static void Main(string[] args)
@@ -351,7 +351,7 @@ namespace HallowMixer
             mp.Children.Add(Label("Output", 0, 8));
             outputPick = new ComboBox { Width = 250, Style = (Style)FindResource("Combo"), ToolTip = "Windows' default output - where apps play unless a channel sends them somewhere else" };
             outputPick.DropDownOpened += (s, e) => FillDevices(outputPick, 0, null, false);
-            outputPick.SelectionChanged += (s, e) => { if (loading) return; var d = outputPick.SelectedItem as AudioDevice; if (d != null) { CoreAudio.SetDefault(d.Id); LoadMaster(); } };
+            outputPick.SelectionChanged += (s, e) => { if (loading) return; var d = outputPick.SelectedItem as AudioDevice; if (d != null) { CoreAudio.SetDefault(d.Id); if (eng.S.AutoSwitch) { eng.S.PrimaryOut = d.Id; lastAuto = d.Id; dirty = true; } LoadMaster(); } };
             mp.Children.Add(outputPick);
             masterMeter = new Rectangle { Width = 0, Height = 4, Fill = B("#F07820"), HorizontalAlignment = HorizontalAlignment.Left, RadiusX = 2, RadiusY = 2 };
             var ms = new Grid { Width = 190, Margin = new Thickness(14, 0, 8, 0) };
@@ -460,23 +460,28 @@ namespace HallowMixer
             sw("Show a pop-up on screen when I use the hotkeys", eng.S.Overlay, v => eng.S.Overlay = v);
             sw("Preset hotkeys: Ctrl+Alt+1 to 9 for your presets, Ctrl+Alt+0 for the next one", eng.S.PresetKeys, v => { eng.S.PresetKeys = v; RegisterPresetKeys(v); });
             sw("Show what's playing (song or video, with play/pause and skip)", eng.S.NowPlayingOn, v => { eng.S.NowPlayingOn = v; ShowNow(v ? NowPlaying.Current : null); });
-            sw("Headset first: use it whenever it's on, otherwise use the fallback", eng.S.AutoSwitch, v => { eng.S.AutoSwitch = v; lastAuto = null; });
+            sw("Keep my headset and mic: use them whenever they're on, and switch back if Windows moves sound or the mic to something else (like a monitor waking up)", eng.S.AutoSwitch, v =>
+            {
+                eng.S.AutoSwitch = v; lastAuto = null; lastAutoMic = null;
+                if (v) { if (string.IsNullOrEmpty(eng.S.PrimaryOut)) eng.S.PrimaryOut = CoreAudio.DefaultId(0) ?? ""; if (string.IsNullOrEmpty(eng.S.PrimaryMic)) eng.S.PrimaryMic = CoreAudio.DefaultId(1) ?? ""; }
+            });
             var ag = new Grid { Margin = new Thickness(52, 2, 0, 6) };
             ag.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(70) }); ag.ColumnDefinitions.Add(new ColumnDefinition());
-            ag.RowDefinitions.Add(new RowDefinition()); ag.RowDefinitions.Add(new RowDefinition());
-            Func<string, int, Func<string>, Action<string>, ComboBox> pick = (label, r, get, set) =>
+            ag.RowDefinitions.Add(new RowDefinition()); ag.RowDefinitions.Add(new RowDefinition()); ag.RowDefinitions.Add(new RowDefinition());
+            Func<string, int, int, Func<string>, Action<string>, ComboBox> pick = (label, r, flow, get, set) =>
             {
                 var l = Label(label, 0, 6); Grid.SetRow(l, r); ag.Children.Add(l);
                 var c = new ComboBox { Style = (Style)FindResource("Combo"), Margin = new Thickness(0, 3, 0, 3) };
-                c.DropDownOpened += (s, e) => FillDevices(c, 0, get(), false);
-                c.SelectionChanged += (s, e) => { if (loading) return; var d = c.SelectedItem as AudioDevice; if (d != null) { set(d.Id); eng.S.Save(); lastAuto = null; } };
+                c.DropDownOpened += (s, e) => FillDevices(c, flow, get(), false);
+                c.SelectionChanged += (s, e) => { if (loading) return; var d = c.SelectedItem as AudioDevice; if (d != null) { set(d.Id); eng.S.Save(); lastAuto = null; lastAutoMic = null; } };
                 Grid.SetRow(c, r); Grid.SetColumn(c, 1); ag.Children.Add(c);
-                FillDevices(c, 0, get(), false);
+                FillDevices(c, flow, get(), false);
                 if (string.IsNullOrEmpty(get())) c.SelectedItem = null;
                 return c;
             };
-            pick("Headset", 0, () => eng.S.PrimaryOut, v => eng.S.PrimaryOut = v);
-            pick("Fallback", 1, () => eng.S.FallbackOut, v => eng.S.FallbackOut = v);
+            pick("Headset", 0, 0, () => eng.S.PrimaryOut, v => eng.S.PrimaryOut = v);
+            pick("Fallback", 1, 0, () => eng.S.FallbackOut, v => eng.S.FallbackOut = v);
+            pick("Mic", 2, 1, () => eng.S.PrimaryMic, v => eng.S.PrimaryMic = v);
             sp.Children.Add(ag);
             var pm = new DockPanel { Margin = new Thickness(0, 8, 0, 4) };
             var pml = new TextBlock { Text = "Mic", Width = 52, VerticalAlignment = VerticalAlignment.Center };
@@ -665,7 +670,7 @@ namespace HallowMixer
             body.Children.Add(ready);
             st.Output = new ComboBox { Style = (Style)FindResource("Combo"), Margin = new Thickness(0, 0, 0, 10), ToolTip = "Which mic Windows uses (default for games and calls)" };
             st.Output.DropDownOpened += (s, e) => FillDevices(st.Output, 1, null, false);
-            st.Output.SelectionChanged += (s, e) => { if (loading) return; var d = st.Output.SelectedItem as AudioDevice; if (d != null) { CoreAudio.SetDefault(d.Id); LoadMic(); Status(d.Name + " is now your mic for games and calls."); } };
+            st.Output.SelectionChanged += (s, e) => { if (loading) return; var d = st.Output.SelectedItem as AudioDevice; if (d != null) { CoreAudio.SetDefault(d.Id); if (eng.S.AutoSwitch) { eng.S.PrimaryMic = d.Id; lastAutoMic = d.Id; dirty = true; } LoadMic(); Status(d.Name + " is now your mic for games and calls."); } };
             body.Children.Add(st.Output);
             nvBtn = new Button { Style = (Style)FindResource("Btn"), Margin = new Thickness(0, 0, 0, 8), Visibility = Visibility.Collapsed };
             nvBtn.Click += (s, e) => NoiseRemoval();
@@ -829,21 +834,50 @@ namespace HallowMixer
         string defOut, defMic;   // default device ids, refreshed every 2 s (looking them up is too slow for 20x a second)
         // Headset first: if the headset is on, it should be the default output; if it's off, the fallback.
         string lastAuto;   // the device we last switched to (so we only act when the situation changes)
+        // v3.11: also undo Windows' own switch when a new device shows up (monitor wakes, a USB device is plugged in).
+        string lastAutoMic; HashSet<string> seenOuts, seenMics; DateTime outArrived = DateTime.MinValue, micArrived = DateTime.MinValue;
         void CheckAutoSwitch()
         {
-            if (!eng.S.AutoSwitch || string.IsNullOrEmpty(eng.S.PrimaryOut)) return;
+            if (!eng.S.AutoSwitch) return;
             try
             {
+                var now = DateTime.UtcNow;
                 var outs = CoreAudio.Devices(0);
-                var head = outs.FirstOrDefault(d => d.Id == eng.S.PrimaryOut);
-                var fb = outs.FirstOrDefault(d => d.Id == eng.S.FallbackOut);
-                var want = head ?? fb;
-                if (want == null || want.Id == lastAuto) return;
-                lastAuto = want.Id;
-                if (want.IsDefault) return;
-                CoreAudio.SetDefault(want.Id); LoadMaster();
-                var msg = head != null ? "Headset on - sound is on " + want.Name : "Headset off - sound moved to " + want.Name;
-                Status(msg); if (eng.S.Overlay) osd.Flash(msg, -1);
+                if (seenOuts != null && outs.Any(d => !seenOuts.Contains(d.Id))) outArrived = now;
+                seenOuts = new HashSet<string>(outs.Select(d => d.Id));
+                if (!string.IsNullOrEmpty(eng.S.PrimaryOut))
+                {
+                    var head = outs.FirstOrDefault(d => d.Id == eng.S.PrimaryOut);
+                    var fb = outs.FirstOrDefault(d => d.Id == eng.S.FallbackOut);
+                    var want = head ?? fb;
+                    var cur = outs.FirstOrDefault(d => d.IsDefault);
+                    bool changed = want != null && want.Id != lastAuto;
+                    bool stolen = want != null && !want.IsDefault && Engine.StolenBy(outArrived, now);
+                    if (changed || stolen)
+                    {
+                        lastAuto = want.Id;
+                        if (!want.IsDefault)
+                        {
+                            CoreAudio.SetDefault(want.Id); LoadMaster();
+                            var msg = changed ? (head != null ? "Headset on - sound is on " + want.Name : "Headset off - sound moved to " + want.Name)
+                                              : "Windows moved sound to " + (cur != null ? cur.Name : "another device") + " - moved it back to " + want.Name;
+                            Status(msg); if (eng.S.Overlay) osd.Flash(msg, -1);
+                        }
+                    }
+                }
+                var mics = CoreAudio.Devices(1);
+                if (seenMics != null && mics.Any(d => !seenMics.Contains(d.Id))) micArrived = now;
+                seenMics = new HashSet<string>(mics.Select(d => d.Id));
+                if (!string.IsNullOrEmpty(eng.S.PrimaryMic))
+                {
+                    var m = mics.FirstOrDefault(d => d.Id == eng.S.PrimaryMic);
+                    if (m != null && !m.IsDefault && (m.Id != lastAutoMic || Engine.StolenBy(micArrived, now)))
+                    {
+                        CoreAudio.SetDefault(m.Id); LoadMic();
+                        var msg = "Mic back on " + m.Name; Status(msg); if (eng.S.Overlay) osd.Flash(msg, -1);
+                    }
+                    lastAutoMic = m != null ? m.Id : null;
+                }
             }
             catch { }
         }
