@@ -13,6 +13,7 @@ namespace HallowMixer
     {
         // Newest first. One or two short lines per version.
         public static readonly Tuple<string, string[]>[] Notes = {
+            Tuple.Create("3.10", new[] { "A new icon: three channel faders instead of the plain H" }),
             Tuple.Create("3.9", new[] { "This window - what's new after every update", "Switch profiles from your phone (Hallow Toolkit 4.9 dashboard)" }),
             Tuple.Create("3.8", new[] { "Mic strip > Set my level for me: talk for 5 seconds, your mic level is set for you" }),
             Tuple.Create("3.7", new[] { "Split headset (Chat strip): A50 / Arctis game and chat sides, with a voice EQ for Chat" }),
