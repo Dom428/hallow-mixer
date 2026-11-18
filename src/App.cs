@@ -22,14 +22,14 @@ using WF = System.Windows.Forms;
 [assembly: AssemblyTitle("Hallow Mixer")]
 [assembly: AssemblyProduct("Hallow Mixer")]
 [assembly: AssemblyDescription("Per-app volume mixer: game, chat, music, media")]
-[assembly: AssemblyVersion("3.11.0.0")]
-[assembly: AssemblyFileVersion("3.11.0.0")]
+[assembly: AssemblyVersion("3.12.0.0")]
+[assembly: AssemblyFileVersion("3.12.0.0")]
 
 namespace HallowMixer
 {
     public static class Program
     {
-        public const string Version = "3.11";
+        public const string Version = "3.12";
         public static List<CliCommand> StartupCommands = new List<CliCommand>();
         [STAThread]
         public static void Main(string[] args)
@@ -41,6 +41,8 @@ namespace HallowMixer
                 try { var old = Process.GetProcessById(afterPid); old.WaitForExit(15000); } catch { }   // restarting: let the old copy finish first
                 args = args.Where((a, i) => i != ai && i != ai + 1).ToArray();
             }
+            int snapI = Array.IndexOf(args, "--snap");
+            if (snapI >= 0 && snapI + 1 < args.Length) { RunSnap(args[snapI + 1]); return; }
             List<CliCommand> cmds;
             try { cmds = Cli.Parse(args); }
             catch (ArgumentException ex) { MessageBox.Show(ex.Message, "Hallow Mixer", MessageBoxButton.OK, MessageBoxImage.Information); return; }
@@ -63,6 +65,14 @@ namespace HallowMixer
             t.Start();
             app.Run();
             GC.KeepAlive(mutex);
+        }
+        static void RunSnap(string dir)
+        {
+            Snap.On = true; Settings.Frozen = true;
+            var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+            using (var s = Assembly.GetExecutingAssembly().GetManifestResourceStream("HallowMixer.Theme.xaml"))
+                app.Resources.MergedDictionaries.Add((ResourceDictionary)XamlReader.Load(s));
+            new MixerWindow(true).SnapAll(dir);
         }
     }
 
@@ -224,6 +234,8 @@ namespace HallowMixer
 
         static readonly Dictionary<string, Color> Colors = new Dictionary<string, Color> {
             { "game", C("#F07820") }, { "chat", C("#A98BE0") }, { "music", C("#6ED28C") }, { "media", C("#5AB4F0") }, { "other", C("#8F88A0") }, { "mic", C("#F05A8C") } };
+        static readonly Dictionary<string, string> StripIcons = new Dictionary<string, string> {
+            { "game", "gamepad" }, { "chat", "comments" }, { "music", "music" }, { "media", "film" }, { "other", "desktop" }, { "mic", "microphone" } };
         static Color C(string hex) { return (Color)ColorConverter.ConvertFromString(hex); }
         static SolidColorBrush B(string hex) { return new SolidColorBrush(C(hex)); }
         static SolidColorBrush B(Color c) { return new SolidColorBrush(c); }
@@ -281,17 +293,33 @@ namespace HallowMixer
                 if (gamesWin != null && gamesWin.IsLoaded && eng.CurrentGame != shownGame) { shownGame = eng.CurrentGame; gamesWin.Fill(); }
             };
             refreshTimer.Start();
-            if (eng.S.ApiOn) StartApi();
+            if (eng.S.ApiOn && !Snap.On) StartApi();
             foreach (var c in Program.StartupCommands) { try { ApiDo(c.Path, c.Query); } catch { } }   // started by a shortcut with commands
             saveTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) }; saveTimer.Tick += (s, e) => { if (dirty) { dirty = false; eng.S.Save(); } }; saveTimer.Start();
-            if (!startHidden) Show(); else { WindowState = WindowState.Minimized; Show(); Hide(); WindowState = WindowState.Normal; }
+            if (Snap.On) { } else if (!startHidden) Show(); else { WindowState = WindowState.Minimized; Show(); Hide(); WindowState = WindowState.Normal; }
             if (eng.S.MiniOpen) { eng.S.MiniOpen = false; ToggleMini(); }
             UpdateNoiseButton(); UpdateCleanButton(); UpdateSplitButton();
             if (Settings.FirstRun && !eng.S.SetupDone && !startHidden) Dispatcher.BeginInvoke(new Action(OpenSetup), DispatcherPriority.ApplicationIdle);
             if (string.IsNullOrEmpty(eng.S.LastSeenVersion) && Settings.FirstRun) { eng.S.LastSeenVersion = Program.Version; dirty = true; }   // new install: nothing to tell
             if (!startHidden) Dispatcher.BeginInvoke(new Action(ShowWhatsNew), DispatcherPriority.ApplicationIdle);
             DateTime lastCheck;
-            if (eng.S.AutoUpdate && (!DateTime.TryParse(eng.S.LastUpdateCheck, out lastCheck) || (DateTime.Now - lastCheck).TotalHours > 20)) CheckForUpdate(false);
+            if (!Snap.On && eng.S.AutoUpdate && (!DateTime.TryParse(eng.S.LastUpdateCheck, out lastCheck) || (DateTime.Now - lastCheck).TotalHours > 20)) CheckForUpdate(false);
+        }
+
+        // Developer snapshots (--snap <folder>): each window rendered to a PNG, never shown.
+        public void SnapAll(string dir)
+        {
+            Func<Window, double> W = x => double.IsNaN(x.Width) ? 560 : x.Width;
+            Func<Window, double> H = x => x.SizeToContent == SizeToContent.Height || double.IsNaN(x.Height) ? 0 : x.Height;
+            Snap.Save(this, System.IO.Path.Combine(dir, "main.png"), 1010, 690);
+            settingsPanel.Visibility = Visibility.Visible;
+            Snap.Save(this, System.IO.Path.Combine(dir, "settings.png"), 1010, 900);
+            settingsPanel.Visibility = Visibility.Collapsed;
+            try { var e = new EqWindow(eng.S); Snap.Save(e, System.IO.Path.Combine(dir, "eq.png"), W(e), H(e)); } catch (Exception ex) { File.WriteAllText(System.IO.Path.Combine(dir, "eq.err.txt"), ex.ToString()); }
+            try { var g = new GamesWindow(eng, () => { }); Snap.Save(g, System.IO.Path.Combine(dir, "games.png"), W(g), H(g)); } catch (Exception ex) { File.WriteAllText(System.IO.Path.Combine(dir, "games.err.txt"), ex.ToString()); }
+            try { var n = new WhatsNewWindow(WhatsNew.Since("3.8")); Snap.Save(n, System.IO.Path.Combine(dir, "whatsnew.png"), W(n), H(n)); } catch (Exception ex) { File.WriteAllText(System.IO.Path.Combine(dir, "whatsnew.err.txt"), ex.ToString()); }
+            try { var m = new MiniWindow(eng.S, strips.Values.Select(st => Tuple.Create(st.Id, st.Color, st.Fader)), balance, null); Snap.Save(m, System.IO.Path.Combine(dir, "mini.png"), 330, 0); } catch (Exception ex) { File.WriteAllText(System.IO.Path.Combine(dir, "mini.err.txt"), ex.ToString()); }
+            try { tray.Dispose(); } catch { }
         }
 
         static System.Windows.Media.ImageSource BitmapFromIcon()
@@ -313,34 +341,35 @@ namespace HallowMixer
             // ---- header: name + master output
             var head = new DockPanel { Margin = new Thickness(0, 0, 0, 12), LastChildFill = false };
             var title = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-            title.Children.Add(new TextBlock { Text = "HALLOW", FontSize = 24, FontWeight = FontWeights.Bold, Foreground = B("#F07820") });
-            title.Children.Add(new TextBlock { Text = "  MIXER", FontSize = 13, FontWeight = FontWeights.Bold, Foreground = B("#A98BE0"), VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 5) });
+            try { title.Children.Add(new Image { Source = BitmapFromIcon(), Width = 30, Height = 30, Margin = new Thickness(0, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center }); } catch { }
+            title.Children.Add(new TextBlock { Text = "HALLOW", FontSize = 22, FontWeight = FontWeights.Bold, Foreground = B("#F07820"), VerticalAlignment = VerticalAlignment.Center });
+            title.Children.Add(new TextBlock { Text = " MIXER", FontSize = 22, FontWeight = FontWeights.Light, Foreground = B("#ECE8F4"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 18, 0) });
             DockPanel.SetDock(title, Dock.Left); head.Children.Add(title);
             var mp = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-            var gear = new ToggleButton { Content = "Settings", Style = (Style)FindResource("Btn"), Margin = new Thickness(0, 0, 16, 0) };
+            var gear = gearBtn = new ToggleButton { Content = "Settings", Tag = "icon", Width = 36, Height = 30, Padding = new Thickness(0), ToolTip = "Settings", Style = (Style)FindResource("Btn"), Margin = new Thickness(0, 0, 18, 0) };
             gear.Checked += (s, e) => { settingsPanel.Visibility = Visibility.Visible; };
             gear.Unchecked += (s, e) => { settingsPanel.Visibility = Visibility.Collapsed; };
-            var miniBtn = new Button { Content = "Mini", Style = (Style)FindResource("Btn"), Margin = new Thickness(0, 0, 8, 0), ToolTip = "Small always-on-top mixer" };
+            var miniBtn = new Button { Content = "Mini", Tag = "icon", Width = 36, Height = 30, Padding = new Thickness(0), Style = (Style)FindResource("Btn"), Margin = new Thickness(0, 0, 8, 0), ToolTip = "Mini mixer (small, always on top)" };
             miniBtn.Click += (s, e) => ToggleMini();
             updateBtn = new Button { Style = (Style)FindResource("Accent"), Margin = new Thickness(0, 0, 8, 0), Visibility = Visibility.Collapsed };
             updateBtn.Click += (s, e) => InstallUpdate();
             mp.Children.Add(updateBtn);
             mp.Children.Add(miniBtn);
-            var eqBtn = new Button { Content = "EQ", Style = (Style)FindResource("Btn"), Margin = new Thickness(0, 0, 8, 0), ToolTip = "Equalizer for each headset, speaker and mic" };
+            var eqBtn = new Button { Content = "EQ", Tag = "icon", Width = 36, Height = 30, Padding = new Thickness(0), Style = (Style)FindResource("Btn"), Margin = new Thickness(0, 0, 8, 0), ToolTip = "Equalizer for each headset, speaker and mic" };
             eqBtn.Click += (s, e) =>
             {
                 if (eqWin == null || !eqWin.IsLoaded) { eqWin = new EqWindow(eng.S) { Owner = this, OnChanged = eng.NoteEqChanged }; eqWin.Closed += (o, a) => { eng.S.Save(); }; eqWin.Show(); }
                 else eqWin.Activate();
             };
             mp.Children.Add(eqBtn);
-            var streamBtn = new Button { Content = "Stream", Style = (Style)FindResource("Btn"), Margin = new Thickness(0, 0, 8, 0), ToolTip = "OBS: a separate mix for your stream, and presets per scene" };
+            var streamBtn = new Button { Content = "Stream", Tag = "icon", Width = 36, Height = 30, Padding = new Thickness(0), Style = (Style)FindResource("Btn"), Margin = new Thickness(0, 0, 8, 0), ToolTip = "OBS: a separate mix for your stream, and presets per scene" };
             streamBtn.Click += (s, e) =>
             {
                 if (streamWin == null || !streamWin.IsLoaded) { streamWin = new StreamWindow(eng, obs, ConnectObs) { Owner = this }; streamWin.Closed += (o, a) => eng.S.Save(); streamWin.Show(); }
                 else streamWin.Activate();
             };
             mp.Children.Add(streamBtn);
-            var gamesBtn = new Button { Content = "Games", Style = (Style)FindResource("Btn"), Margin = new Thickness(0, 0, 8, 0), ToolTip = "Each game's saved levels and EQ" };
+            var gamesBtn = new Button { Content = "Games", Tag = "icon", Width = 36, Height = 30, Padding = new Thickness(0), Style = (Style)FindResource("Btn"), Margin = new Thickness(0, 0, 8, 0), ToolTip = "Each game's saved levels and EQ" };
             gamesBtn.Click += (s, e) =>
             {
                 if (gamesWin == null || !gamesWin.IsLoaded) { gamesWin = new GamesWindow(eng, () => { LoadValues(); if (eqWin != null && eqWin.IsLoaded) eqWin.Reload(); }) { Owner = this }; gamesWin.Show(); }
@@ -348,20 +377,20 @@ namespace HallowMixer
             };
             mp.Children.Add(gamesBtn);
             mp.Children.Add(gear);
-            mp.Children.Add(Label("Output", 0, 8));
-            outputPick = new ComboBox { Width = 250, Style = (Style)FindResource("Combo"), ToolTip = "Windows' default output - where apps play unless a channel sends them somewhere else" };
+            mp.Children.Add(new Viewbox { Width = 16, Height = 16, Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center, Child = Icons.Make("headphones", 16, (Brush)FindResource("Muted")), ToolTip = "Output" });
+            outputPick = new ComboBox { Width = 230, Style = (Style)FindResource("Combo"), ToolTip = "Windows' default output - where apps play unless a channel sends them somewhere else" };
             outputPick.DropDownOpened += (s, e) => FillDevices(outputPick, 0, null, false);
             outputPick.SelectionChanged += (s, e) => { if (loading) return; var d = outputPick.SelectedItem as AudioDevice; if (d != null) { CoreAudio.SetDefault(d.Id); if (eng.S.AutoSwitch) { eng.S.PrimaryOut = d.Id; lastAuto = d.Id; dirty = true; } LoadMaster(); } };
             mp.Children.Add(outputPick);
             masterMeter = new Rectangle { Width = 0, Height = 4, Fill = B("#F07820"), HorizontalAlignment = HorizontalAlignment.Left, RadiusX = 2, RadiusY = 2 };
-            var ms = new Grid { Width = 190, Margin = new Thickness(14, 0, 8, 0) };
+            var ms = new Grid { Width = 160, Margin = new Thickness(14, 0, 10, 0) };
             master = new Slider { Style = (Style)FindResource("HFader"), Minimum = 0, Maximum = 100, Foreground = B("#ECE8F4"), VerticalAlignment = VerticalAlignment.Center, ToolTip = "Master volume" };
             master.ValueChanged += (s, e) => { if (!loading) { var id = CoreAudio.DefaultId(0); if (id != null) CoreAudio.SetLevel(id, (float)(master.Value / 100)); } };
             ms.Children.Add(master);
             var mm = new Border { Height = 4, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, -6), Child = masterMeter };
             ms.Children.Add(mm);
             mp.Children.Add(ms);
-            masterMute = new ToggleButton { Content = "Mute", Style = (Style)FindResource("Toggle"), Width = 64 };
+            masterMute = new ToggleButton { Content = "Mute", Tag = "icon", Style = (Style)FindResource("Toggle"), Width = 34, Height = 30, Padding = new Thickness(0), ToolTip = "Mute everything" };
             masterMute.Click += (s, e) => { var id = CoreAudio.DefaultId(0); if (id != null) CoreAudio.SetMute(id, masterMute.IsChecked == true); masterMute.Content = masterMute.IsChecked == true ? "Muted" : "Mute"; };
             mp.Children.Add(masterMute);
             DockPanel.SetDock(mp, Dock.Right); head.Children.Add(mp);
@@ -408,15 +437,22 @@ namespace HallowMixer
         }
 
         // ---- settings flyout (top right)
-        Border settingsPanel;
+        Border settingsPanel; ToggleButton gearBtn;
         Border BuildSettings()
         {
-            var b = new Border { Background = B("#241E2E"), BorderBrush = B("#3A3248"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8),
-                Padding = new Thickness(18, 14, 18, 14), Width = 400, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top,
+            var b = new Border { Background = B("#241E2E"), BorderBrush = B("#3A3248"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(14),
+                Padding = new Thickness(18, 14, 18, 14), Width = 440, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top,
                 Margin = new Thickness(0, 58, 18, 18), Visibility = Visibility.Collapsed };
             b.Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 24, Opacity = 0.5, ShadowDepth = 4 };
             var sp = new StackPanel();
-            sp.Children.Add(new TextBlock { Text = "Settings", FontWeight = FontWeights.Bold, FontSize = 15, Margin = new Thickness(0, 0, 0, 8) });
+            var sh = new DockPanel { Margin = new Thickness(0, 0, 0, 12) };
+            var shClose = new Button { Content = "x", Tag = "icon", Style = (Style)FindResource("Btn"), Width = 30, Height = 28, Padding = new Thickness(0), ToolTip = "Close settings" };
+            shClose.Click += (s, e) => { if (gearBtn != null) gearBtn.IsChecked = false; else b.Visibility = Visibility.Collapsed; };
+            DockPanel.SetDock(shClose, Dock.Right); sh.Children.Add(shClose);
+            var shIcon = Icons.Make("gear", 16, B("#F07820")); shIcon.Margin = new Thickness(0, 0, 10, 0); shIcon.VerticalAlignment = VerticalAlignment.Center;
+            DockPanel.SetDock(shIcon, Dock.Left); sh.Children.Add(shIcon);
+            sh.Children.Add(new TextBlock { Text = "Settings", FontWeight = FontWeights.Bold, FontSize = 16, VerticalAlignment = VerticalAlignment.Center });
+            sp.Children.Add(sh);
             var pr = new DockPanel { Margin = new Thickness(0, 0, 0, 10) };
             var prl = new TextBlock { Text = "Profile", Width = 52, VerticalAlignment = VerticalAlignment.Center };
             profileBox = new ComboBox { Style = (Style)FindResource("Combo"), Width = 150, ToolTip = "A whole mixer setup - levels, presets, app choices, EQ and switches. Switching restarts Hallow Mixer for a moment." };
@@ -424,7 +460,7 @@ namespace HallowMixer
             profileBox.SelectionChanged += (s, e) => { if (loading) return; var n = profileBox.SelectedItem as string; if (n != null) UseProfile(n, false); };
             var prNew = new Button { Content = "New...", Style = (Style)FindResource("Btn"), Margin = new Thickness(8, 0, 0, 0), ToolTip = "Start a new profile from your current setup" };
             prNew.Click += (s, e) => NewProfile();
-            profileDel = new Button { Content = "Delete", Style = (Style)FindResource("Btn"), Margin = new Thickness(6, 0, 0, 0), ToolTip = "Delete the profile you're using and switch to another one" };
+            profileDel = new Button { Content = "Delete", Tag = "icon", Width = 32, Height = 30, Padding = new Thickness(0), Style = (Style)FindResource("Btn"), Margin = new Thickness(6, 0, 0, 0), ToolTip = "Delete the profile you're using and switch to another one" };
             profileDel.Click += (s, e) =>
             {
                 var cur = eng.S.ProfileName; var others = Profiles.List(cur).Where(x => !string.Equals(x, cur, StringComparison.OrdinalIgnoreCase)).ToList();
@@ -572,14 +608,24 @@ namespace HallowMixer
 
         Border StripShell(Strip st, string name)
         {
-            var shell = new Border { Background = (Brush)FindResource("Panel"), CornerRadius = new CornerRadius(8), Margin = new Thickness(5, 0, 5, 0), Padding = new Thickness(12, 12, 12, 10) };
-            var top = new Border { Height = 3, Background = B(st.Color), CornerRadius = new CornerRadius(2), Margin = new Thickness(-12, -12, -12, 10) };
+            // card: a soft glow of the channel colour fading down from the top, thin coloured outline
+            var panel = C("#211B2A");
+            Func<double, Color> mix = a => Color.FromRgb((byte)(panel.R + (st.Color.R - panel.R) * a), (byte)(panel.G + (st.Color.G - panel.G) * a), (byte)(panel.B + (st.Color.B - panel.B) * a));
+            var glow = new LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(0, 1) };
+            glow.GradientStops.Add(new GradientStop(mix(0.16), 0)); glow.GradientStops.Add(new GradientStop(panel, 0.3));
+            var shell = new Border { Background = glow, CornerRadius = new CornerRadius(14), Margin = new Thickness(5, 0, 5, 0), Padding = new Thickness(12, 12, 12, 10),
+                BorderBrush = new SolidColorBrush(mix(0.3)), BorderThickness = new Thickness(1) };
             var sp = new DockPanel();
-            var hdr = new StackPanel(); DockPanel.SetDock(hdr, Dock.Top);
-            hdr.Children.Add(top);
-            hdr.Children.Add(new TextBlock { Text = name, FontWeight = FontWeights.Bold, FontSize = 14 });
+            var hdr = new DockPanel(); DockPanel.SetDock(hdr, Dock.Top);
+            string icon; if (!StripIcons.TryGetValue(st.Id, out icon)) icon = "sliders";
+            var chip = new Border { Width = 32, Height = 32, CornerRadius = new CornerRadius(9), Margin = new Thickness(0, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center,
+                Background = new SolidColorBrush(mix(0.25)), Child = Icons.Make(icon, 15, B(st.Color)) };
+            DockPanel.SetDock(chip, Dock.Left); hdr.Children.Add(chip);
+            var names = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+            names.Children.Add(new TextBlock { Text = name, FontWeight = FontWeights.Bold, FontSize = 14, TextTrimming = TextTrimming.CharacterEllipsis });
             st.Sub = new TextBlock { Foreground = (Brush)FindResource("Muted"), FontSize = 11, TextTrimming = TextTrimming.CharacterEllipsis };
-            hdr.Children.Add(st.Sub);
+            names.Children.Add(st.Sub);
+            hdr.Children.Add(names);
             sp.Children.Add(hdr);
             shell.Child = sp;
             return shell;
@@ -655,16 +701,16 @@ namespace HallowMixer
                 if (eng.S.MicKeep) { eng.S.MicKeepLevel = (int)Math.Round(st.Fader.Value); keptMic = mid; dirty = true; } };
             st.Pct = new TextBlock { HorizontalAlignment = HorizontalAlignment.Center, FontSize = 15, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 8) };
             body.Children.Add(st.Pct);
-            st.Mute = new ToggleButton { Content = "Mute", Style = (Style)FindResource("Toggle"), Margin = new Thickness(0, 0, 0, 8), ToolTip = "Ctrl+Alt+M" };
+            st.Mute = new ToggleButton { Content = "Mute mic", Style = (Style)FindResource("Toggle"), Margin = new Thickness(0, 0, 0, 8), ToolTip = "Ctrl+Alt+M" };
             st.Mute.Click += (s, e) => SetMicMute(st.Mute.IsChecked == true);
             body.Children.Add(st.Mute);
             var test = new Button { Content = "Test mic", Style = (Style)FindResource("Btn"), Margin = new Thickness(0, 0, 0, 8), ToolTip = "Records 5 seconds, then plays it back - exactly what Discord and games hear" };
             test.Click += (s, e) => TestMic(test);
             body.Children.Add(test);
-            var auto = new Button { Content = "Set my level for me", Style = (Style)FindResource("Btn"), Margin = new Thickness(0, 0, 0, 8), ToolTip = "Talk normally for 5 seconds - Hallow Mixer sets your mic so you're loud and clear, never distorted" };
+            var auto = new Button { Content = "Auto level", Style = (Style)FindResource("Btn"), Margin = new Thickness(0, 0, 0, 8), ToolTip = "Talk normally for 5 seconds - Hallow Mixer sets your mic so you're loud and clear, never distorted" };
             auto.Click += (s, e) => AutoMicLevel(auto);
             body.Children.Add(auto);
-            var ready = new Button { Content = "Discord-ready mic", Style = (Style)FindResource("Accent"), Margin = new Thickness(0, 0, 0, 8),
+            var ready = new Button { Content = "Discord-ready", Style = (Style)FindResource("Accent"), Margin = new Thickness(0, 0, 0, 8),
                 ToolTip = "One click: unmute, a good level that stays put, voice EQ and rumble cut (needs Equalizer APO for the EQ part)" };
             ready.Click += (s, e) => DiscordReady();
             body.Children.Add(ready);
@@ -725,7 +771,7 @@ namespace HallowMixer
             if (id != null)
             {
                 var l = CoreAudio.GetLevel(id); if (l >= 0) { mic.Fader.Value = l * 100; mic.Pct.Text = (int)Math.Round(l * 100) + "%"; }
-                var m = CoreAudio.GetMute(id); mic.Mute.IsChecked = m; mic.Mute.Content = m ? "Muted" : "Mute";
+                var m = CoreAudio.GetMute(id); mic.Mute.IsChecked = m; mic.Mute.Content = m ? "Mic muted" : "Mute mic";
             }
             loading = false;
             FillDevices(mic.Output, 1, null, false);
@@ -1127,7 +1173,7 @@ namespace HallowMixer
             if (bm != null && bm.IsDefault) { nvBtn.Visibility = Visibility.Collapsed; return; }
             if (bm == null && hasRtx != true) { nvBtn.Visibility = Visibility.Collapsed; return; }
             nvBtn.Visibility = Visibility.Visible;
-            nvBtn.Content = bm != null ? "Use NVIDIA Broadcast mic" : "Get noise removal";
+            nvBtn.Content = bm != null ? "NVIDIA mic" : "Noise removal";
             nvBtn.ToolTip = bm != null ? "Switch to NVIDIA Broadcast's noise-removed mic (for games and calls)" : "Your RTX card can remove background noise with NVIDIA Broadcast (free, from NVIDIA)";
         }
         void NoiseRemoval()
@@ -1217,7 +1263,7 @@ namespace HallowMixer
                 try { wav = MicTest.Record(id, 5, out pk); } catch (Exception ex) { err = ex.Message; }
                 Dispatcher.BeginInvoke(new Action(() =>
                 {
-                    countdown.Stop(); btn.Content = "Set my level for me"; btn.IsEnabled = true;
+                    countdown.Stop(); btn.Content = "Auto level"; btn.IsEnabled = true;
                     if (err != null) { Status("Couldn't listen to the mic: " + err); return; }
                     var speech = MicLevel.SpeechPeak(wav);
                     var sug = MicLevel.Suggest(curDb, minDb, maxDb, speech);
@@ -1488,7 +1534,7 @@ namespace HallowMixer
         void SetMicMute(bool m)
         {
             var id = CoreAudio.DefaultId(1); if (id == null) return;
-            CoreAudio.SetMute(id, m); mic.Mute.IsChecked = m; mic.Mute.Content = m ? "Muted" : "Mute";
+            CoreAudio.SetMute(id, m); mic.Mute.IsChecked = m; mic.Mute.Content = m ? "Mic muted" : "Mute mic";
             if (trayMicMute != null) trayMicMute.Checked = m;
         }
         void Status(string t) { if (status != null) status.Text = t; }
@@ -1623,7 +1669,7 @@ namespace HallowMixer
 
         void SetupTray()
         {
-            tray = new WF.NotifyIcon { Text = "Hallow Mixer", Visible = true };
+            tray = new WF.NotifyIcon { Text = "Hallow Mixer", Visible = !Snap.On };
             try { tray.Icon = System.Drawing.Icon.ExtractAssociatedIcon(Assembly.GetExecutingAssembly().Location); } catch { tray.Icon = System.Drawing.SystemIcons.Application; }
             var menu = new WF.ContextMenuStrip();
             var open = new WF.ToolStripMenuItem("Open Hallow Mixer"); open.Font = new System.Drawing.Font(open.Font, System.Drawing.FontStyle.Bold);

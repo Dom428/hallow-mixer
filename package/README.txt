@@ -68,3 +68,6 @@ sound devices - it sends each channel to a real device instead.
 UNINSTALL
 Windows Settings > Apps > Hallow Mixer > Uninstall. Every app goes back to full volume and its
 normal output first. You can keep or delete your settings.
+
+CREDITS
+Icons: Font Awesome Free 7.3.1 by Fonticons, Inc. (https://fontawesome.com), licensed CC BY 4.0 - see FontAwesome-LICENSE.txt.

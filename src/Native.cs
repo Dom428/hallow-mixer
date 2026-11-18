@@ -150,7 +150,7 @@ namespace HallowMixer
             return s == 2;
         }
         public void Set(float v, bool mute)
-        {
+        { if (Snap.On) return;
             Guid g = Guid.Empty;
             float target = mute ? 0f : v;
             if (Math.Abs(target - LastSet) <= 0.004f && LastSet >= 0) return;
@@ -209,6 +209,7 @@ namespace HallowMixer
         }
         public static void SetDefault(string id)
         {
+            if (Snap.On) return;
             var pc = (IPolicyConfig)Create("870af99c-171d-4f9e-af0d-e63df40c2bc9");
             for (int role = 0; role < 3; role++) pc.SetDefaultEndpoint(id, role);
         }
@@ -222,6 +223,7 @@ namespace HallowMixer
         }
         public static void SetLevel(string id, float level)
         {
+            if (Snap.On) return;
             var d = Device(id); if (d == null) return;
             var v = Activate<IAudioEndpointVolume>(d, IID_Volume); if (v == null) return;
             Guid g = Guid.Empty; v.SetMasterVolumeLevelScalar(Math.Max(0f, Math.Min(1f, level)), ref g);
@@ -236,6 +238,7 @@ namespace HallowMixer
         }
         public static void SetDb(string id, float db)
         {
+            if (Snap.On) return;
             var d = Device(id); if (d == null) return;
             var v = Activate<IAudioEndpointVolume>(d, IID_Volume); if (v == null) return;
             Guid g = Guid.Empty; v.SetMasterVolumeLevel(db, ref g);
@@ -248,6 +251,7 @@ namespace HallowMixer
         }
         public static void SetMute(string id, bool mute)
         {
+            if (Snap.On) return;
             var d = Device(id); if (d == null) return;
             var v = Activate<IAudioEndpointVolume>(d, IID_Volume); if (v == null) return;
             Guid g = Guid.Empty; v.SetMute(mute, ref g);
@@ -320,7 +324,7 @@ namespace HallowMixer
         public static void ClearAllRoutes() { var p = Policy(); if (p != null) try { p.ClearAllPersistedApplicationDefaultEndpoints(); } catch { } }
         // deviceId "" = back to the Windows default output
         public static bool RouteApp(uint pid, string deviceId)
-        {
+        { if (Snap.On) return false;
             var p = Policy(); if (p == null || pid == 0) return false;
             IntPtr h = IntPtr.Zero;
             try

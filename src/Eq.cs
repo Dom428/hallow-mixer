@@ -146,6 +146,7 @@ namespace HallowMixer
         // Writes every device's EQ. Equalizer APO picks the change up within a second.
         public static void Write(Dictionary<string, EqState> eq)
         {
+            if (Snap.On) return;
             var sb = new StringBuilder();
             sb.AppendLine("# Written by Hallow Mixer - change it in Hallow Mixer > EQ (edits here are overwritten).");
             foreach (var kv in eq)
@@ -204,7 +205,7 @@ namespace HallowMixer
 
             var sp = new StackPanel { Margin = new Thickness(20, 16, 20, 16) };
             var head = new DockPanel();
-            head.Children.Add(new TextBlock { Text = "EQ", FontSize = 22, FontWeight = FontWeights.Bold, Foreground = B("#F07820") });
+            var eqIcon = Icons.Make("sliders", 20, B("#F07820")); eqIcon.Margin = new Thickness(0, 0, 10, 0); var eqT = new StackPanel { Orientation = Orientation.Horizontal }; eqT.Children.Add(eqIcon); eqT.Children.Add(new TextBlock { Text = "EQ", FontSize = 22, FontWeight = FontWeights.Bold, Foreground = B("#F07820") }); head.Children.Add(eqT);
             sp.Children.Add(head);
             apoText = new TextBlock { TextWrapping = TextWrapping.Wrap, Foreground = (Brush)FindResource("Muted"), Margin = new Thickness(0, 4, 0, 8) };
             sp.Children.Add(apoText);

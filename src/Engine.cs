@@ -533,6 +533,7 @@ namespace HallowMixer
         // Pushes the mixer's numbers onto every app stream (only where something changed).
         public void Apply()
         {
+            if (Snap.On) return;
             foreach (var a in Apps)
             {
                 var c = Chan(a.Channel);

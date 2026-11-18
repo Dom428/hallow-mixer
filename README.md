@@ -36,6 +36,7 @@ A per-app volume mixer for Windows 10/11 - one fader per kind of sound, a game/c
 - **Split headset:** on headsets with game and chat outputs (A50, Arctis), Chat goes to the chat side with a voice EQ so the headset's own dial balances them.
 - **Auto mic level:** talk for 5 seconds and Hallow Mixer sets your mic so you're loud and clear, never distorted.
 - **Keep my headset and mic:** if Windows moves your sound or mic to a monitor or a new USB device, Hallow Mixer moves it straight back (Settings).
+- **Modern look:** Font Awesome icons on every button and channel, rounder cards, icon-only header buttons (hover for a tooltip).
 - **Headphone space:** crossfeed for headphones (EQ window) - sound feels like speakers in front of you instead of inside your head.
 - **Game profiles:** the Games window shows every game's saved levels and EQ - change them or forget a game.
 - **Preset hotkeys:** Ctrl+Alt+1 to 9 switch presets from inside a game, Ctrl+Alt+0 goes to the next one.
@@ -82,3 +83,7 @@ See [ROADMAP.md](ROADMAP.md) - what's done and what's coming next.
 Uses the C# compiler that ships with Windows (`%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\csc.exe`) - no SDK or Visual Studio needed. Source is in `src/`: `Native.cs` (Windows Core Audio), `Engine.cs` (channels, volume math, settings), `App.cs` (window, tray, hotkeys), `Theme.xaml` (look).
 
 Part of the Hallow family alongside [Hallow Toolkit](https://github.com/Dom428/hallow-toolkit).
+
+## Credits
+
+Icons: [Font Awesome Free](https://fontawesome.com) 7.3.1 by Fonticons, Inc., licensed [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) (see FontAwesome-LICENSE.txt). Only the icon outlines Hallow Mixer uses are included.

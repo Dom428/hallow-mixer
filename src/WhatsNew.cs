@@ -13,6 +13,7 @@ namespace HallowMixer
     {
         // Newest first. One or two short lines per version.
         public static readonly Tuple<string, string[]>[] Notes = {
+            Tuple.Create("3.12", new[] { "A modern look: Font Awesome icons on every button, icon badges on each channel, rounder cards", "Header buttons are icons now - hover one to see what it does" }),
             Tuple.Create("3.11", new[] { "Settings > Keep my headset and mic: if Windows moves your sound or mic to something else (like a monitor waking up), it's moved straight back" }),
             Tuple.Create("3.10", new[] { "A new icon: three channel faders instead of the plain H" }),
             Tuple.Create("3.9", new[] { "This window - what's new after every update", "Switch profiles from your phone (Hallow Toolkit 4.9 dashboard)" }),
@@ -58,7 +59,7 @@ namespace HallowMixer
                 foreach (var line in v.Item2)
                 {
                     var d = new DockPanel { Margin = new Thickness(0, 0, 0, 4) };
-                    var dot = new TextBlock { Text = "â€¢", Foreground = B("#F07820"), Width = 16, FontWeight = FontWeights.Bold }; DockPanel.SetDock(dot, Dock.Left);
+                    var dot = new TextBlock { Text = "\u2022", Foreground = B("#F07820"), Width = 16, FontWeight = FontWeights.Bold }; DockPanel.SetDock(dot, Dock.Left);
                     d.Children.Add(dot); d.Children.Add(new TextBlock { Text = line, TextWrapping = TextWrapping.Wrap });
                     sp.Children.Add(d);
                 }
