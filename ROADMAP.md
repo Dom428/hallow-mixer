@@ -49,6 +49,15 @@ The goal: everything SteelSeries Sonar does for a gamer - and the things it does
 
 ## Next
 
+### 3.19 - EQ presets you can share
+- Save your own EQ presets, import and export them, paste an AutoEQ `ParametricEQ.txt` / `GraphicEQ.txt` (or any Equalizer APO filter lines) you have, and A/B compare before / after in the EQ window
+
+### 3.20 - Quick output switching
+- Switch the output from the tray menu or with Ctrl+Alt+O (next output), and each headset remembers which output every channel plays on
+
+### 3.21 - Smart Volume everywhere and a loudness meter
+- Even out Game, Chat and Music too (not only Media), and a LUFS loudness meter for what you hear
+
 ### Fixes from testing at home
 - Whatever comes up on the real A50, QuadCast 2S, Equalizer APO, OBS, Stream Deck and Discord
 
@@ -62,6 +71,23 @@ The goal: everything SteelSeries Sonar does for a gamer - and the things it does
 - 360 spatial audio (true virtual surround) through Equalizer APO's convolution filter - needs 3D sound profiles (HRTFs) we're allowed to ship, and Equalizer APO's convolution can't mix one ear into the other on its own. Headphone space (3.0) covers the "speakers in a room" part
 - Quick switch for Windows spatial sound (Windows Sonic / Dolby Atmos): Windows has no public way for apps to change it, so this needs research first
 
+## Gaps vs Sonar
+What SteelSeries Sonar (and Voicemeeter / EarTrumpet for parts) do that Hallow Mixer doesn't yet - buildable here or not, and why.
+
+| Gap | From | Buildable here? |
+|---|---|---|
+| Save, import and share your own EQ presets (Sonar's preset sharing; AutoEQ text) | Sonar | Yes - 3.19 |
+| A/B compare in the EQ | Sonar | Yes - 3.19 |
+| Switch the output device from the tray or a hotkey | EarTrumpet, GG | Yes - 3.20 |
+| Channel outputs remembered per headset | Sonar | Yes - 3.20 |
+| Smart Volume on every channel (Game, Chat, Music - not only Media) | Sonar | Yes - 3.21 |
+| Loudness meter (LUFS) | Voicemeeter-style meters | Yes - 3.21 |
+| Virtual Game / Chat / Media / Aux / Mic devices and buses | Sonar, Voicemeeter | No - needs a signed audio driver |
+| ClearCast AI noise cancellation (mic and chat) without an RTX card | Sonar | No - needs a trained AI model; NVIDIA Broadcast covers RTX cards |
+| 360 spatial audio | Sonar | No - needs licensed HRTFs and cross-ear convolution Equalizer APO can't do (Headphone space covers part) |
+| Mic chain gain-reduction meter | Sonar | Not safely - the plugin runs inside the audio service (session 0), so it needs a cross-session channel that can't be tested without a connected Equalizer APO |
+| Network audio (VBAN), recorder, macro buttons | Voicemeeter | VBAN: no (network audio is out of scope); recorder: OBS covers it; macros: Stream Deck shortcuts (3.4) cover it |
+| Soundboard into the mic | Voicemeeter, others | No - needs a virtual mic or a live, connected Equalizer APO (see Later) |
 ## How it's built
 - Everything you see and control is Hallow Mixer's own code. The one outside piece is Equalizer APO, the free open-source hook that lets EQ run inside Windows' audio engine; noise removal uses NVIDIA Broadcast if you have an RTX card.
 
