@@ -44,6 +44,7 @@ A per-app volume mixer for Windows 10/11 - one fader per kind of sound, a game/c
 - **Hallow accent:** the accent colour you pick in Hallow Toolkit colours Hallow Mixer's buttons and highlights (channel colours stay). Crash reports stay on your PC, and you're told next time if it ever closed unexpectedly.
 - **Sidetone:** hear your own mic in your headset (Settings), about 25 ms behind and silent while you're muted.
 - **Your EQ presets:** save your own, export them for a friend, import or paste AutoEQ / Equalizer APO text, and A/B compare (EQ window).
+- **Quick output switching:** tray menu > Output or Ctrl+Alt+O, and each output remembers where every channel plays.
 - **Headphone space:** crossfeed for headphones (EQ window) - sound feels like speakers in front of you instead of inside your head.
 - **Game profiles:** the Games window shows every game's saved levels and EQ - change them or forget a game.
 - **Preset hotkeys:** Ctrl+Alt+1 to 9 switch presets from inside a game, Ctrl+Alt+0 goes to the next one.

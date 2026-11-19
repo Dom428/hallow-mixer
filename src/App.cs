@@ -22,14 +22,14 @@ using WF = System.Windows.Forms;
 [assembly: AssemblyTitle("Hallow Mixer")]
 [assembly: AssemblyProduct("Hallow Mixer")]
 [assembly: AssemblyDescription("Per-app volume mixer: game, chat, music, media")]
-[assembly: AssemblyVersion("3.19.0.0")]
-[assembly: AssemblyFileVersion("3.19.0.0")]
+[assembly: AssemblyVersion("3.20.0.0")]
+[assembly: AssemblyFileVersion("3.20.0.0")]
 
 namespace HallowMixer
 {
     public static class Program
     {
-        public const string Version = "3.19";
+        public const string Version = "3.20";
         public static List<CliCommand> StartupCommands = new List<CliCommand>();
         public static string HubApp = "Hub";
         public static string DataDir = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "HallowMixer");
@@ -303,6 +303,7 @@ namespace HallowMixer
                 TickQuiet();
                 UpdateNotices();
                 UpdateSidetone(false);
+                CheckHeadsetOutputs();
                 if (eng.S.NowPlayingOn) NowPlaying.Poll(m => Dispatcher.BeginInvoke(new Action(() => ShowNow(m))));
                 if (++cleanTick % 5 == 0 && eng.S.ChatClean && eng.CheckChatClean(CoreAudio.Devices(0)))
                 { LoadValues(); UpdateCleanButton(); Status("NVIDIA Broadcast's speaker is gone, so Chat is back on its normal output."); }
@@ -593,6 +594,7 @@ namespace HallowMixer
             sw("Even out Media: loud ads and explosions down, quiet talking up", eng.S.LevelMedia, v => eng.S.LevelMedia = v);
             sw("Loud-sound guard: sudden blasts in any channel (a flashbang, a scream, a mic squeal in Chat) are turned down for a moment", eng.S.Guard, v => eng.S.Guard = v);
             sw("Show a pop-up on screen when I use the hotkeys", eng.S.Overlay, v => eng.S.Overlay = v);
+            sw("Ctrl+Alt+O switches to the next output (headset, speakers...) - each one remembers where every channel plays", eng.S.OutputKey, v => { eng.S.OutputKey = v; var hh = new WindowInteropHelper(this).Handle; UnregisterHotKey(hh, 6); if (v && !TypesSomething(0x4F)) RegisterHotKey(hh, 6, 0x4003, 0x4F); });
             sw("Preset hotkeys: Ctrl+Alt+1 to 9 for your presets, Ctrl+Alt+0 for the next one", eng.S.PresetKeys, v => { eng.S.PresetKeys = v; RegisterPresetKeys(v); });
             sw("Show what's playing (song or video, with play/pause and skip)", eng.S.NowPlayingOn, v => { eng.S.NowPlayingOn = v; ShowNow(v ? NowPlaying.Current : null); });
             sw("Keep my headset and mic: use them whenever they're on, and switch back if Windows moves sound or the mic to something else (like a monitor waking up)", eng.S.AutoSwitch, v =>
@@ -1052,6 +1054,27 @@ namespace HallowMixer
                 }
             }
             catch { }
+        }
+        // ---- v3.20 quick output switching (tray menu, Ctrl+Alt+O): like picking it in the header
+        void UseOutput(AudioDevice d)
+        {
+            if (d == null || d.IsDefault) return;
+            CoreAudio.SetDefault(d.Id);
+            if (eng.S.AutoSwitch) { eng.S.PrimaryOut = d.Id; lastAuto = d.Id; dirty = true; }
+            LoadMaster(); CheckHeadsetOutputs();
+            Status("Sound is on " + d.Name + "."); Notice("Output: " + d.Name, -1);
+        }
+        string lastDefaultOut;
+        // Windows' default output changed (by us, Windows or another app): the channels follow that headset's outputs.
+        void CheckHeadsetOutputs()
+        {
+            string now = null; try { now = CoreAudio.DefaultId(0); } catch { }
+            if (now == null) return;
+            if (lastDefaultOut == null) { lastDefaultOut = now; return; }
+            if (now == lastDefaultOut) return;
+            var old = lastDefaultOut; lastDefaultOut = now;
+            if (eng.SwitchHeadset(old, now)) { eng.Apply(); LoadValues(); Status("This output's channel outputs are back."); }
+            dirty = true;
         }
         void UpdateDefaults() { try { defOut = CoreAudio.DefaultId(0); defMic = CoreAudio.DefaultId(1); micIds = CoreAudio.Devices(1).Select(d => d.Id).ToList(); } catch { } }
 
@@ -1819,6 +1842,7 @@ namespace HallowMixer
             if (!RegisterHotKey(h, 3, 0x4003, 0x4D)) bad.Add("Ctrl+Alt+M");
             if (!RegisterHotKey(h, 4, 0x4003, 0x26)) bad.Add("Ctrl+Alt+Up");
             if (!RegisterHotKey(h, 5, 0x4003, 0x28)) bad.Add("Ctrl+Alt+Down");
+            if (eng.S.OutputKey) { if (TypesSomething(0x4F)) bad.Add("Ctrl+Alt+O (types a character on your keyboard)"); else if (!RegisterHotKey(h, 6, 0x4003, 0x4F)) bad.Add("Ctrl+Alt+O"); }   // v3.20 next output
             if (bad.Count > 0) Status("Another app already uses " + string.Join(", ", bad) + " - those hotkeys are off.");
             if (eng.S.PresetKeys) RegisterPresetKeys(true);
         }
@@ -1870,6 +1894,7 @@ namespace HallowMixer
             }
             else if (id == 3) { SetMicMute(!(mic.Mute.IsChecked == true)); Notice(mic.Mute.IsChecked == true ? "Mic muted" : "Mic on", -1); }
             else if (id == 4 || id == 5) FrontAppVolume(id == 4 ? 5 : -5);
+            else if (id == 6) { var n = Engine.NextOutput(CoreAudio.Devices(0), CoreAudio.DefaultId(0)); if (n == null) Notice("Only one output", -1); else UseOutput(n); }
             else if (id >= 10 && id <= 19) PresetHotkey(id - 10);
             handled = true; return IntPtr.Zero;
         }
@@ -1947,6 +1972,17 @@ namespace HallowMixer
             RebuildPresets();
             menu.Items.Add(trayPresets);
             trayProfiles = new WF.ToolStripMenuItem("Profile"); menu.Items.Add(trayProfiles);
+            var trayOut = new WF.ToolStripMenuItem("Output   Ctrl+Alt+O"); menu.Items.Add(trayOut);   // v3.20
+            trayOut.DropDownItems.Add(new WF.ToolStripMenuItem("(loading)"));
+            trayOut.DropDownOpening += (s, e) =>
+            {
+                trayOut.DropDownItems.Clear();
+                foreach (var d in CoreAudio.Devices(0))
+                {
+                    var dev = d; var mi = new WF.ToolStripMenuItem(d.Name) { Checked = d.IsDefault };
+                    mi.Click += (o, a) => UseOutput(dev); trayOut.DropDownItems.Add(mi);
+                }
+            };
             var miniItem = new WF.ToolStripMenuItem("Mini mixer (always on top)"); miniItem.Click += (s, e) => ToggleMini(); menu.Items.Add(miniItem);
             var center = new WF.ToolStripMenuItem("Balance game / chat"); center.Click += (s, e) => { balance.Value = 0; }; menu.Items.Add(center);
             trayMicMute = new WF.ToolStripMenuItem("Mute mic   Ctrl+Alt+M"); trayMicMute.Click += (s, e) => SetMicMute(!(mic.Mute.IsChecked == true)); menu.Items.Add(trayMicMute);

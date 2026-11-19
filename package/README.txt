@@ -52,6 +52,7 @@ WHAT IT DOES
 - Hallow accent: the colour picked in Hallow Toolkit (Settings to turn off). Crash reports are kept on this PC only.
 - Settings > Sidetone: hear your own mic in your headset (off by default).
 - EQ > Mine: save, export, import or paste presets (AutoEQ text works), A/B compare.
+- Tray > Output or Ctrl+Alt+O: switch output; each output remembers its channel outputs.
 - EQ > Headphone space: crossfeed for headphones (Light / Medium / Strong).
 - Games (top bar): every game's saved levels and EQ - change them or forget a game.
 - Ctrl+Alt+1 to 9 = your presets, Ctrl+Alt+0 = next preset.

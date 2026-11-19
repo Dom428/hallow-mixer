@@ -66,6 +66,9 @@ namespace HallowMixer
         [DataMember] public bool EqPerGame = true;        // each game remembers its headset/speaker EQ
         [DataMember] public Dictionary<string, Dictionary<string, EqState>> GameEq = new Dictionary<string, Dictionary<string, EqState>>();
         [DataMember] public bool LevelMedia;              // even out loud and quiet moments in the Media channel
+        // v3.20 - quick output switching
+        [DataMember] public Dictionary<string, Dictionary<string, string>> OutputsByHeadset = new Dictionary<string, Dictionary<string, string>>();   // default output -> channel -> output ("" = default)
+        [DataMember] public bool OutputKey = true;          // Ctrl+Alt+O = next output
         // v3.19 - your own EQ presets
         [DataMember] public List<EqUserPreset> MyEq = new List<EqUserPreset>();
         // v3.18 - sidetone
@@ -134,7 +137,7 @@ namespace HallowMixer
             DuckOnChat = true; DuckAmount = 50; PerGame = true; Overlay = true;
             PrimaryOut = ""; FallbackOut = ""; PrimaryMic = ""; MiniLeft = -1; MiniTop = -1;
             Eq = new Dictionary<string, EqState>(); AppOutput = new Dictionary<string, string>();
-            AutoUpdate = true; LastUpdateCheck = ""; MicKeepLevel = -1; ApiOn = true; UseHallowIcon = true; UseHallowAccent = true; LastCrashShown = ""; SidetoneLevel = 30; SidetoneMic = ""; MyEq = new List<EqUserPreset>(); NowPlayingOn = true; SmartDuck = true; PresetKeys = true; MutedWarn = true; QuietFrom = 23; QuietTo = 7; QuietMax = 40; ProfileName = "Default"; SplitPrev = ""; LastSeenVersion = ""; BgLevel = new Dictionary<string, int>(); SetupMode = ""; ChatCleanPrev = ""; ObsHost = "localhost"; ObsPort = 4455; ObsPass = ""; EqPerGame = true; GameEq = new Dictionary<string, Dictionary<string, EqState>>(); MicMode = "off"; PttKey = 0x05; WinLeft = -1; WinTop = -1; WinWidth = -1; WinHeight = -1;
+            AutoUpdate = true; LastUpdateCheck = ""; MicKeepLevel = -1; ApiOn = true; UseHallowIcon = true; UseHallowAccent = true; LastCrashShown = ""; SidetoneLevel = 30; SidetoneMic = ""; MyEq = new List<EqUserPreset>(); OutputsByHeadset = new Dictionary<string, Dictionary<string, string>>(); OutputKey = true; NowPlayingOn = true; SmartDuck = true; PresetKeys = true; MutedWarn = true; QuietFrom = 23; QuietTo = 7; QuietMax = 40; ProfileName = "Default"; SplitPrev = ""; LastSeenVersion = ""; BgLevel = new Dictionary<string, int>(); SetupMode = ""; ChatCleanPrev = ""; ObsHost = "localhost"; ObsPort = 4455; ObsPass = ""; EqPerGame = true; GameEq = new Dictionary<string, Dictionary<string, EqState>>(); MicMode = "off"; PttKey = 0x05; WinLeft = -1; WinTop = -1; WinWidth = -1; WinHeight = -1;
             MutedApps = new List<string>(); GameLevels = new Dictionary<string, Preset>(); GameMic = new Dictionary<string, string>(); GameChain = new Dictionary<string, string>(); GameMicDevice = "";
             AppChannel = new Dictionary<string, string>(); AppVolume = new Dictionary<string, int>();
         }
@@ -166,6 +169,7 @@ namespace HallowMixer
             if (s.GameMic == null) s.GameMic = new Dictionary<string, string>();
             if (s.GameChain == null) s.GameChain = new Dictionary<string, string>();
             if (s.MyEq == null) s.MyEq = new List<EqUserPreset>();
+            if (s.OutputsByHeadset == null) s.OutputsByHeadset = new Dictionary<string, Dictionary<string, string>>();
             if (s.GameMicDevice == null) s.GameMicDevice = "";
             if (s.StreamLinks == null) s.StreamLinks = new Dictionary<string, List<string>>();
             if (s.StreamLevel == null) s.StreamLevel = new Dictionary<string, int>();
@@ -250,6 +254,33 @@ namespace HallowMixer
         }
 
         public ChannelState Chan(string id) { return S.Channels.First(c => c.Id == id); }
+
+        // ---- v3.20 each headset remembers where every channel plays. Called when Windows' default output changes:
+        // the channels' outputs are kept for the old one, and the new one's come back (if it has any yet).
+        // Chat is left alone while Split headset or Clean voices manage it. Returns true when a channel moved.
+        public bool SwitchHeadset(string oldDefault, string newDefault)
+        {
+            if (string.IsNullOrEmpty(newDefault) || oldDefault == newDefault) return false;
+            Func<string, bool> managed = id => id == "chat" && (S.Split || S.ChatClean);
+            if (!string.IsNullOrEmpty(oldDefault))
+                S.OutputsByHeadset[oldDefault] = S.Channels.Where(c => !managed(c.Id)).ToDictionary(c => c.Id, c => c.OutputId ?? "");
+            Dictionary<string, string> saved; bool moved = false;
+            if (!S.OutputsByHeadset.TryGetValue(newDefault, out saved)) return false;
+            foreach (var c in S.Channels)
+            {
+                string o; if (managed(c.Id) || !saved.TryGetValue(c.Id, out o)) continue;
+                if ((c.OutputId ?? "") != o) { c.OutputId = o; moved = true; }
+            }
+            while (S.OutputsByHeadset.Count > 20) S.OutputsByHeadset.Remove(S.OutputsByHeadset.Keys.First(k => k != newDefault));
+            return moved;
+        }
+        // The output after the current one (Ctrl+Alt+O), or null if there's only one.
+        public static AudioDevice NextOutput(List<AudioDevice> outs, string current)
+        {
+            if (outs == null || outs.Count < 2) return null;
+            int i = outs.FindIndex(d => d.Id == current);
+            return outs[(i + 1) % outs.Count];
+        }
 
         void FindGameRoots()
         {

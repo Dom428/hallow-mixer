@@ -13,6 +13,7 @@ namespace HallowMixer
     {
         // Newest first. One or two short lines per version.
         public static readonly Tuple<string, string[]>[] Notes = {
+            Tuple.Create("3.20", new[] { "Switch the output from the tray menu or with Ctrl+Alt+O", "Each headset and speaker remembers which output every channel plays on" }),
             Tuple.Create("3.19", new[] { "EQ window: save your own presets, export them for a friend, import or paste AutoEQ / Equalizer APO text", "A/B: switch between your changes and how the EQ was before" }),
             Tuple.Create("3.18", new[] { "Settings > Sidetone: hear your own mic in your headset (about 25 ms behind, silent while muted)" }),
             Tuple.Create("3.17", new[] { "The Hallow accent: pick a colour in Hallow Toolkit and Hallow Mixer's buttons and highlights follow (Settings to turn off)", "If Hallow Mixer ever closes unexpectedly, a crash report is kept on this PC and you're told next time" }),
