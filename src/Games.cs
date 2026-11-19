@@ -1,4 +1,4 @@
-// Hallow Mixer - game profiles: every game Hallow Mixer remembers (its levels and its EQ) in one place.
+﻿// Hallow Mixer - game profiles: every game Hallow Mixer remembers (its levels and its EQ) in one place.
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -28,7 +28,7 @@ namespace HallowMixer
             var dp = new DockPanel { Margin = new Thickness(22, 16, 22, 16) };
             var head = new StackPanel(); DockPanel.SetDock(head, Dock.Top);
             head.Children.Add(new TextBlock { Text = "Game profiles", FontSize = 20, FontWeight = FontWeights.Bold, Foreground = B("#F07820") });
-            head.Children.Add(new TextBlock { Text = "Each game's own levels and headset EQ come back when it starts. Change them here, or forget a game to start fresh.",
+            head.Children.Add(new TextBlock { Text = "Each game's own levels, headset EQ and mic preset come back when it starts. Change them here, or forget a game to start fresh.",
                 Foreground = (Brush)FindResource("Muted"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 12) });
             dp.Children.Add(head);
             dp.Children.Add(new ScrollViewer { Content = list, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled });
@@ -41,7 +41,7 @@ namespace HallowMixer
         public void Fill()
         {
             list.Children.Clear();
-            var keys = eng.S.GameLevels.Keys.Union(eng.S.GameEq.Keys).Distinct()
+            var keys = eng.S.GameLevels.Keys.Union(eng.S.GameEq.Keys).Union(eng.S.GameMic.Keys).Distinct()
                 .OrderByDescending(k => k == eng.CurrentGame).ThenBy(k => NameOf(k), StringComparer.OrdinalIgnoreCase).ToList();
             if (keys.Count == 0)
             {
@@ -82,7 +82,7 @@ namespace HallowMixer
             btns.Children.Add(Btn("Forget", "Forget " + name + "'s levels and EQ - it starts fresh next time", () =>
             {
                 if (MessageBox.Show(this, "Forget " + name + "'s saved levels and EQ?", "Hallow Mixer", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
-                eng.ForgetGame(key, true, true); changed(); Fill();
+                eng.ForgetGame(key, true, true); eng.SetGameMic(key, null); changed(); Fill();
             }));
             top.Children.Add(btns);
             var title = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
@@ -129,9 +129,31 @@ namespace HallowMixer
                 : "EQ: your normal EQ" + (eng.S.EqPerGame ? " (change the EQ while it runs to give it its own)" : "");
             eqRow.Children.Add(new TextBlock { Text = eqText, Foreground = (Brush)FindResource("Muted"), VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis });
             sp.Children.Add(eqRow);
+
+            // v3.14 mic preset: a mic EQ preset while this game runs, your own mic EQ when it closes
+            var micRow = new DockPanel { Margin = new Thickness(0, 8, 0, 0) };
+            var micLab = new TextBlock { Text = "Mic:", Foreground = (Brush)FindResource("Muted"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+            DockPanel.SetDock(micLab, Dock.Left); micRow.Children.Add(micLab);
+            var names = new List<string> { NormalMic }; names.AddRange(Engine.MicPresetNames());
+            string curMic; if (!eng.S.GameMic.TryGetValue(key, out curMic) || !names.Contains(curMic)) curMic = NormalMic;
+            var box = new ComboBox { Style = (Style)FindResource("Combo"), Width = 220, ItemsSource = names, SelectedItem = curMic, HorizontalAlignment = HorizontalAlignment.Left,
+                ToolTip = "A mic EQ preset while " + name + " runs - your own mic EQ comes back when it closes (needs Equalizer APO on your mic)" };
+            System.Windows.Automation.AutomationProperties.SetName(box, name + " mic preset");
+            DockPanel.SetDock(box, Dock.Left); micRow.Children.Add(box);
+            var micHint = new TextBlock { Foreground = (Brush)FindResource("Muted"), FontSize = 11.5, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis,
+                Text = now && eng.S.GameMicOn != null ? "on now" : "" };
+            micRow.Children.Add(micHint);
+            box.SelectionChanged += (s, e) =>
+            {
+                var pick = box.SelectedItem as string; if (pick == null) return;
+                eng.SetGameMic(key, pick == NormalMic ? null : pick); changed();
+                micHint.Text = key == eng.CurrentGame && eng.S.GameMicOn != null ? "on now" : pick == NormalMic ? "" : "comes on when " + name + " starts";
+            };
+            sp.Children.Add(micRow);
             card.Child = sp;
             return card;
         }
+        const string NormalMic = "My normal mic EQ";
         static string ShortName(string n)
         {
             if (string.IsNullOrEmpty(n)) return "Device";

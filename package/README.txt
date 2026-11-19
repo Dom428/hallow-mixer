@@ -46,6 +46,7 @@ WHAT IT DOES
 - Split headset (Chat strip): A50 / Arctis game and chat sides, with a voice EQ for Chat.
 - Mic strip > Set my level for me: talk for 5 s, your mic level is set for you.
 - A bar at the top warns when your mic is muted in Windows (Unmute mic), or when Hallow Mixer doesn't start with Windows (one click to turn it on).
+- Games (top bar) > Mic: a mic preset for each game; your own mic EQ comes back when it closes.
 - EQ > Headphone space: crossfeed for headphones (Light / Medium / Strong).
 - Games (top bar): every game's saved levels and EQ - change them or forget a game.
 - Ctrl+Alt+1 to 9 = your presets, Ctrl+Alt+0 = next preset.

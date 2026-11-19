@@ -22,19 +22,21 @@ using WF = System.Windows.Forms;
 [assembly: AssemblyTitle("Hallow Mixer")]
 [assembly: AssemblyProduct("Hallow Mixer")]
 [assembly: AssemblyDescription("Per-app volume mixer: game, chat, music, media")]
-[assembly: AssemblyVersion("3.13.0.0")]
-[assembly: AssemblyFileVersion("3.13.0.0")]
+[assembly: AssemblyVersion("3.14.0.0")]
+[assembly: AssemblyFileVersion("3.14.0.0")]
 
 namespace HallowMixer
 {
     public static class Program
     {
-        public const string Version = "3.13";
+        public const string Version = "3.14";
         public static List<CliCommand> StartupCommands = new List<CliCommand>();
         [STAThread]
         public static void Main(string[] args)
         {
             if (args.Contains("--reset")) { try { new Engine().ResetForUninstall(); } catch { } return; }
+            int ci = Array.IndexOf(args, "--cmd");   // v3.14 Hallow family: send one line to the running copy, print its reply
+            if (ci >= 0) { Environment.Exit(FamilyPipe.Send(ci + 1 < args.Length ? args[ci + 1] : "")); return; }
             int ai = Array.IndexOf(args, "--after"); int afterPid;
             if (ai >= 0 && ai + 1 < args.Length && int.TryParse(args[ai + 1], out afterPid))
             {
@@ -275,6 +277,7 @@ namespace HallowMixer
             };
             LocationChanged += placeChanged; StateChanged += placeChanged; SizeChanged += (s, e) => placeChanged(s, EventArgs.Empty);
             SetupTray();
+            eng.MicDevice = ShareMic;
             eng.Refresh(); eng.LevelsSwitched = false; RebuildApps(); LoadValues(); UpdateDefaults();
             meterTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) }; meterTimer.Tick += (s, e) => TickMeters(); meterTimer.Start();
             refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) }; refreshTimer.Tick += (s, e) =>
@@ -291,10 +294,12 @@ namespace HallowMixer
                 if (eng.Refresh()) RebuildApps(); else UpdateSubs();
                 if (eng.LevelsSwitched) { eng.LevelsSwitched = false; LoadValues(); Status(eng.LevelsNote); if (eng.S.Overlay) osd.Flash(eng.LevelsNote, -1); }
                 if (eng.EqSwitched) { eng.EqSwitched = false; if (eqWin != null && eqWin.IsLoaded) eqWin.Reload(); }
+                if (eng.MicNote != null) { Status(eng.MicNote); eng.MicNote = null; }
                 if (gamesWin != null && gamesWin.IsLoaded && eng.CurrentGame != shownGame) { shownGame = eng.CurrentGame; gamesWin.Fill(); }
             };
             refreshTimer.Start();
             if (eng.S.ApiOn && !Snap.On) StartApi();
+            if (!Snap.On) { family = new FamilyPipe(FamilyAnswer); family.Start(); }
             foreach (var c in Program.StartupCommands) { try { ApiDo(c.Path, c.Query); } catch { } }   // started by a shortcut with commands
             saveTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) }; saveTimer.Tick += (s, e) => { if (dirty) { dirty = false; eng.S.Save(); } }; saveTimer.Start();
             if (Snap.On) { } else if (!startHidden) Show(); else { WindowState = WindowState.Minimized; Show(); Hide(); WindowState = WindowState.Normal; }
@@ -1113,8 +1118,10 @@ namespace HallowMixer
             st.Meter.Height = Math.Max(0, 210 * st.MeterLevel);
         }
 
+        string lastPresetName;   // v3.14: the preset used last (for /wait and the family link)
         void UsePreset(Preset p)
         {
+            lastPresetName = p.Name;
             eng.ApplyPreset(p); eng.NoteLevelsChanged(); LoadValues();
             Status(p.Name + " preset on.");
             ShowTrayTip(p.Name + " preset on.", false);
@@ -1451,6 +1458,21 @@ namespace HallowMixer
             if (parent != null) { parent.Children.Remove(settingsPanel); settingsPanel = BuildSettings(); settingsPanel.Visibility = vis; parent.Children.Add(settingsPanel); }
         }
         void StopApi() { if (api != null) { api.Stop(); api = null; } }
+        // ---- v3.14 Hallow family pipe (HallowFamily.Mixer.<user>): ping and status for the other Hallow apps
+        FamilyPipe family;
+        string FamilyAnswer(string line)
+        {
+            var cmd = line.Split(new[] { ' ' }, 2)[0].ToLowerInvariant();
+            if (cmd == "ping") return "ok {\"app\":\"Mixer\",\"version\":\"" + Program.Version + "\"}";
+            if (cmd == "status")
+            {
+                var a = api; string st = null;
+                try { st = a != null ? a.StateWithRev() : Dispatcher.Invoke(new Func<string>(ApiState), TimeSpan.FromSeconds(5)) as string; } catch { }
+                if (st == null || !st.StartsWith("{")) return "error busy, try again";
+                return "ok {\"app\":\"Mixer\",\"updated\":\"" + DateTime.Now.ToString("s") + "\"," + st.Substring(1);
+            }
+            return "error unknown command";
+        }
         string ApiState()
         {
             var mid = CoreAudio.DefaultId(1);
@@ -1458,7 +1480,7 @@ namespace HallowMixer
             var micInfo = new Dictionary<string, object> { { "level", mid == null ? -1 : (int)Math.Round(CoreAudio.GetLevel(mid) * 100) }, { "muted", mid != null && CoreAudio.GetMute(mid) } };
             return new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(new Dictionary<string, object> {
                 { "version", Program.Version }, { "channels", chans }, { "mic", micInfo }, { "chatMix", eng.S.ChatMix },
-                { "presets", eng.S.Presets.Select(p => p.Name).ToArray() }, { "game", eng.CurrentGameName }, { "obs", obs.Connected },
+                { "presets", eng.S.Presets.Select(p => p.Name).ToArray() }, { "preset", lastPresetName }, { "game", eng.CurrentGameName }, { "obs", obs.Connected },
                 { "nowPlaying", NowState() }, { "profile", eng.S.ProfileName }, { "profiles", Profiles.List(eng.S.ProfileName).ToArray() } });
         }
         object NowState()
@@ -1660,7 +1682,7 @@ namespace HallowMixer
             var list = eng.S.Presets; if (list.Count == 0) return;
             int i = d == 0 ? (lastPreset + 1) % list.Count : d - 1;
             if (i >= list.Count) { Notice("No preset " + d + " (you have " + list.Count + ")", -1); return; }
-            lastPreset = i; var p = list[i];
+            lastPreset = i; var p = list[i]; lastPresetName = p.Name;
             eng.ApplyPreset(p); eng.NoteLevelsChanged(); LoadValues();
             Status(p.Name + " preset on."); Notice(p.Name + " preset", -1);
         }
@@ -1803,6 +1825,7 @@ namespace HallowMixer
         void ExitApp()
         {
             exiting = true; StopApi();
+            try { eng.EndGameMic(); } catch { }
             try { eng.S.Save(); eng.ResetAllApps(); } catch { }
             var h = new WindowInteropHelper(this).Handle; for (int i = 1; i <= 19; i++) UnregisterHotKey(h, i);
             tray.Visible = false; tray.Dispose();

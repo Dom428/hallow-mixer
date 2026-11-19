@@ -1,4 +1,4 @@
-// Hallow Mixer - channels, which app goes where, the volume math and saved settings.
+﻿// Hallow Mixer - channels, which app goes where, the volume math and saved settings.
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -66,8 +66,13 @@ namespace HallowMixer
         [DataMember] public bool EqPerGame = true;        // each game remembers its headset/speaker EQ
         [DataMember] public Dictionary<string, Dictionary<string, EqState>> GameEq = new Dictionary<string, Dictionary<string, EqState>>();
         [DataMember] public bool LevelMedia;              // even out loud and quiet moments in the Media channel
+        // v3.14 - mic presets per game: game key -> mic EQ preset name (Eq.MicPresets or PEq.MicPresets)
+        [DataMember] public Dictionary<string, string> GameMic = new Dictionary<string, string>();
+        [DataMember] public string GameMicOn;             // the game mic preset on the mic right now (null = your normal mic EQ)
+        [DataMember] public string GameMicDevice = "";    // the mic it's on
+        [DataMember] public EqState GameMicNormal;        // that mic's own EQ, put back when the game closes (null = it had none)
         // v3.13
-        [DataMember] public bool StartNoticeOff;          // "doesn't start with Windows" notice dismissed (or start-up turned off on purpose)
+        [DataMember] public bool StartNoticeOff;         // "doesn't start with Windows" notice dismissed (or start-up turned off on purpose)
         // v3.9
         [DataMember] public string LastSeenVersion = "";   // for "What's new" after an update
         // v3.7 - split headset
@@ -118,7 +123,7 @@ namespace HallowMixer
             PrimaryOut = ""; FallbackOut = ""; PrimaryMic = ""; MiniLeft = -1; MiniTop = -1;
             Eq = new Dictionary<string, EqState>(); AppOutput = new Dictionary<string, string>();
             AutoUpdate = true; LastUpdateCheck = ""; MicKeepLevel = -1; ApiOn = true; NowPlayingOn = true; SmartDuck = true; PresetKeys = true; MutedWarn = true; QuietFrom = 23; QuietTo = 7; QuietMax = 40; ProfileName = "Default"; SplitPrev = ""; LastSeenVersion = ""; BgLevel = new Dictionary<string, int>(); SetupMode = ""; ChatCleanPrev = ""; ObsHost = "localhost"; ObsPort = 4455; ObsPass = ""; EqPerGame = true; GameEq = new Dictionary<string, Dictionary<string, EqState>>(); MicMode = "off"; PttKey = 0x05; WinLeft = -1; WinTop = -1; WinWidth = -1; WinHeight = -1;
-            MutedApps = new List<string>(); GameLevels = new Dictionary<string, Preset>();
+            MutedApps = new List<string>(); GameLevels = new Dictionary<string, Preset>(); GameMic = new Dictionary<string, string>(); GameMicDevice = "";
             AppChannel = new Dictionary<string, string>(); AppVolume = new Dictionary<string, int>();
         }
 
@@ -146,6 +151,8 @@ namespace HallowMixer
             if (s.AppOutput == null) s.AppOutput = new Dictionary<string, string>();
             if (s.GameLevels == null) s.GameLevels = new Dictionary<string, Preset>();
             if (s.GameEq == null) s.GameEq = new Dictionary<string, Dictionary<string, EqState>>();
+            if (s.GameMic == null) s.GameMic = new Dictionary<string, string>();
+            if (s.GameMicDevice == null) s.GameMicDevice = "";
             if (s.StreamLinks == null) s.StreamLinks = new Dictionary<string, List<string>>();
             if (s.StreamLevel == null) s.StreamLevel = new Dictionary<string, int>();
             if (s.StreamOff == null) s.StreamOff = new List<string>();
@@ -476,6 +483,64 @@ namespace HallowMixer
             return CurrentGameName;
         }
 
+        // ---- v3.14 mic presets per game: a game can put a mic EQ preset on your mic while it runs; your own mic EQ comes back when it closes.
+        // What was on the mic before is kept in the settings, so it comes back even if Hallow Mixer was closed or restarted mid-game.
+        public Func<AudioDevice> MicDevice;   // the real mic (not Sonar's virtual one) - set by the window
+        public string MicNote;                // "QuadCast 2S mic preset on for Valorant" - shown by the window
+        public static List<string> MicPresetNames() { return Eq.MicPresets.Keys.Concat(PEq.MicPresets.Keys).ToList(); }
+        static bool IsMicPreset(string n) { return n != null && (Eq.MicPresets.ContainsKey(n) || PEq.MicPresets.ContainsKey(n)); }
+        void SwitchMic(string key, string game)
+        {
+            string want = null;
+            if (key != null && S.GameMic.TryGetValue(key, out want) && !IsMicPreset(want)) want = null;
+            if (want == S.GameMicOn) return;
+            EqState st;
+            if (want != null)
+            {
+                string id = S.GameMicDevice;
+                if (string.IsNullOrEmpty(id))
+                {
+                    AudioDevice d = null; try { d = MicDevice != null ? MicDevice() : null; } catch { }
+                    if (d == null) { var did = CoreAudio.DefaultId(1); d = did == null ? null : CoreAudio.Devices(1).FirstOrDefault(x => x.Id == did); }
+                    if (d == null) return;
+                    id = d.Id; S.GameMicDevice = id;
+                    S.GameMicNormal = S.Eq.TryGetValue(id, out st) ? CloneEq(st) : null;
+                    if (!S.Eq.TryGetValue(id, out st)) { st = new EqState { Name = "Mic: " + d.Name, Capture = true }; S.Eq[id] = st; }
+                }
+                if (!S.Eq.TryGetValue(id, out st)) { st = new EqState { Name = S.GameMicNormal != null ? S.GameMicNormal.Name : "Mic", Capture = true }; S.Eq[id] = st; }
+                int[] g; PBand[] pb;
+                if (Eq.MicPresets.TryGetValue(want, out g))
+                {
+                    st.Param = false; st.Gains = (int[])g.Clone();
+                    st.LowCut = want == "Discord-ready" ? 80 : want == "Flat" ? 0 : (S.GameMicNormal != null ? S.GameMicNormal.LowCut : 0);
+                    st.On = want != "Flat" || st.LowCut > 0;
+                }
+                else if (PEq.MicPresets.TryGetValue(want, out pb)) { st.Param = true; st.PBands = PEq.Copy(pb); st.On = true; }
+                st.Preset = want; st.Capture = true;
+                S.GameMicOn = want;
+                MicNote = want + " mic preset on for " + (game ?? "this game") + ".";
+            }
+            else
+            {
+                if (!string.IsNullOrEmpty(S.GameMicDevice))
+                {
+                    if (S.GameMicNormal != null) S.Eq[S.GameMicDevice] = CloneEq(S.GameMicNormal); else S.Eq.Remove(S.GameMicDevice);
+                }
+                S.GameMicOn = null; S.GameMicDevice = ""; S.GameMicNormal = null;
+                MicNote = "Your own mic EQ is back.";
+            }
+            EqSwitched = true; Eq.Write(S.Eq); S.Save();
+        }
+        // The Games window: pick a game's mic preset (null = your normal mic EQ). If that game is running, the mic follows right away.
+        public void SetGameMic(string key, string preset)
+        {
+            if (IsMicPreset(preset)) S.GameMic[key] = preset; else S.GameMic.Remove(key);
+            if (key == CurrentGame) SwitchMic(key, CurrentGameName);
+            S.Save();
+        }
+        // Exit: your own mic EQ goes back on.
+        public void EndGameMic() { if (S.GameMicOn != null) SwitchMic(null, null); }
+
         // ---- levels per game: when a game starts its own levels come back; when it closes, your normal ones do
         public string CurrentGame, CurrentGameName, LevelsNote;
         Preset beforeGame;
@@ -495,6 +560,7 @@ namespace HallowMixer
         {
             var g = Apps.FirstOrDefault(a => a.Channel == "game" && a.Key != "system");
             string key = g == null ? null : g.Key;
+            if (!Snap.On) SwitchMic(key, g == null ? null : g.Name);   // no-op unless the game's mic preset differs from what's on
             if (key == CurrentGame) return false;
             SwitchEq(key);
             if (!S.PerGame) { CurrentGame = key; CurrentGameName = g == null ? null : g.Name; S.Save(); return false; }
