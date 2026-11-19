@@ -46,6 +46,9 @@ The goal: everything SteelSeries Sonar does for a gamer - and the things it does
 
 ## Next
 
+### 3.16 - Mic chain
+- Noise gate, compressor and limiter for the mic: our own VST plugin (HallowMicChain, written from scratch) that Equalizer APO runs after the mic's EQ; presets Off / Light / Streamer / Loud room, simple sliders, in per-game mic presets and Share your setup
+
 ### Fixes from testing at home
 - Whatever comes up on the real A50, QuadCast 2S, Equalizer APO, OBS, Stream Deck and Discord
 
@@ -55,7 +58,6 @@ The goal: everything SteelSeries Sonar does for a gamer - and the things it does
 
 ### Later - closing the gap to Sonar
 - 360 spatial audio (true virtual surround) through Equalizer APO's convolution filter - needs 3D sound profiles (HRTFs) we're allowed to ship, and Equalizer APO's convolution can't mix one ear into the other on its own. Headphone space (3.0) covers the "speakers in a room" part
-- Mic noise gate, compressor and limiter: Equalizer APO has none built in, so this needs our own audio plugin
 - Quick switch for Windows spatial sound (Windows Sonic / Dolby Atmos): Windows has no public way for apps to change it, so this needs research first
 
 ## How it's built
