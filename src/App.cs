@@ -22,15 +22,16 @@ using WF = System.Windows.Forms;
 [assembly: AssemblyTitle("Hallow Mixer")]
 [assembly: AssemblyProduct("Hallow Mixer")]
 [assembly: AssemblyDescription("Per-app volume mixer: game, chat, music, media")]
-[assembly: AssemblyVersion("3.14.0.0")]
-[assembly: AssemblyFileVersion("3.14.0.0")]
+[assembly: AssemblyVersion("3.15.0.0")]
+[assembly: AssemblyFileVersion("3.15.0.0")]
 
 namespace HallowMixer
 {
     public static class Program
     {
-        public const string Version = "3.14";
+        public const string Version = "3.15";
         public static List<CliCommand> StartupCommands = new List<CliCommand>();
+        public static string HubApp = "Hub";
         [STAThread]
         public static void Main(string[] args)
         {
@@ -43,6 +44,8 @@ namespace HallowMixer
                 try { var old = Process.GetProcessById(afterPid); old.WaitForExit(15000); } catch { }   // restarting: let the old copy finish first
                 args = args.Where((a, i) => i != ai && i != ai + 1).ToArray();
             }
+            int hi = Array.IndexOf(args, "--family-hub");   // developer testing: talk to a fake Hub pipe instead of Hallow Hub
+            if (hi >= 0 && hi + 1 < args.Length) { HubApp = args[hi + 1]; args = args.Where((a, i) => i != hi && i != hi + 1).ToArray(); }
             int snapI = Array.IndexOf(args, "--snap");
             if (snapI >= 0 && snapI + 1 < args.Length) { RunSnap(args[snapI + 1]); return; }
             List<CliCommand> cmds;
@@ -299,7 +302,7 @@ namespace HallowMixer
             };
             refreshTimer.Start();
             if (eng.S.ApiOn && !Snap.On) StartApi();
-            if (!Snap.On) { family = new FamilyPipe(FamilyAnswer); family.Start(); }
+            if (!Snap.On) { family = new FamilyPipe(FamilyAnswer); family.Start(); hubTimer = new Timer(o => CheckHub(), null, 300, 5000); }
             foreach (var c in Program.StartupCommands) { try { ApiDo(c.Path, c.Query); } catch { } }   // started by a shortcut with commands
             saveTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) }; saveTimer.Tick += (s, e) => { if (dirty) { dirty = false; eng.S.Save(); } }; saveTimer.Start();
             if (Snap.On) { } else if (!startHidden) Show(); else { WindowState = WindowState.Minimized; Show(); Hide(); WindowState = WindowState.Normal; }
@@ -367,11 +370,7 @@ namespace HallowMixer
             mp.Children.Add(updateBtn);
             mp.Children.Add(miniBtn);
             var eqBtn = new Button { Content = "EQ", Tag = "icon", Width = 36, Height = 30, Padding = new Thickness(0), Style = (Style)FindResource("Btn"), Margin = new Thickness(0, 0, 8, 0), ToolTip = "Equalizer for each headset, speaker and mic" };
-            eqBtn.Click += (s, e) =>
-            {
-                if (eqWin == null || !eqWin.IsLoaded) { eqWin = new EqWindow(eng.S) { Owner = this, OnChanged = eng.NoteEqChanged }; eqWin.Closed += (o, a) => { eng.S.Save(); }; eqWin.Show(); }
-                else eqWin.Activate();
-            };
+            eqBtn.Click += (s, e) => OpenEq();
             mp.Children.Add(eqBtn);
             var streamBtn = new Button { Content = "Stream", Tag = "icon", Width = 36, Height = 30, Padding = new Thickness(0), Style = (Style)FindResource("Btn"), Margin = new Thickness(0, 0, 8, 0), ToolTip = "OBS: a separate mix for your stream, and presets per scene" };
             streamBtn.Click += (s, e) =>
@@ -510,6 +509,12 @@ namespace HallowMixer
                                                : name + " is muted in Windows - games and Discord hear nothing from you.";
             }
             micNotice.Visibility = muted && !ptt ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        void OpenEq()
+        {
+            if (eqWin == null || !eqWin.IsLoaded) { eqWin = new EqWindow(eng.S) { Owner = this, OnChanged = eng.NoteEqChanged }; eqWin.Closed += (o, a) => { eng.S.Save(); }; eqWin.Show(); }
+            else eqWin.Activate();
         }
 
         // ---- settings flyout (top right)
@@ -653,6 +658,7 @@ namespace HallowMixer
             sp.Children.Add(games);
             sw("Check for updates when Hallow Mixer starts (asks before installing)", eng.S.AutoUpdate, v => eng.S.AutoUpdate = v);
             sw("Let Hallow Toolkit and its phone dashboard control the mixer (this PC only)", eng.S.ApiOn, v => { eng.S.ApiOn = v; if (v) StartApi(); else StopApi(); });
+            sw("Use the Hallow icon: while Hallow Hub shows one tray icon for every Hallow app, Hallow Mixer's own icon hides (its menu is in Hub's)", eng.S.UseHallowIcon, v => { eng.S.UseHallowIcon = v; ThreadPool.QueueUserWorkItem(o => CheckHub()); });
             var ur = new WrapPanel { Margin = new Thickness(0, 4, 0, 0) };
             var checkNow = new Button { Content = "Check for updates now", Style = (Style)FindResource("Btn"), Margin = new Thickness(0, 0, 8, 6) };
             checkNow.Click += (s, e) => CheckForUpdate(true);
@@ -1469,9 +1475,97 @@ namespace HallowMixer
                 var a = api; string st = null;
                 try { st = a != null ? a.StateWithRev() : Dispatcher.Invoke(new Func<string>(ApiState), TimeSpan.FromSeconds(5)) as string; } catch { }
                 if (st == null || !st.StartsWith("{")) return "error busy, try again";
-                return "ok {\"app\":\"Mixer\",\"updated\":\"" + DateTime.Now.ToString("s") + "\"," + st.Substring(1);
+                return "ok {\"app\":\"Mixer\",\"updated\":\"" + DateTime.Now.ToString("s") + "\",\"hallowIcon\":" + (hubHosts ? "true" : "false") + "," + st.Substring(1);
+            }
+            if (cmd == "open" || cmd == "menu" || cmd == "invoke" || cmd == "quit")
+            {
+                var arg = line.Length > cmd.Length ? line.Substring(cmd.Length).Trim() : "";
+                try { var r = Dispatcher.Invoke(new Func<string>(() => FamilyUi(cmd, arg)), TimeSpan.FromSeconds(5)) as string; return r ?? "error busy, try again"; }
+                catch (Exception ex) { return "error " + ex.Message; }
             }
             return "error unknown command";
+        }
+
+        // ---- v3.15 One Hallow icon: Hallow Hub shows Hallow Mixer's tray menu in its own (open / menu / invoke / quit)
+        string FamilyUi(string cmd, string arg)
+        {
+            if (exiting) return "error Hallow Mixer is closing";
+            if (cmd == "open") { ShowFromTray(); return "ok"; }
+            if (cmd == "quit")
+            {
+                var t = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };   // after the answer has gone back
+                t.Tick += (s, e) => { t.Stop(); ExitApp(); }; t.Start();
+                return "ok";
+            }
+            if (cmd == "menu")
+            {
+                var items = new List<Dictionary<string, object>>();
+                Action<string, string, object> add = (id, label, chk) => { var d = new Dictionary<string, object> { { "id", id } }; if (label != null) d["label"] = label; if (chk != null) d["checked"] = chk; items.Add(d); };
+                add("mic", "Mute mic   Ctrl+Alt+M", mic.Mute.IsChecked == true);
+                add("-", null, null);
+                var profiles = Profiles.List(eng.S.ProfileName);
+                string nextProfile = null;
+                if (profiles.Count > 1) { int i = profiles.FindIndex(x => string.Equals(x, eng.S.ProfileName, StringComparison.OrdinalIgnoreCase)); nextProfile = profiles[(i + 1) % profiles.Count]; }
+                int np = Math.Min(eng.S.Presets.Count, nextProfile != null ? 2 : 3);
+                for (int i = 0; i < np; i++) add("preset:" + i, "Preset: " + eng.S.Presets[i].Name, null);
+                add("-", null, null);
+                add("mini", "Mini mixer (always on top)", mini != null && mini.IsVisible);
+                add("eq", "Equalizer", null);
+                if (nextProfile != null) add("profile:" + nextProfile, "Switch to profile " + nextProfile, null);
+                return "ok " + new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(new Dictionary<string, object> { { "app", "Mixer" }, { "items", items } });
+            }
+            // invoke <id>
+            if (arg == "mic") { SetMicMute(!(mic.Mute.IsChecked == true)); return "ok"; }
+            if (arg == "mini") { ToggleMini(); return "ok"; }
+            if (arg == "eq") { ShowFromTray(); OpenEq(); return "ok"; }
+            int pi;
+            if (arg.StartsWith("preset:") && int.TryParse(arg.Substring(7), out pi))
+            {
+                if (pi < 0 || pi >= eng.S.Presets.Count) return "error no such preset";
+                UsePreset(eng.S.Presets[pi]); return "ok";
+            }
+            if (arg.StartsWith("profile:"))
+            {
+                var n = arg.Substring(8);
+                var match = Profiles.List(eng.S.ProfileName).FirstOrDefault(x => string.Equals(x, n, StringComparison.OrdinalIgnoreCase));
+                if (match == null) return "error no profile called " + n;
+                Dispatcher.BeginInvoke(new Action(() => UseProfile(match, false)), DispatcherPriority.Background);   // restarts - after the answer
+                return "ok";
+            }
+            return "error unknown item " + arg;
+        }
+
+        // Every 5 s (on a pipe thread): if Hallow Hub hosts the family icon, hide ours; otherwise (Hub gone, says no, no answer) show it.
+        Timer hubTimer; volatile bool hubHosts; int hubBusy;
+        void CheckHub()
+        {
+            if (Interlocked.Exchange(ref hubBusy, 1) == 1) return;
+            try
+            {
+                bool on = false;
+                if (eng.S.UseHallowIcon && !exiting)
+                {
+                    var r = FamilyPipe.Ask(Program.HubApp, "tray-host", 800);
+                    on = r != null && r.StartsWith("ok ") && r.Replace(" ", "").IndexOf("\"on\":true", StringComparison.OrdinalIgnoreCase) >= 0;
+                }
+                hubHosts = on;
+                Dispatcher.BeginInvoke(new Action(() => { if (!exiting && tray != null && !balloonShowing) tray.Visible = !hubHosts; }));
+            }
+            catch { }
+            finally { Interlocked.Exchange(ref hubBusy, 0); }
+        }
+        bool balloonShowing;
+        // While Hub hosts the icon, balloons go through Hub; if Hub fails, our own icon shows for a moment to carry it.
+        void OwnBalloon(string text)
+        {
+            try
+            {
+                balloonShowing = true; tray.Visible = true;
+                tray.ShowBalloonTip(1500, "Hallow Mixer", text, WF.ToolTipIcon.None);
+                var t = new DispatcherTimer { Interval = TimeSpan.FromSeconds(8) };
+                t.Tick += (s, e) => { t.Stop(); balloonShowing = false; if (!exiting) tray.Visible = !hubHosts; }; t.Start();
+            }
+            catch { }
         }
         string ApiState()
         {
@@ -1809,6 +1903,16 @@ namespace HallowMixer
         void ShowTrayTip(string text, bool onlyIfHidden)
         {
             if (onlyIfHidden && IsVisible && IsActive) return;
+            if (hubHosts && !Snap.On)
+            {
+                var line = "notify Mixer\tHallow Mixer\t" + text.Replace("\t", " ");
+                ThreadPool.QueueUserWorkItem(o =>
+                {
+                    var r = FamilyPipe.Ask(Program.HubApp, line, 1500);
+                    if (r == null || !(r == "ok" || r.StartsWith("ok "))) Dispatcher.BeginInvoke(new Action(() => OwnBalloon(text)));
+                });
+                return;
+            }
             try { tray.ShowBalloonTip(1500, "Hallow Mixer", text, WF.ToolTipIcon.None); } catch { }
         }
         public void ShowFromTray()
@@ -1825,6 +1929,7 @@ namespace HallowMixer
         void ExitApp()
         {
             exiting = true; StopApi();
+            try { if (hubTimer != null) hubTimer.Dispose(); } catch { }
             try { eng.EndGameMic(); } catch { }
             try { eng.S.Save(); eng.ResetAllApps(); } catch { }
             var h = new WindowInteropHelper(this).Handle; for (int i = 1; i <= 19; i++) UnregisterHotKey(h, i);

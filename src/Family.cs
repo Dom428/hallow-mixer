@@ -90,6 +90,22 @@ namespace HallowMixer
             int i = text.IndexOf('\n'); return i >= 0 ? text.Substring(0, i) : text;
         }
 
+        // ---- v3.15: ask another Hallow app (Hub) one line; null if it isn't running, doesn't answer in time or fails
+        public static string Ask(string app, string line, int ms)
+        {
+            try
+            {
+                using (var c = new NamedPipeClientStream(".", "HallowFamily." + app + "." + Environment.UserName, PipeDirection.InOut, PipeOptions.Asynchronous))
+                {
+                    c.Connect(ms);
+                    var b = Encoding.UTF8.GetBytes((line ?? "").Replace("\r", " ").Replace("\n", " ") + "\n");
+                    c.Write(b, 0, b.Length); c.Flush();
+                    return ReadLine(c, ms);
+                }
+            }
+            catch { return null; }
+        }
+
         // ---- --cmd "<line>": the command-line client
         [DllImport("kernel32.dll")] static extern bool AttachConsole(int pid);
         [DllImport("kernel32.dll")] static extern IntPtr GetStdHandle(int which);

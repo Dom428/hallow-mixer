@@ -42,11 +42,9 @@ The goal: everything SteelSeries Sonar does for a gamer - and the things it does
 | **3.12** | Modern look: Font Awesome icons on every button (picked from the label, so "Mute"/"Muted" swap icons too), icon badges and a colour glow on each channel card, icon-only header buttons with tooltips, rounder controls |
 | **3.13** | Start with Windows notice: the main window says so when Hallow Mixer isn't in your start-up list (after a restart the phone controls and the Overlay's mic warning were gone), with one-click Start with Windows or Don't show again; mic muted warning: a clear bar at the top when your mic is muted in Windows, with Unmute mic - the Mic strip's button now follows mutes from Windows or other apps |
 | **3.14** | Hallow family, part 4: `GET /wait?rev=<n>` (also `/api/wait`) long poll - answers the moment the mic, a mute, a channel, the preset, profile, game or now playing changes (or after 25 s), so Hallow Overlay and Hallow Remote stop asking every second; requests run side by side; family pipe `HallowFamily.Mixer.<user>` (current user only) answers `ping` / `status`, and `--cmd "<line>"`; mic presets per game in the Games window (any of the 11 mic EQ presets while the game runs, your own mic EQ back when it closes - also after a restart or exit) |
+| **3.15** | One Hallow icon: family pipe `open`, `menu` (mute mic, top presets, Mini mixer, Equalizer, next profile), `invoke <id>` and `quit`, so Hallow Hub 2.4 shows Hallow Mixer's menu in its own tray icon; "Use the Hallow icon" (Settings, on by default) hides Mixer's icon while Hub answers `tray-host` with on:true (checked every 5 s) and shows it again if Hub stops, says no or doesn't answer; balloons go through Hub's `notify` while hidden (own icon for a moment if Hub fails); pipe `status` reports `hallowIcon` |
 
 ## Next
-
-### 3.15 - One Hallow icon
-- Hallow Hub hosts one tray icon for the whole family: Mixer answers `open`, `menu`, `invoke` and `quit` on its family pipe, hides its own tray icon while Hub hosts it ("Use the Hallow icon", on by default) and sends its balloons through Hub
 
 ### Fixes from testing at home
 - Whatever comes up on the real A50, QuadCast 2S, Equalizer APO, OBS, Stream Deck and Discord
