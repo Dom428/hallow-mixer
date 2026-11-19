@@ -45,6 +45,9 @@ The goal: everything SteelSeries Sonar does for a gamer - and the things it does
 
 ## Next
 
+### 3.15 - One Hallow icon
+- Hallow Hub hosts one tray icon for the whole family: Mixer answers `open`, `menu`, `invoke` and `quit` on its family pipe, hides its own tray icon while Hub hosts it ("Use the Hallow icon", on by default) and sends its balloons through Hub
+
 ### Fixes from testing at home
 - Whatever comes up on the real A50, QuadCast 2S, Equalizer APO, OBS, Stream Deck and Discord
 
