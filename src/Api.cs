@@ -23,7 +23,7 @@ namespace HallowMixer
         public Func<string> ShareJson;                 // GET /share -> the shareable part of your settings
         public Func<string, string> ApplyShare;        // POST /share-apply (JSON body) -> what changed
         readonly Func<string> state; readonly Func<string, Dictionary<string, string>, string> act; readonly Dispatcher ui;
-        public static string FilePath { get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), @"HallowMixer\api.json"); } }
+        public static string FilePath { get { return Path.Combine(Program.DataDir, "api.json"); } }
 
         public MixerApi(Func<string> stateJson, Func<string, Dictionary<string, string>, string> action, Dispatcher dispatcher) { state = stateJson; act = action; ui = dispatcher; }
 

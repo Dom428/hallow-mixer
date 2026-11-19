@@ -49,6 +49,7 @@ WHAT IT DOES
 - Games (top bar) > Mic: a mic preset for each game; your own mic EQ comes back when it closes.
 - One Hallow icon: with Hallow Hub 2.4 running, Mixer's menu is in Hub's tray icon (Settings > Use the Hallow icon).
 - EQ > your mic > Mic chain: noise gate, compressor and limiter (Light / Streamer / Loud room).
+- Hallow accent: the colour picked in Hallow Toolkit (Settings to turn off). Crash reports are kept on this PC only.
 - EQ > Headphone space: crossfeed for headphones (Light / Medium / Strong).
 - Games (top bar): every game's saved levels and EQ - change them or forget a game.
 - Ctrl+Alt+1 to 9 = your presets, Ctrl+Alt+0 = next preset.

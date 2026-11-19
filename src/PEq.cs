@@ -1,4 +1,4 @@
-// Hallow Mixer - parametric EQ: bands you place anywhere (peak, shelves, low/high cut), drawn as a curve you drag.
+﻿// Hallow Mixer - parametric EQ: bands you place anywhere (peak, shelves, low/high cut), drawn as a curve you drag.
 // Equalizer APO runs the filters; the curve here uses the same standard (RBJ) filter maths so what you see is what you hear.
 using System;
 using System.Collections.Generic;
@@ -204,9 +204,9 @@ namespace HallowMixer
                 d.Children.Add(l); d.Children.Add(val); d.Children.Add(sl); return d;
             };
             fT = new TextBlock(); gT = new TextBlock(); qT = new TextBlock();
-            freq = new Slider { Style = (Style)FindResource("HFader"), Minimum = 0, Maximum = 1000, Foreground = B("#F07820"), VerticalAlignment = VerticalAlignment.Center };
-            gain = new Slider { Style = (Style)FindResource("HFader"), Minimum = -12, Maximum = 12, Foreground = B("#F07820"), VerticalAlignment = VerticalAlignment.Center };
-            q = new Slider { Style = (Style)FindResource("HFader"), Minimum = 0, Maximum = 1000, Foreground = B("#F07820"), VerticalAlignment = VerticalAlignment.Center };
+            freq = new Slider { Style = (Style)FindResource("HFader"), Minimum = 0, Maximum = 1000, Foreground = Accent.Brush, VerticalAlignment = VerticalAlignment.Center };
+            gain = new Slider { Style = (Style)FindResource("HFader"), Minimum = -12, Maximum = 12, Foreground = Accent.Brush, VerticalAlignment = VerticalAlignment.Center };
+            q = new Slider { Style = (Style)FindResource("HFader"), Minimum = 0, Maximum = 1000, Foreground = Accent.Brush, VerticalAlignment = VerticalAlignment.Center };
             freq.ValueChanged += (o, e) => { if (loading || Cur() == null) return; Cur().Freq = RoundF(F(freq.Value / 1000 * W)); Redraw(); Labels(); Fire(); };
             gain.ValueChanged += (o, e) => { if (loading || Cur() == null) return; Cur().Gain = Math.Round(gain.Value * 2) / 2; Redraw(); Labels(); Fire(); };
             q.ValueChanged += (o, e) => { if (loading || Cur() == null) return; Cur().Q = Math.Round(0.3 * Math.Pow(10 / 0.3, q.Value / 1000) * 100) / 100; Redraw(); Labels(); Fire(); };
@@ -233,14 +233,14 @@ namespace HallowMixer
             var pts = new PointCollection(); var fill = new PointCollection(); fill.Add(new Point(0, Y(0)));
             for (int i = 0; i <= 240; i++) { double x = W * i / 240; var pt = new Point(x, Y(PEq.Response(bands, F(x)))); pts.Add(pt); fill.Add(pt); }
             fill.Add(new Point(W, Y(0)));
-            dyn.Children.Add(new Polygon { Points = fill, Fill = new SolidColorBrush(Color.FromArgb(40, 0xF0, 0x78, 0x20)) });
+            dyn.Children.Add(new Polygon { Points = fill, Fill = new SolidColorBrush(Color.FromArgb(40, Accent.Current.R, Accent.Current.G, Accent.Current.B)) });
             if (sel >= 0 && sel < bands.Count && bands[sel].On)   // the selected band on its own, faint
             {
                 var one = new PointCollection(); var sb = bands[sel];
                 for (int i = 0; i <= 160; i++) { double x = W * i / 160; one.Add(new Point(x, Y(PEq.Db(sb, F(x))))); }
                 dyn.Children.Add(new Polyline { Points = one, Stroke = B(Colors[sel % Colors.Length]), StrokeThickness = 1, Opacity = 0.55, StrokeDashArray = new DoubleCollection { 3, 3 } });
             }
-            dyn.Children.Add(new Polyline { Points = pts, Stroke = B("#F07820"), StrokeThickness = 2.2 });
+            dyn.Children.Add(new Polyline { Points = pts, Stroke = Accent.Brush, StrokeThickness = 2.2 });
             for (int i = 0; i < bands.Count; i++)
             {
                 var b = bands[i]; int idx = i;

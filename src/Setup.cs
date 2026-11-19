@@ -1,4 +1,4 @@
-// Hallow Mixer - first-run setup: "With Sonar / Replacing Sonar / Just a mixer". Sets channels, outputs and mic for you.
+﻿// Hallow Mixer - first-run setup: "With Sonar / Replacing Sonar / Just a mixer". Sets channels, outputs and mic for you.
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -160,7 +160,7 @@ namespace HallowMixer
         {
             page.Children.Clear();
             var sp = new StackPanel();
-            sp.Children.Add(new TextBlock { Text = title, FontSize = 22, FontWeight = FontWeights.Bold, Foreground = B("#F07820") });
+            sp.Children.Add(new TextBlock { Text = title, FontSize = 22, FontWeight = FontWeights.Bold, Foreground = Accent.Brush });
             if (sub != null) sp.Children.Add(new TextBlock { Text = sub, Foreground = (Brush)FindResource("Muted"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 16) });
             page.Children.Add(sp);
             return sp;
@@ -175,7 +175,7 @@ namespace HallowMixer
             b.Child = sp;
             if (enabled)
             {
-                b.MouseEnter += (s, e) => b.BorderBrush = B("#F07820");
+                b.MouseEnter += (s, e) => b.BorderBrush = Accent.Brush;
                 b.MouseLeave += (s, e) => b.BorderBrush = B("#3A3248");
                 b.MouseLeftButtonUp += (s, e) => click();
             }
@@ -279,7 +279,7 @@ namespace HallowMixer
         static UIElement Line(string text)
         {
             var d = new DockPanel { Margin = new Thickness(0, 0, 0, 7) };
-            var dot = new TextBlock { Text = "•", Foreground = B("#F07820"), Width = 16, FontWeight = FontWeights.Bold }; DockPanel.SetDock(dot, Dock.Left);
+            var dot = new TextBlock { Text = "•", Foreground = Accent.Brush, Width = 16, FontWeight = FontWeights.Bold }; DockPanel.SetDock(dot, Dock.Left);
             d.Children.Add(dot); d.Children.Add(new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap }); return d;
         }
 

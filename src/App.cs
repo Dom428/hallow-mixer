@@ -22,19 +22,26 @@ using WF = System.Windows.Forms;
 [assembly: AssemblyTitle("Hallow Mixer")]
 [assembly: AssemblyProduct("Hallow Mixer")]
 [assembly: AssemblyDescription("Per-app volume mixer: game, chat, music, media")]
-[assembly: AssemblyVersion("3.16.0.0")]
-[assembly: AssemblyFileVersion("3.16.0.0")]
+[assembly: AssemblyVersion("3.17.0.0")]
+[assembly: AssemblyFileVersion("3.17.0.0")]
 
 namespace HallowMixer
 {
     public static class Program
     {
-        public const string Version = "3.16";
+        public const string Version = "3.17";
         public static List<CliCommand> StartupCommands = new List<CliCommand>();
         public static string HubApp = "Hub";
+        public static string DataDir = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "HallowMixer");
         [STAThread]
         public static void Main(string[] args)
         {
+            Crash.Hook();   // v3.17 crash reports
+            // developer testing: --data-dir <folder> (settings, API file, crash reports), --theme-file <theme.json>, --crash-test
+            Func<string, string> take = flag => { int i = Array.IndexOf(args, flag); if (i < 0 || i + 1 >= args.Length) return null; var v = args[i + 1]; args = args.Where((a, j) => j != i && j != i + 1).ToArray(); return v; };
+            var dd = take("--data-dir"); if (dd != null) DataDir = System.IO.Path.GetFullPath(dd);
+            var tf = take("--theme-file"); if (tf != null) Accent.OverrideFile = System.IO.Path.GetFullPath(tf);
+            if (args.Contains("--crash-test")) throw new InvalidOperationException("Crash test (--crash-test): this is not a real crash.");
             if (args.Contains("--reset")) { try { new Engine().ResetForUninstall(); } catch { } return; }
             int ci = Array.IndexOf(args, "--cmd");   // v3.14 Hallow family: send one line to the running copy, print its reply
             if (ci >= 0) { Environment.Exit(FamilyPipe.Send(ci + 1 < args.Length ? args[ci + 1] : "")); return; }
@@ -63,6 +70,7 @@ namespace HallowMixer
             }
             StartupCommands = cmds;
             var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+            Crash.HookUi(app); Accent.Install(app);
             using (var s = Assembly.GetExecutingAssembly().GetManifestResourceStream("HallowMixer.Theme.xaml"))
                 app.Resources.MergedDictionaries.Add((ResourceDictionary)XamlReader.Load(s));
             var w = new MixerWindow(args.Contains("--tray"));
@@ -75,6 +83,7 @@ namespace HallowMixer
         {
             Snap.On = true; Settings.Frozen = true;
             var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+            Accent.Install(app);
             using (var s = Assembly.GetExecutingAssembly().GetManifestResourceStream("HallowMixer.Theme.xaml"))
                 app.Resources.MergedDictionaries.Add((ResourceDictionary)XamlReader.Load(s));
             new MixerWindow(true).SnapAll(dir);
@@ -101,7 +110,7 @@ namespace HallowMixer
         {
             WindowStyle = WindowStyle.None; AllowsTransparency = true; Background = Brushes.Transparent; Topmost = true;
             ShowInTaskbar = false; ShowActivated = false; SizeToContent = SizeToContent.WidthAndHeight; ResizeMode = ResizeMode.NoResize; Focusable = false;
-            barFill = new Border { Background = new SolidColorBrush(Color.FromRgb(0xF0, 0x78, 0x20)), CornerRadius = new CornerRadius(3), HorizontalAlignment = HorizontalAlignment.Left, Height = 6, Width = 0 };
+            barFill = new Border { Background = Accent.Brush, CornerRadius = new CornerRadius(3), HorizontalAlignment = HorizontalAlignment.Left, Height = 6, Width = 0 };
             barBack = new Border { Background = new SolidColorBrush(Color.FromRgb(0x3A, 0x32, 0x48)), CornerRadius = new CornerRadius(3), Height = 6, Width = 260, Margin = new Thickness(0, 10, 0, 0), Child = barFill };
             var sp = new StackPanel(); sp.Children.Add(text); sp.Children.Add(barBack);
             Content = new Border { Background = new SolidColorBrush(Color.FromArgb(235, 0x1C, 0x17, 0x24)), CornerRadius = new CornerRadius(10), Padding = new Thickness(22, 14, 22, 14),
@@ -140,7 +149,7 @@ namespace HallowMixer
             var close = new Button { Content = "x", Style = (Style)FindResource("Btn"), Padding = new Thickness(8, 1, 8, 3), ToolTip = "Close the mini mixer" };
             close.Click += (o, e) => { s.MiniOpen = false; s.Save(); Hide(); };
             DockPanel.SetDock(close, Dock.Right); head.Children.Add(close);
-            head.Children.Add(new TextBlock { Text = "HALLOW MIXER", FontWeight = FontWeights.Bold, FontSize = 11, Foreground = new SolidColorBrush(Color.FromRgb(0xF0, 0x78, 0x20)), VerticalAlignment = VerticalAlignment.Center });
+            head.Children.Add(new TextBlock { Text = "HALLOW MIXER", FontWeight = FontWeights.Bold, FontSize = 11, Foreground = Accent.Brush, VerticalAlignment = VerticalAlignment.Center });
             sp.Children.Add(head);
             foreach (var r in rows)
             {
@@ -255,6 +264,7 @@ namespace HallowMixer
         public MixerWindow(bool hidden)
         {
             startHidden = hidden;
+            Accent.Apply(eng.S.UseHallowAccent);   // v3.17 the family accent (before anything is built)
             Title = "Hallow Mixer"; Width = 1010; Height = 690; MinWidth = 900; MinHeight = 600;
             Background = (Brush)FindResource("Bg"); Foreground = (Brush)FindResource("Text");
             FontFamily = new FontFamily("Segoe UI"); FontSize = 12.5;
@@ -303,6 +313,7 @@ namespace HallowMixer
             refreshTimer.Start();
             if (eng.S.ApiOn && !Snap.On) StartApi();
             if (!Snap.On) { family = new FamilyPipe(FamilyAnswer); family.Start(); hubTimer = new Timer(o => CheckHub(), null, 300, 5000); }
+            if (!Snap.On) { Accent.Watch(Dispatcher, () => eng.S.UseHallowAccent); Dispatcher.BeginInvoke(new Action(ShowCrashNotice), DispatcherPriority.ApplicationIdle); }
             foreach (var c in Program.StartupCommands) { try { ApiDo(c.Path, c.Query); } catch { } }   // started by a shortcut with commands
             saveTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) }; saveTimer.Tick += (s, e) => { if (dirty) { dirty = false; eng.S.Save(); } }; saveTimer.Start();
             if (Snap.On) { } else if (!startHidden) Show(); else { WindowState = WindowState.Minimized; Show(); Hide(); WindowState = WindowState.Normal; }
@@ -330,6 +341,7 @@ namespace HallowMixer
             Snap.Save(this, System.IO.Path.Combine(dir, "settings.png"), 1010, 900);
             settingsPanel.Visibility = Visibility.Collapsed;
             try { var e = new EqWindow(eng.S); Snap.Save(e, System.IO.Path.Combine(dir, "eq.png"), W(e), H(e)); } catch (Exception ex) { File.WriteAllText(System.IO.Path.Combine(dir, "eq.err.txt"), ex.ToString()); }
+            try { var cw = new CrashWindow(Crash.Newest() ?? "2026-11-19 20-00-00.txt"); Snap.Save(cw, System.IO.Path.Combine(dir, "crash.png"), W(cw), H(cw)); } catch (Exception ex) { File.WriteAllText(System.IO.Path.Combine(dir, "crash.err.txt"), ex.ToString()); }
             try { var e2 = new EqWindow(eng.S); e2.SnapMic(); Snap.Save(e2, System.IO.Path.Combine(dir, "eq-mic.png"), W(e2), H(e2)); } catch (Exception ex) { File.WriteAllText(System.IO.Path.Combine(dir, "eq-mic.err.txt"), ex.ToString()); }
             try { var g = new GamesWindow(eng, () => { }); Snap.Save(g, System.IO.Path.Combine(dir, "games.png"), W(g), H(g)); } catch (Exception ex) { File.WriteAllText(System.IO.Path.Combine(dir, "games.err.txt"), ex.ToString()); }
             try { var n = new WhatsNewWindow(WhatsNew.Since("3.8")); Snap.Save(n, System.IO.Path.Combine(dir, "whatsnew.png"), W(n), H(n)); } catch (Exception ex) { File.WriteAllText(System.IO.Path.Combine(dir, "whatsnew.err.txt"), ex.ToString()); }
@@ -357,7 +369,7 @@ namespace HallowMixer
             var head = new DockPanel { Margin = new Thickness(0, 0, 0, 12), LastChildFill = false };
             var title = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
             try { title.Children.Add(new Image { Source = BitmapFromIcon(), Width = 30, Height = 30, Margin = new Thickness(0, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center }); } catch { }
-            title.Children.Add(new TextBlock { Text = "HALLOW", FontSize = 22, FontWeight = FontWeights.Bold, Foreground = B("#F07820"), VerticalAlignment = VerticalAlignment.Center });
+            title.Children.Add(new TextBlock { Text = "HALLOW", FontSize = 22, FontWeight = FontWeights.Bold, Foreground = Accent.Brush, VerticalAlignment = VerticalAlignment.Center });
             title.Children.Add(new TextBlock { Text = " MIXER", FontSize = 22, FontWeight = FontWeights.Light, Foreground = B("#ECE8F4"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 18, 0) });
             DockPanel.SetDock(title, Dock.Left); head.Children.Add(title);
             var mp = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
@@ -393,7 +405,7 @@ namespace HallowMixer
             outputPick.DropDownOpened += (s, e) => FillDevices(outputPick, 0, null, false);
             outputPick.SelectionChanged += (s, e) => { if (loading) return; var d = outputPick.SelectedItem as AudioDevice; if (d != null) { CoreAudio.SetDefault(d.Id); if (eng.S.AutoSwitch) { eng.S.PrimaryOut = d.Id; lastAuto = d.Id; dirty = true; } LoadMaster(); } };
             mp.Children.Add(outputPick);
-            masterMeter = new Rectangle { Width = 0, Height = 4, Fill = B("#F07820"), HorizontalAlignment = HorizontalAlignment.Left, RadiusX = 2, RadiusY = 2 };
+            masterMeter = new Rectangle { Width = 0, Height = 4, Fill = Accent.Brush, HorizontalAlignment = HorizontalAlignment.Left, RadiusX = 2, RadiusY = 2 };
             var ms = new Grid { Width = 160, Margin = new Thickness(14, 0, 10, 0) };
             master = new Slider { Style = (Style)FindResource("HFader"), Minimum = 0, Maximum = 100, Foreground = B("#ECE8F4"), VerticalAlignment = VerticalAlignment.Center, ToolTip = "Master volume" };
             master.ValueChanged += (s, e) => { if (!loading) { var id = CoreAudio.DefaultId(0); if (id != null) CoreAudio.SetLevel(id, (float)(master.Value / 100)); } };
@@ -531,7 +543,7 @@ namespace HallowMixer
             var shClose = new Button { Content = "x", Tag = "icon", Style = (Style)FindResource("Btn"), Width = 30, Height = 28, Padding = new Thickness(0), ToolTip = "Close settings" };
             shClose.Click += (s, e) => { if (gearBtn != null) gearBtn.IsChecked = false; else b.Visibility = Visibility.Collapsed; };
             DockPanel.SetDock(shClose, Dock.Right); sh.Children.Add(shClose);
-            var shIcon = Icons.Make("gear", 16, B("#F07820")); shIcon.Margin = new Thickness(0, 0, 10, 0); shIcon.VerticalAlignment = VerticalAlignment.Center;
+            var shIcon = Icons.Make("gear", 16, Accent.Brush); shIcon.Margin = new Thickness(0, 0, 10, 0); shIcon.VerticalAlignment = VerticalAlignment.Center;
             DockPanel.SetDock(shIcon, Dock.Left); sh.Children.Add(shIcon);
             sh.Children.Add(new TextBlock { Text = "Settings", FontWeight = FontWeights.Bold, FontSize = 16, VerticalAlignment = VerticalAlignment.Center });
             sp.Children.Add(sh);
@@ -565,7 +577,7 @@ namespace HallowMixer
             sw("Turn music and media down when I talk", eng.S.DuckOnMic, v => eng.S.DuckOnMic = v);
             var dr = new DockPanel { Margin = new Thickness(52, 2, 0, 8) };
             var dl = new TextBlock { Width = 110, Foreground = (Brush)FindResource("Muted"), VerticalAlignment = VerticalAlignment.Center };
-            var ds = new Slider { Style = (Style)FindResource("HFader"), Minimum = 10, Maximum = 90, Value = eng.S.DuckAmount, Foreground = B("#F07820"), VerticalAlignment = VerticalAlignment.Center };
+            var ds = new Slider { Style = (Style)FindResource("HFader"), Minimum = 10, Maximum = 90, Value = eng.S.DuckAmount, Foreground = Accent.Brush, VerticalAlignment = VerticalAlignment.Center };
             Action dtext = () => { dl.Text = "Turn down by " + eng.S.DuckAmount + "%"; };
             ds.ValueChanged += (s, e) => { eng.S.DuckAmount = (int)Math.Round(ds.Value / 5) * 5; dtext(); dirty = true; };
             dtext(); DockPanel.SetDock(dl, Dock.Left); dr.Children.Add(dl); dr.Children.Add(ds); sp.Children.Add(dr);
@@ -659,6 +671,7 @@ namespace HallowMixer
             sp.Children.Add(games);
             sw("Check for updates when Hallow Mixer starts (asks before installing)", eng.S.AutoUpdate, v => eng.S.AutoUpdate = v);
             sw("Let Hallow Toolkit and its phone dashboard control the mixer (this PC only)", eng.S.ApiOn, v => { eng.S.ApiOn = v; if (v) StartApi(); else StopApi(); });
+            sw("Use the Hallow accent: Hallow Mixer's buttons and highlights take the colour picked in Hallow Toolkit (channel colours stay)", eng.S.UseHallowAccent, v => { eng.S.UseHallowAccent = v; Accent.Apply(v); });
             sw("Use the Hallow icon: while Hallow Hub shows one tray icon for every Hallow app, Hallow Mixer's own icon hides (its menu is in Hub's)", eng.S.UseHallowIcon, v => { eng.S.UseHallowIcon = v; ThreadPool.QueueUserWorkItem(o => CheckHub()); });
             var ur = new WrapPanel { Margin = new Thickness(0, 4, 0, 0) };
             var checkNow = new Button { Content = "Check for updates now", Style = (Style)FindResource("Btn"), Margin = new Thickness(0, 0, 8, 6) };
@@ -1476,7 +1489,7 @@ namespace HallowMixer
                 var a = api; string st = null;
                 try { st = a != null ? a.StateWithRev() : Dispatcher.Invoke(new Func<string>(ApiState), TimeSpan.FromSeconds(5)) as string; } catch { }
                 if (st == null || !st.StartsWith("{")) return "error busy, try again";
-                return "ok {\"app\":\"Mixer\",\"updated\":\"" + DateTime.Now.ToString("s") + "\",\"hallowIcon\":" + (hubHosts ? "true" : "false") + "," + st.Substring(1);
+                return "ok {\"app\":\"Mixer\",\"updated\":\"" + DateTime.Now.ToString("s") + "\",\"hallowIcon\":" + (hubHosts ? "true" : "false") + ",\"lastCrash\":" + (Crash.LastTime() == null ? "null" : "\"" + Crash.LastTime() + "\"") + "," + st.Substring(1);
             }
             if (cmd == "open" || cmd == "menu" || cmd == "invoke" || cmd == "quit")
             {
@@ -1485,6 +1498,16 @@ namespace HallowMixer
                 catch (Exception ex) { return "error " + ex.Message; }
             }
             return "error unknown command";
+        }
+
+        // ---- v3.17 crash reports: once per report, the next time Hallow Mixer starts
+        void ShowCrashNotice()
+        {
+            var f = Crash.Newest(); if (f == null) return;
+            var name = System.IO.Path.GetFileName(f);
+            if (string.Compare(name, eng.S.LastCrashShown ?? "", StringComparison.OrdinalIgnoreCase) <= 0) return;
+            eng.S.LastCrashShown = name; eng.S.Save();
+            try { var w = new CrashWindow(f); if (IsVisible) w.Owner = this; w.Show(); } catch { }
         }
 
         // ---- v3.15 One Hallow icon: Hallow Hub shows Hallow Mixer's tray menu in its own (open / menu / invoke / quit)

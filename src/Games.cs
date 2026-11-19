@@ -27,7 +27,7 @@ namespace HallowMixer
             WindowStartupLocation = WindowStartupLocation.CenterOwner;
             var dp = new DockPanel { Margin = new Thickness(22, 16, 22, 16) };
             var head = new StackPanel(); DockPanel.SetDock(head, Dock.Top);
-            head.Children.Add(new TextBlock { Text = "Game profiles", FontSize = 20, FontWeight = FontWeights.Bold, Foreground = B("#F07820") });
+            head.Children.Add(new TextBlock { Text = "Game profiles", FontSize = 20, FontWeight = FontWeights.Bold, Foreground = Accent.Brush });
             head.Children.Add(new TextBlock { Text = "Each game's own levels, headset EQ and mic preset come back when it starts. Change them here, or forget a game to start fresh.",
                 Foreground = (Brush)FindResource("Muted"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 12) });
             dp.Children.Add(head);
@@ -87,8 +87,8 @@ namespace HallowMixer
             top.Children.Add(btns);
             var title = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
             title.Children.Add(new TextBlock { Text = name, FontSize = 15, FontWeight = FontWeights.Bold });
-            if (now) title.Children.Add(new Border { Background = B("#F07820"), CornerRadius = new CornerRadius(4), Padding = new Thickness(6, 1, 6, 1), Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center,
-                Child = new TextBlock { Text = "PLAYING NOW", FontSize = 10, FontWeight = FontWeights.Bold, Foreground = B("#16121C") } });
+            if (now) title.Children.Add(new Border { Background = Accent.Brush, CornerRadius = new CornerRadius(4), Padding = new Thickness(6, 1, 6, 1), Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center,
+                Child = new TextBlock { Text = "PLAYING NOW", FontSize = 10, FontWeight = FontWeights.Bold, Foreground = Accent.Text } });
             top.Children.Add(title);
             sp.Children.Add(top);
 

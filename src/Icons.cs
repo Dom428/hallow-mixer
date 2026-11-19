@@ -1,4 +1,4 @@
-// Hallow Mixer - Font Awesome icons (path data in Icons.g.cs). Buttons get their icon from their label,
+﻿// Hallow Mixer - Font Awesome icons (path data in Icons.g.cs). Buttons get their icon from their label,
 // so a label that changes ("Mute" -> "Muted") changes its icon too.
 using System;
 using System.Collections.Generic;
@@ -30,7 +30,7 @@ namespace HallowMixer
             { "Graphic EQ", "chart-simple" }, { "Parametric EQ", "wave-square" }, { "Reset", "arrow-rotate-left" },
             { "Remove band", "minus" }, { "Add band", "plus" }, { "Set up OBS for me", "wand-magic-sparkles" },
             { "All release notes", "arrow-up-right-from-square" }, { "Got it", "check" },
-            { "Start with Windows", "power-off" }, { "Don't show again", "xmark" }, { "Unmute mic", "microphone" },
+            { "Start with Windows", "power-off" }, { "Don't show again", "xmark" }, { "Unmute mic", "microphone" }, { "Show details", "circle-info" }, { "Open folder", "arrow-up-right-from-square" },
             { "Use my current levels", "floppy-disk" }, { "Forget", "eraser" }, { "Flat", "minus" }, { "Bass boost", "drum" }, { "Footsteps (FPS)", "shoe-prints" }, { "Voice clarity", "microphone-lines" }, { "Gaming", "gamepad" }, { "Movie", "film" }, { "Chill", "mug-hot" }, { "Music", "music" }, { "Night", "moon" }, { "Streaming", "tower-broadcast" },
         };
         // label starts with -> icon

@@ -216,7 +216,7 @@ namespace HallowMixer
 
             var sp = new StackPanel { Margin = new Thickness(20, 16, 20, 16) };
             var head = new DockPanel();
-            var eqIcon = Icons.Make("sliders", 20, B("#F07820")); eqIcon.Margin = new Thickness(0, 0, 10, 0); var eqT = new StackPanel { Orientation = Orientation.Horizontal }; eqT.Children.Add(eqIcon); eqT.Children.Add(new TextBlock { Text = "EQ", FontSize = 22, FontWeight = FontWeights.Bold, Foreground = B("#F07820") }); head.Children.Add(eqT);
+            var eqIcon = Icons.Make("sliders", 20, Accent.Brush); eqIcon.Margin = new Thickness(0, 0, 10, 0); var eqT = new StackPanel { Orientation = Orientation.Horizontal }; eqT.Children.Add(eqIcon); eqT.Children.Add(new TextBlock { Text = "EQ", FontSize = 22, FontWeight = FontWeights.Bold, Foreground = Accent.Brush }); head.Children.Add(eqT);
             sp.Children.Add(head);
             apoText = new TextBlock { TextWrapping = TextWrapping.Wrap, Foreground = (Brush)FindResource("Muted"), Margin = new Thickness(0, 4, 0, 8) };
             sp.Children.Add(apoText);
@@ -278,7 +278,7 @@ namespace HallowMixer
                 DockPanel.SetDock(name, Dock.Bottom); DockPanel.SetDock(vals[i], Dock.Top);
                 col.Children.Add(name); col.Children.Add(vals[i]);
                 int band = i;
-                bands[i] = new Slider { Style = (Style)FindResource("VFader"), Minimum = -12, Maximum = 12, SmallChange = 1, LargeChange = 3, Foreground = B("#F07820"),
+                bands[i] = new Slider { Style = (Style)FindResource("VFader"), Minimum = -12, Maximum = 12, SmallChange = 1, LargeChange = 3, Foreground = Accent.Brush,
                     HorizontalAlignment = HorizontalAlignment.Center, IsSnapToTickEnabled = true, TickFrequency = 1, ToolTip = Eq.BandNames[i] + " Hz (scroll or drag, double-click = 0)" };
                 bands[i].ValueChanged += (o, e) =>
                 {

@@ -1,4 +1,4 @@
-// Hallow Mixer - the Stream window: OBS connection, a separate stream mix per channel, and presets that follow OBS scenes.
+﻿// Hallow Mixer - the Stream window: OBS connection, a separate stream mix per channel, and presets that follow OBS scenes.
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -33,7 +33,7 @@ namespace HallowMixer
             applyTimer.Tick += async (o, e) => { applyTimer.Stop(); eng.S.Save(); if (obs.Connected) await StreamMix.Apply(obs, eng.S, null); };
 
             var sp = new StackPanel { Margin = new Thickness(20, 16, 20, 16) };
-            sp.Children.Add(new TextBlock { Text = "Stream", FontSize = 22, FontWeight = FontWeights.Bold, Foreground = B("#F07820") });
+            sp.Children.Add(new TextBlock { Text = "Stream", FontSize = 22, FontWeight = FontWeights.Bold, Foreground = Accent.Brush });
             sp.Children.Add(new TextBlock { Text = "A separate mix for your stream through OBS: viewers can hear less music, louder chat or no game - without changing what you hear.",
                 TextWrapping = TextWrapping.Wrap, Foreground = (Brush)FindResource("Muted"), Margin = new Thickness(0, 4, 0, 12) });
 

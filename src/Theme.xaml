@@ -9,6 +9,7 @@
     <SolidColorBrush x:Key="Line" Color="#3A3248"/>
     <SolidColorBrush x:Key="Text" Color="#ECE8F4"/>
     <SolidColorBrush x:Key="Muted" Color="#8F88A0"/>
+<!-- v3.17: AccentBrush / AccentHiBrush / AccentTextBrush are put in by the app (the Hallow accent, live) -->
 
     <Style x:Key="Knob" TargetType="Thumb">
         <Setter Property="Template">
@@ -133,9 +134,9 @@
     <!-- Mute button: red while muted (the IsChecked trigger above). -->
     <Style x:Key="Toggle" TargetType="ToggleButton" BasedOn="{StaticResource Btn}"/>
     <Style x:Key="Accent" TargetType="Button" BasedOn="{StaticResource Btn}">
-        <Setter Property="Background" Value="#F07820"/>
-        <Setter Property="BorderBrush" Value="#F59A50"/>
-        <Setter Property="Foreground" Value="#1A0E04"/>
+        <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentHiBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource AccentTextBrush}"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
     </Style>
     <!-- On/off switch: green = on, grey = off -->
