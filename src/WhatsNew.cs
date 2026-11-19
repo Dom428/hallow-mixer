@@ -13,6 +13,7 @@ namespace HallowMixer
     {
         // Newest first. One or two short lines per version.
         public static readonly Tuple<string, string[]>[] Notes = {
+            Tuple.Create("3.18", new[] { "Settings > Sidetone: hear your own mic in your headset (about 25 ms behind, silent while muted)" }),
             Tuple.Create("3.17", new[] { "The Hallow accent: pick a colour in Hallow Toolkit and Hallow Mixer's buttons and highlights follow (Settings to turn off)", "If Hallow Mixer ever closes unexpectedly, a crash report is kept on this PC and you're told next time" }),
             Tuple.Create("3.16", new[] { "Mic chain (EQ window > your mic): noise gate, compressor and limiter - Light, Streamer or Loud room, with simple sliders", "Games window: a mic chain for each game, next to its mic preset" }),
             Tuple.Create("3.15", new[] { "One Hallow icon: with Hallow Hub 2.4 running, Hallow Mixer's menu is in Hub's tray icon and its own icon hides (Settings > Use the Hallow icon)" }),

@@ -106,6 +106,19 @@ namespace HallowMixer
             catch { return null; }
         }
 
+        // Writes a line to the console this was started from (window apps have none of their own).
+        public static void Print(string text)
+        {
+            try
+            {
+                var h = GetStdHandle(-11);
+                if (h == IntPtr.Zero || h == new IntPtr(-1)) AttachConsole(-1);
+                var o = new StreamWriter(Console.OpenStandardOutput(), new UTF8Encoding(false)) { AutoFlush = true };
+                o.WriteLine(text);
+            }
+            catch { }
+        }
+
         // ---- --cmd "<line>": the command-line client
         [DllImport("kernel32.dll")] static extern bool AttachConsole(int pid);
         [DllImport("kernel32.dll")] static extern IntPtr GetStdHandle(int which);

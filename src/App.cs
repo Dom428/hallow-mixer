@@ -22,14 +22,14 @@ using WF = System.Windows.Forms;
 [assembly: AssemblyTitle("Hallow Mixer")]
 [assembly: AssemblyProduct("Hallow Mixer")]
 [assembly: AssemblyDescription("Per-app volume mixer: game, chat, music, media")]
-[assembly: AssemblyVersion("3.17.0.0")]
-[assembly: AssemblyFileVersion("3.17.0.0")]
+[assembly: AssemblyVersion("3.18.0.0")]
+[assembly: AssemblyFileVersion("3.18.0.0")]
 
 namespace HallowMixer
 {
     public static class Program
     {
-        public const string Version = "3.17";
+        public const string Version = "3.18";
         public static List<CliCommand> StartupCommands = new List<CliCommand>();
         public static string HubApp = "Hub";
         public static string DataDir = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "HallowMixer");
@@ -41,6 +41,8 @@ namespace HallowMixer
             Func<string, string> take = flag => { int i = Array.IndexOf(args, flag); if (i < 0 || i + 1 >= args.Length) return null; var v = args[i + 1]; args = args.Where((a, j) => j != i && j != i + 1).ToArray(); return v; };
             var dd = take("--data-dir"); if (dd != null) DataDir = System.IO.Path.GetFullPath(dd);
             var tf = take("--theme-file"); if (tf != null) Accent.OverrideFile = System.IO.Path.GetFullPath(tf);
+            var stt = take("--sidetone-test"); int sts;
+            if (stt != null && int.TryParse(stt, out sts)) { Environment.Exit(Sidetone.Test(Math.Max(1, Math.Min(10, sts)))); return; }
             if (args.Contains("--crash-test")) throw new InvalidOperationException("Crash test (--crash-test): this is not a real crash.");
             if (args.Contains("--reset")) { try { new Engine().ResetForUninstall(); } catch { } return; }
             int ci = Array.IndexOf(args, "--cmd");   // v3.14 Hallow family: send one line to the running copy, print its reply
@@ -300,6 +302,7 @@ namespace HallowMixer
                 KeepMicLevel();
                 TickQuiet();
                 UpdateNotices();
+                UpdateSidetone(false);
                 if (eng.S.NowPlayingOn) NowPlaying.Poll(m => Dispatcher.BeginInvoke(new Action(() => ShowNow(m))));
                 if (++cleanTick % 5 == 0 && eng.S.ChatClean && eng.CheckChatClean(CoreAudio.Devices(0)))
                 { LoadValues(); UpdateCleanButton(); Status("NVIDIA Broadcast's speaker is gone, so Chat is back on its normal output."); }
@@ -313,6 +316,7 @@ namespace HallowMixer
             refreshTimer.Start();
             if (eng.S.ApiOn && !Snap.On) StartApi();
             if (!Snap.On) { family = new FamilyPipe(FamilyAnswer); family.Start(); hubTimer = new Timer(o => CheckHub(), null, 300, 5000); }
+            if (!Snap.On && eng.S.SidetoneOn) UpdateSidetone(true);
             if (!Snap.On) { Accent.Watch(Dispatcher, () => eng.S.UseHallowAccent); Dispatcher.BeginInvoke(new Action(ShowCrashNotice), DispatcherPriority.ApplicationIdle); }
             foreach (var c in Program.StartupCommands) { try { ApiDo(c.Path, c.Query); } catch { } }   // started by a shortcut with commands
             saveTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) }; saveTimer.Tick += (s, e) => { if (dirty) { dirty = false; eng.S.Save(); } }; saveTimer.Start();
@@ -339,6 +343,7 @@ namespace HallowMixer
             startNotice.Visibility = sv; micNotice.Visibility = mv; micNoticeText.Text = mt;
             settingsPanel.Visibility = Visibility.Visible;
             Snap.Save(this, System.IO.Path.Combine(dir, "settings.png"), 1010, 900);
+            try { var sv2 = (ScrollViewer)settingsPanel.Child; sv2.ScrollToVerticalOffset(560); Snap.Save(this, System.IO.Path.Combine(dir, "settings2.png"), 1010, 900); sv2.ScrollToVerticalOffset(0); } catch { }
             settingsPanel.Visibility = Visibility.Collapsed;
             try { var e = new EqWindow(eng.S); Snap.Save(e, System.IO.Path.Combine(dir, "eq.png"), W(e), H(e)); } catch (Exception ex) { File.WriteAllText(System.IO.Path.Combine(dir, "eq.err.txt"), ex.ToString()); }
             try { var cw = new CrashWindow(Crash.Newest() ?? "2026-11-19 20-00-00.txt"); Snap.Save(cw, System.IO.Path.Combine(dir, "crash.png"), W(cw), H(cw)); } catch (Exception ex) { File.WriteAllText(System.IO.Path.Combine(dir, "crash.err.txt"), ex.ToString()); }
@@ -627,6 +632,30 @@ namespace HallowMixer
             pm.Children.Add(pml); pm.Children.Add(mode); pm.Children.Add(pttKeyBtn); pm.Children.Add(pttKeyText);
             sp.Children.Add(pm);
             sw("Tell me when I talk while my mic is muted (pop-up on screen)", eng.S.MutedWarn, v => eng.S.MutedWarn = v);
+            // v3.18 sidetone
+            sw("Sidetone: hear your own mic in your headset", eng.S.SidetoneOn, v => { eng.S.SidetoneOn = v; UpdateSidetone(true); });
+            var str = new DockPanel { Margin = new Thickness(52, 2, 0, 2) };
+            var stl = new TextBlock { Width = 80, Foreground = (Brush)FindResource("Muted"), VerticalAlignment = VerticalAlignment.Center };
+            var sts = new Slider { Style = (Style)FindResource("HFader"), Minimum = 0, Maximum = 100, Value = eng.S.SidetoneLevel, Foreground = Accent.Brush, VerticalAlignment = VerticalAlignment.Center, ToolTip = "How loud you hear yourself" };
+            System.Windows.Automation.AutomationProperties.SetName(sts, "Sidetone level");
+            Action sttext = () => { stl.Text = "Level " + eng.S.SidetoneLevel + "%"; };
+            sts.ValueChanged += (s, e) => { eng.S.SidetoneLevel = (int)Math.Round(sts.Value); sttext(); side.Gain = Sidetone.Curve(eng.S.SidetoneLevel); dirty = true; };
+            sttext(); DockPanel.SetDock(stl, Dock.Left); str.Children.Add(stl); str.Children.Add(sts); sp.Children.Add(str);
+            var smr = new DockPanel { Margin = new Thickness(52, 2, 0, 2) };
+            var sml = new TextBlock { Text = "Mic", Width = 80, Foreground = (Brush)FindResource("Muted"), VerticalAlignment = VerticalAlignment.Center };
+            var smb = new ComboBox { Style = (Style)FindResource("Combo") };
+            System.Windows.Automation.AutomationProperties.SetName(smb, "Sidetone mic");
+            Action fillSm = () =>
+            {
+                var items = new List<AudioDevice> { new AudioDevice { Id = "", Name = "Windows' default mic" } };
+                try { items.AddRange(CoreAudio.Devices(1)); } catch { }
+                loading = true; smb.ItemsSource = items; smb.SelectedItem = items.FirstOrDefault(d => d.Id == (eng.S.SidetoneMic ?? "")) ?? items[0]; loading = false;
+            };
+            fillSm(); smb.DropDownOpened += (s, e) => fillSm();
+            smb.SelectionChanged += (s, e) => { if (loading) return; var d = smb.SelectedItem as AudioDevice; if (d == null) return; eng.S.SidetoneMic = d.Id; eng.S.Save(); UpdateSidetone(true); };
+            DockPanel.SetDock(sml, Dock.Left); smr.Children.Add(sml); smr.Children.Add(smb); sp.Children.Add(smr);
+            sp.Children.Add(new TextBlock { Text = "Plays on your headset (Windows' default output), about 25 ms behind. It's your mic as it comes in - Hallow Mixer's mic EQ and mic chain aren't in what you hear. Silent while your mic is muted or push-to-talk is up.",
+                Foreground = (Brush)FindResource("Muted"), FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(52, 2, 0, 8) });
             sw("Quiet hours: cap the volume and turn Windows sounds down at night", eng.S.QuietOn, v => { eng.S.QuietOn = v; TickQuiet(); });
             var qr = new WrapPanel { Margin = new Thickness(52, 0, 0, 8) };
             Func<string, IEnumerable<string>, int, Action<int>, ComboBox> qc = (label, items, sel, set) =>
@@ -1500,6 +1529,30 @@ namespace HallowMixer
             return "error unknown command";
         }
 
+        // ---- v3.18 sidetone: follows the settings, the default devices and your mute
+        readonly Sidetone side = new Sidetone(); DateTime sideTried = DateTime.MinValue; string sideErrShown;
+        void UpdateSidetone(bool now)
+        {
+            if (Snap.On) return;
+            string mic = null, outId = null;
+            try
+            {
+                mic = eng.S.SidetoneMic;
+                if (string.IsNullOrEmpty(mic) || !CoreAudio.Devices(1).Any(d => d.Id == mic)) mic = CoreAudio.DefaultId(1);
+                outId = CoreAudio.DefaultId(0);
+            }
+            catch { }
+            if (!eng.S.SidetoneOn || mic == null || outId == null) { if (side.Running || side.MicId != null) { side.Stop(); side.MicId = null; } return; }
+            side.Gain = Sidetone.Curve(eng.S.SidetoneLevel);
+            try { side.Silent = CoreAudio.GetMute(mic); } catch { }   // muted in Windows (also how push-to-talk mutes)
+            if (side.Error != null && side.Error != sideErrShown) { sideErrShown = side.Error; Status(side.Error); }
+            bool changed = side.MicId != mic || side.OutId != outId;
+            if (side.Running && !changed) return;
+            if (!now && !changed && (DateTime.Now - sideTried).TotalSeconds < 15) return;   // after an error, try again now and then
+            sideTried = DateTime.Now; sideErrShown = null;
+            side.Start(mic, outId, side.Gain);
+        }
+
         // ---- v3.17 crash reports: once per report, the next time Hallow Mixer starts
         void ShowCrashNotice()
         {
@@ -1749,6 +1802,7 @@ namespace HallowMixer
             CoreAudio.SetMute(id, m); mic.Mute.IsChecked = m; mic.Mute.Content = m ? "Mic muted" : "Mute mic";
             if (trayMicMute != null) trayMicMute.Checked = m;
             mutedHere = m; UpdateNotices();
+            if (side.MicId == id) side.Silent = m;   // v3.18: no sidetone while muted (also push-to-talk), at once
         }
         void Status(string t) { if (status != null) status.Text = t; }
 
@@ -1837,6 +1891,7 @@ namespace HallowMixer
         void Restart()
         {
             Settings.Frozen = true; exiting = true; StopApi(); tray.Visible = false;
+            try { side.Stop(); } catch { }
             Process.Start(Assembly.GetExecutingAssembly().Location, "--after " + Process.GetCurrentProcess().Id + (IsVisible ? "" : " --tray"));
             Application.Current.Shutdown();
         }
@@ -1954,6 +2009,7 @@ namespace HallowMixer
         {
             exiting = true; StopApi();
             try { if (hubTimer != null) hubTimer.Dispose(); } catch { }
+            try { side.Stop(); } catch { }
             try { eng.EndGameMic(); } catch { }
             try { eng.S.Save(); eng.ResetAllApps(); } catch { }
             var h = new WindowInteropHelper(this).Handle; for (int i = 1; i <= 19; i++) UnregisterHotKey(h, i);
