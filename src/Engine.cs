@@ -66,6 +66,9 @@ namespace HallowMixer
         [DataMember] public bool EqPerGame = true;        // each game remembers its headset/speaker EQ
         [DataMember] public Dictionary<string, Dictionary<string, EqState>> GameEq = new Dictionary<string, Dictionary<string, EqState>>();
         [DataMember] public bool LevelMedia;              // even out loud and quiet moments in the Media channel
+        // v3.21 - Smart Volume on more channels (Media stays on LevelMedia)
+        [DataMember] public List<string> LevelOn = new List<string>();   // "game", "chat", "music"
+        [DataMember] public bool LoudnessMeter = true;
         // v3.20 - quick output switching
         [DataMember] public Dictionary<string, Dictionary<string, string>> OutputsByHeadset = new Dictionary<string, Dictionary<string, string>>();   // default output -> channel -> output ("" = default)
         [DataMember] public bool OutputKey = true;          // Ctrl+Alt+O = next output
@@ -137,7 +140,7 @@ namespace HallowMixer
             DuckOnChat = true; DuckAmount = 50; PerGame = true; Overlay = true;
             PrimaryOut = ""; FallbackOut = ""; PrimaryMic = ""; MiniLeft = -1; MiniTop = -1;
             Eq = new Dictionary<string, EqState>(); AppOutput = new Dictionary<string, string>();
-            AutoUpdate = true; LastUpdateCheck = ""; MicKeepLevel = -1; ApiOn = true; UseHallowIcon = true; UseHallowAccent = true; LastCrashShown = ""; SidetoneLevel = 30; SidetoneMic = ""; MyEq = new List<EqUserPreset>(); OutputsByHeadset = new Dictionary<string, Dictionary<string, string>>(); OutputKey = true; NowPlayingOn = true; SmartDuck = true; PresetKeys = true; MutedWarn = true; QuietFrom = 23; QuietTo = 7; QuietMax = 40; ProfileName = "Default"; SplitPrev = ""; LastSeenVersion = ""; BgLevel = new Dictionary<string, int>(); SetupMode = ""; ChatCleanPrev = ""; ObsHost = "localhost"; ObsPort = 4455; ObsPass = ""; EqPerGame = true; GameEq = new Dictionary<string, Dictionary<string, EqState>>(); MicMode = "off"; PttKey = 0x05; WinLeft = -1; WinTop = -1; WinWidth = -1; WinHeight = -1;
+            AutoUpdate = true; LastUpdateCheck = ""; MicKeepLevel = -1; ApiOn = true; UseHallowIcon = true; UseHallowAccent = true; LastCrashShown = ""; SidetoneLevel = 30; SidetoneMic = ""; MyEq = new List<EqUserPreset>(); OutputsByHeadset = new Dictionary<string, Dictionary<string, string>>(); OutputKey = true; LevelOn = new List<string>(); LoudnessMeter = true; NowPlayingOn = true; SmartDuck = true; PresetKeys = true; MutedWarn = true; QuietFrom = 23; QuietTo = 7; QuietMax = 40; ProfileName = "Default"; SplitPrev = ""; LastSeenVersion = ""; BgLevel = new Dictionary<string, int>(); SetupMode = ""; ChatCleanPrev = ""; ObsHost = "localhost"; ObsPort = 4455; ObsPass = ""; EqPerGame = true; GameEq = new Dictionary<string, Dictionary<string, EqState>>(); MicMode = "off"; PttKey = 0x05; WinLeft = -1; WinTop = -1; WinWidth = -1; WinHeight = -1;
             MutedApps = new List<string>(); GameLevels = new Dictionary<string, Preset>(); GameMic = new Dictionary<string, string>(); GameChain = new Dictionary<string, string>(); GameMicDevice = "";
             AppChannel = new Dictionary<string, string>(); AppVolume = new Dictionary<string, int>();
         }
@@ -169,6 +172,7 @@ namespace HallowMixer
             if (s.GameMic == null) s.GameMic = new Dictionary<string, string>();
             if (s.GameChain == null) s.GameChain = new Dictionary<string, string>();
             if (s.MyEq == null) s.MyEq = new List<EqUserPreset>();
+            if (s.LevelOn == null) s.LevelOn = new List<string>();
             if (s.OutputsByHeadset == null) s.OutputsByHeadset = new Dictionary<string, Dictionary<string, string>>();
             if (s.GameMicDevice == null) s.GameMicDevice = "";
             if (s.StreamLinks == null) s.StreamLinks = new Dictionary<string, List<string>>();
@@ -479,24 +483,39 @@ namespace HallowMixer
             if (QuietNow && ch == "other") f *= 0.5f;
             if (ch == "game" || ch == "music" || ch == "media") f *= DuckChat;
             if (ch == "music" || ch == "media") f *= DuckMic;
-            if (ch == "media") f *= LevelMediaGain;
+            f *= LevelGain(ch);
             return f;
         }
 
         // ---- loudness levelling for Media: loud moments (ads, explosions) go down, quiet ones come up a little.
         // Windows reports each app's level before its volume is applied, so this always sees the real loudness.
-        public float LevelMediaGain = 1f; float mediaEnv;
-        public bool UpdateLevel(float mediaPeak)
+        // v3.21 Smart Volume: the same levelling for Game, Chat and Music too, each with its own range -
+        // Game keeps more of its punch, Chat lifts quiet friends the most.
+        readonly Dictionary<string, float> levelGain = new Dictionary<string, float>(), levelEnv = new Dictionary<string, float>();
+        public static readonly string[] LevelChannels = { "game", "chat", "music", "media" };
+        public bool Levelled(string ch) { return ch == "media" ? S.LevelMedia : S.LevelOn.Contains(ch); }
+        public float LevelGain(string ch) { float g; return levelGain.TryGetValue(ch, out g) ? g : 1f; }
+        public float LevelMediaGain { get { return LevelGain("media"); } }
+        static void Range(string ch, out float lo, out float hi)
         {
-            float old = LevelMediaGain;
-            if (!S.LevelMedia) { mediaEnv = 0; LevelMediaGain = 1f; return Math.Abs(old - 1f) > 0.004f; }
-            mediaEnv += (mediaPeak - mediaEnv) * (mediaPeak > mediaEnv ? 0.7f : 0.015f);   // follows loud parts fast, lets go slowly
-            if (mediaEnv > 0.02f)   // only while something is playing (silence keeps the last setting)
+            switch (ch) { case "game": lo = 0.45f; hi = 1.25f; return; case "chat": lo = 0.4f; hi = 1.6f; return; case "music": lo = 0.4f; hi = 1.3f; return; default: lo = 0.3f; hi = 1.4f; return; }
+        }
+        public bool UpdateLevel(float mediaPeak) { return UpdateLevel("media", mediaPeak); }
+        public bool UpdateLevel(string ch, float peak)
+        {
+            float old = LevelGain(ch), env; levelEnv.TryGetValue(ch, out env);
+            if (!Levelled(ch)) { levelEnv[ch] = 0; levelGain[ch] = 1f; return Math.Abs(old - 1f) > 0.004f; }
+            env += (peak - env) * (peak > env ? 0.7f : 0.015f);   // follows loud parts fast, lets go slowly
+            levelEnv[ch] = env;
+            float g = old;
+            if (env > 0.02f)   // only while something is playing (silence keeps the last setting)
             {
-                float target = Math.Max(0.3f, Math.Min(1.4f, 0.5f / mediaEnv));
-                LevelMediaGain += (target - LevelMediaGain) * (target < LevelMediaGain ? 0.55f : 0.02f);
+                float lo, hi; Range(ch, out lo, out hi);
+                float target = Math.Max(lo, Math.Min(hi, 0.5f / env));
+                g += (target - g) * (target < g ? 0.55f : 0.02f);
             }
-            return Math.Abs(old - LevelMediaGain) > 0.004f;
+            levelGain[ch] = g;
+            return Math.Abs(old - g) > 0.004f;
         }
 
         // ---- EQ per game: a game's headset/speaker EQ comes back when it starts; your normal EQ when it closes. Mic EQ is never touched.

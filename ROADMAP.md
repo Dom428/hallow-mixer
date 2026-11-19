@@ -48,11 +48,9 @@ The goal: everything SteelSeries Sonar does for a gamer - and the things it does
 | **3.18** | Sidetone: hear your own mic in your headset - WASAPI shared mode, event-driven capture (one ~10 ms engine period, raw mode where the mic allows it, so no EQ or mic chain) written straight to the default output with a 5 ms cushion and old audio dropped so the delay can't grow (measured: 10 + 5 + 10 = ~25 ms, no underruns); Settings: on/off (off by default), level, which mic; silent while the mic is muted or push-to-talk is up; restarts when the default devices change; not Windows' "Listen to this device" |
 | **3.19** | EQ presets you can share: "Mine" row in the EQ window - Save as, Export (Hallow preset .json or Equalizer APO text), Import (Hallow preset, AutoEQ ParametricEQ.txt / GraphicEQ.txt, Equalizer APO Filter: lines) and Paste the same text from the clipboard (peak, shelves, low/high cut; first 10 filters; values checked; the preamp is set for you); right-click a preset to export or delete it; A/B switches between your changes and how the EQ was when you opened it |
 | **3.20** | Quick output switching: tray menu > Output lists every output (the one in use ticked) and Ctrl+Alt+O goes to the next one, with the on-screen pop-up (skipped on keyboards where it types a character; Settings switch); each output remembers which output every channel plays on (A50: Chat on A50 Voice; speakers: everything on the default) and puts it back when Windows' default output changes, by you, Headset first or anything else; Chat is left to Split headset / Clean voices while they're on |
+| **3.21** | Smart Volume everywhere and a loudness meter: Settings > Smart Volume per channel - Game (x0.45-1.25, keeps its punch), Chat (x0.4-1.6, lifts quiet friends), Music and Media - the same levelling Media had; loudness meter in the status line: LUFS (ITU-R BS.1770 K-weighting, 0.4 s momentary, 3 s short-term in the tooltip) of what you hear, read from Windows' loopback of the default output only while the window is open (Settings switch) |
 
 ## Next
-
-### 3.21 - Smart Volume everywhere and a loudness meter
-- Even out Game, Chat and Music too (not only Media), and a LUFS loudness meter for what you hear
 
 ### Fixes from testing at home
 - Whatever comes up on the real A50, QuadCast 2S, Equalizer APO, OBS, Stream Deck and Discord

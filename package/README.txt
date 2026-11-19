@@ -53,6 +53,7 @@ WHAT IT DOES
 - Settings > Sidetone: hear your own mic in your headset (off by default).
 - EQ > Mine: save, export, import or paste presets (AutoEQ text works), A/B compare.
 - Tray > Output or Ctrl+Alt+O: switch output; each output remembers its channel outputs.
+- Settings > Smart Volume per channel; loudness meter (LUFS) bottom right.
 - EQ > Headphone space: crossfeed for headphones (Light / Medium / Strong).
 - Games (top bar): every game's saved levels and EQ - change them or forget a game.
 - Ctrl+Alt+1 to 9 = your presets, Ctrl+Alt+0 = next preset.

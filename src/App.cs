@@ -22,14 +22,14 @@ using WF = System.Windows.Forms;
 [assembly: AssemblyTitle("Hallow Mixer")]
 [assembly: AssemblyProduct("Hallow Mixer")]
 [assembly: AssemblyDescription("Per-app volume mixer: game, chat, music, media")]
-[assembly: AssemblyVersion("3.20.0.0")]
-[assembly: AssemblyFileVersion("3.20.0.0")]
+[assembly: AssemblyVersion("3.21.0.0")]
+[assembly: AssemblyFileVersion("3.21.0.0")]
 
 namespace HallowMixer
 {
     public static class Program
     {
-        public const string Version = "3.20";
+        public const string Version = "3.21";
         public static List<CliCommand> StartupCommands = new List<CliCommand>();
         public static string HubApp = "Hub";
         public static string DataDir = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "HallowMixer");
@@ -318,6 +318,7 @@ namespace HallowMixer
             if (eng.S.ApiOn && !Snap.On) StartApi();
             if (!Snap.On) { family = new FamilyPipe(FamilyAnswer); family.Start(); hubTimer = new Timer(o => CheckHub(), null, 300, 5000); }
             if (!Snap.On && eng.S.SidetoneOn) UpdateSidetone(true);
+            IsVisibleChanged += (s, e) => UpdateLoudness(); UpdateLoudness();
             if (!Snap.On) { Accent.Watch(Dispatcher, () => eng.S.UseHallowAccent); Dispatcher.BeginInvoke(new Action(ShowCrashNotice), DispatcherPriority.ApplicationIdle); }
             foreach (var c in Program.StartupCommands) { try { ApiDo(c.Path, c.Query); } catch { } }   // started by a shortcut with commands
             saveTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) }; saveTimer.Tick += (s, e) => { if (dirty) { dirty = false; eng.S.Save(); } }; saveTimer.Start();
@@ -454,7 +455,9 @@ namespace HallowMixer
 
             // ---- status line
             status = new TextBlock { Foreground = (Brush)FindResource("Muted"), FontSize = 11.5, Margin = new Thickness(6, 10, 6, 0), TextTrimming = TextTrimming.CharacterEllipsis };
-            Grid.SetRow(status, 4); root.Children.Add(status);
+            loudText = new TextBlock { Foreground = (Brush)FindResource("Muted"), FontSize = 11.5, Margin = new Thickness(12, 10, 6, 0) };   // v3.21 loudness meter
+            var srow = new DockPanel(); DockPanel.SetDock(loudText, Dock.Right); srow.Children.Add(loudText); srow.Children.Add(status);
+            Grid.SetRow(srow, 4); root.Children.Add(srow);
             nowBar = new NowBar(false) { Margin = new Thickness(5, 10, 5, 0), Command = MediaCommand };
             Grid.SetRow(nowBar, 3); root.Children.Add(nowBar);
             Status(CoreAudio.CanRoutePerApp ? "Right-click an app to move it, click its icon to mute it, scroll over a channel to change it.  Ctrl+Alt+PageUp/PageDown = game/chat,  Ctrl+Alt+M = mute mic."
@@ -591,7 +594,24 @@ namespace HallowMixer
             smart.Margin = new Thickness(52, 0, 0, 6);
             sw("Remember my levels for each game (they come back when the game starts)", eng.S.PerGame, v => eng.S.PerGame = v);
             sw("EQ follows the game (each game remembers its headset EQ)", eng.S.EqPerGame, v => eng.S.EqPerGame = v);
-            sw("Even out Media: loud ads and explosions down, quiet talking up", eng.S.LevelMedia, v => eng.S.LevelMedia = v);
+            // v3.21 Smart Volume: per channel
+            sp.Children.Add(new TextBlock { Text = "Smart Volume - even out loud and quiet moments (loud ads and explosions down, quiet talking up):", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 2) });
+            var lvp = new WrapPanel { Margin = new Thickness(52, 0, 0, 6) };
+            foreach (var lc in Engine.LevelChannels)
+            {
+                var chId = lc;
+                var cb = new CheckBox { Content = Engine.ChannelNames[chId], Style = (Style)FindResource("Switch"), IsChecked = eng.Levelled(chId), Margin = new Thickness(0, 0, 14, 4) };
+                System.Windows.Automation.AutomationProperties.SetName(cb, "Smart Volume " + Engine.ChannelNames[chId]);
+                cb.Click += (s, e) =>
+                {
+                    bool on = cb.IsChecked == true;
+                    if (chId == "media") eng.S.LevelMedia = on; else { eng.S.LevelOn.Remove(chId); if (on) eng.S.LevelOn.Add(chId); }
+                    eng.S.Save(); eng.Apply();
+                };
+                lvp.Children.Add(cb);
+            }
+            sp.Children.Add(lvp);
+            sw("Loudness meter (LUFS) under the mixer - how loud what you hear is", eng.S.LoudnessMeter, v => { eng.S.LoudnessMeter = v; UpdateLoudness(); });
             sw("Loud-sound guard: sudden blasts in any channel (a flashbang, a scream, a mic squeal in Chat) are turned down for a moment", eng.S.Guard, v => eng.S.Guard = v);
             sw("Show a pop-up on screen when I use the hotkeys", eng.S.Overlay, v => eng.S.Overlay = v);
             sw("Ctrl+Alt+O switches to the next output (headset, speakers...) - each one remembers where every channel plays", eng.S.OutputKey, v => { eng.S.OutputKey = v; var hh = new WindowInteropHelper(this).Handle; UnregisterHotKey(hh, 6); if (v && !TypesSomething(0x4F)) RegisterHotKey(hh, 6, 0x4003, 0x4F); });
@@ -1156,7 +1176,7 @@ namespace HallowMixer
             foreach (var id in Engine.ChannelIds) peaks[id] = 0;
             foreach (var a in eng.Apps) { float pk = a.Peak(); if (pk > peaks[a.Channel]) peaks[a.Channel] = pk; }
             float micPk = (eng.S.DuckOnMic || IsVisible) ? CoreAudio.DevicePeak(defMic) : 0;
-            bool lv = eng.UpdateLevel(peaks["media"]);
+            bool lv = false; foreach (var lc in Engine.LevelChannels) lv |= eng.UpdateLevel(lc, peaks[lc]);   // v3.21 Smart Volume
             bool gd = eng.UpdateGuard(peaks, DateTime.UtcNow);
             if (eng.UpdateDuck(peaks["chat"], micPk) | lv | gd) eng.Apply();
             if (eng.GuardNote != null) { Status(eng.GuardNote + " (loud-sound guard)."); eng.GuardNote = null; }
@@ -1551,6 +1571,29 @@ namespace HallowMixer
                 catch (Exception ex) { return "error " + ex.Message; }
             }
             return "error unknown command";
+        }
+
+        // ---- v3.21 loudness meter: runs only while the window is open and the meter is on
+        TextBlock loudText; readonly LoudnessReader loud = new LoudnessReader(); DispatcherTimer loudTimer;
+        void UpdateLoudness()
+        {
+            if (loudText == null) return;
+            bool on = eng.S.LoudnessMeter && IsVisible && !Snap.On;
+            loudText.Visibility = eng.S.LoudnessMeter ? Visibility.Visible : Visibility.Collapsed;
+            if (on)
+            {
+                loud.Start();
+                if (loudTimer == null) { loudTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) }; loudTimer.Tick += (s, e) => ShowLoudness(loud.Momentary, loud.ShortTerm); }
+                loudTimer.Start();
+            }
+            else { loud.Stop(); if (loudTimer != null) loudTimer.Stop(); ShowLoudness(float.NegativeInfinity, float.NegativeInfinity); }
+        }
+        void ShowLoudness(float m, float st)
+        {
+            Func<float, string> f = v => float.IsInfinity(v) || v < -70 ? "-" : v.ToString("0");
+            loudText.Text = "Loudness  " + f(m) + " LUFS";
+            var tip = "Loudness of what you hear: " + f(m) + " LUFS now (0.4 s), " + f(st) + " LUFS short-term (3 s). Around -14 is how loud streaming services play music; -23 is TV.";
+            if (!Equals(loudText.ToolTip, tip)) loudText.ToolTip = tip;
         }
 
         // ---- v3.18 sidetone: follows the settings, the default devices and your mute
@@ -2046,7 +2089,7 @@ namespace HallowMixer
         {
             exiting = true; StopApi();
             try { if (hubTimer != null) hubTimer.Dispose(); } catch { }
-            try { side.Stop(); } catch { }
+            try { side.Stop(); loud.Stop(); } catch { }
             try { eng.EndGameMic(); } catch { }
             try { eng.S.Save(); eng.ResetAllApps(); } catch { }
             var h = new WindowInteropHelper(this).Handle; for (int i = 1; i <= 19; i++) UnregisterHotKey(h, i);
