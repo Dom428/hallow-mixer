@@ -40,6 +40,7 @@ A per-app volume mixer for Windows 10/11 - one fader per kind of sound, a game/c
 - **Mic muted warning:** a clear bar at the top of the mixer when your mic is muted in Windows, with one click to unmute; and a reminder (one click to fix) when Hallow Mixer isn't set to start with Windows.
 - **Mic presets per game:** in the Games window, give a game its own mic preset (QuadCast 2S, Discord-ready...) - it goes on when the game starts and your own mic EQ comes back when it closes. Hallow Overlay and Hallow Remote hear about mic, preset and profile changes right away.
 - **One Hallow icon:** with Hallow Hub 2.4, Hallow Mixer's tray menu (mute mic, presets, Mini mixer, EQ) lives in Hub's icon and its own icon hides; it comes back by itself if Hub closes (Settings > Use the Hallow icon).
+- **Mic chain:** a noise gate, compressor and limiter for your mic (EQ window) - Light, Streamer or Loud room, or your own settings; per game too. Hallow Mixer's own plugin, run by Equalizer APO.
 - **Headphone space:** crossfeed for headphones (EQ window) - sound feels like speakers in front of you instead of inside your head.
 - **Game profiles:** the Games window shows every game's saved levels and EQ - change them or forget a game.
 - **Preset hotkeys:** Ctrl+Alt+1 to 9 switch presets from inside a game, Ctrl+Alt+0 goes to the next one.

@@ -7,7 +7,8 @@ $out = Join-Path $PSScriptRoot 'HallowMixer.exe'
 $refs = "$wpf\PresentationFramework.dll", "$wpf\PresentationCore.dll", "$wpf\WindowsBase.dll", "$fw\System.Xaml.dll",
     "$fw\System.Windows.Forms.dll", "$fw\System.Drawing.dll", "$fw\System.Runtime.Serialization.dll", "$fw\System.Core.dll", "$fw\System.IO.Compression.dll", "$fw\System.IO.Compression.FileSystem.dll", "$fw\System.Web.Extensions.dll", "$fw\System.Security.dll", "$fw\System.Runtime.dll",
     "$env:WINDIR\System32\WinMetadata\Windows.Foundation.winmd", "$env:WINDIR\System32\WinMetadata\Windows.Media.winmd"   # now playing (Windows media sessions)
-$args = @('/nologo', '/target:winexe', '/optimize+', "/out:$out", "/win32icon:$src\hallow.ico", "/resource:$src\Theme.xaml,HallowMixer.Theme.xaml") +
+# v3.16: the mic chain plugin (built by plugin\build-plugin.ps1) is embedded as a resource
+$args = @('/nologo', '/target:winexe', '/optimize+', "/out:$out", "/win32icon:$src\hallow.ico", "/resource:$src\Theme.xaml,HallowMixer.Theme.xaml", "/resource:$PSScriptRoot\plugin\bin\HallowMicChain.dll,HallowMixer.HallowMicChain.dll") +
     ($refs | ForEach-Object { "/reference:$_" }) + (Get-ChildItem $src -Filter *.cs | ForEach-Object FullName)
 & "$fw\csc.exe" @args
 if ($LASTEXITCODE -ne 0) { throw "Build failed" }

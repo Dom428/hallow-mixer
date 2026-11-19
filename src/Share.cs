@@ -1,4 +1,4 @@
-// Hallow Mixer - the part of your settings that makes sense on a friend's PC (for Hallow Toolkit's "Share your setup").
+﻿// Hallow Mixer - the part of your settings that makes sense on a friend's PC (for Hallow Toolkit's "Share your setup").
 // Never included: device ids, outputs, OBS details, window places, saved game levels.
 using System;
 using System.Collections.Generic;
@@ -29,7 +29,7 @@ namespace HallowMixer
         {
             if (e == null) return null;
             return new EqState { Name = e.Name, Capture = e.Capture, On = e.On, Preset = e.Preset, Gains = (e.Gains ?? new int[10]).ToArray(), LowCut = e.LowCut, Param = e.Param, Space = e.Space,
-                PBands = e.PBands == null ? null : e.PBands.Select(b => b.Clone()).ToList() };
+                PBands = e.PBands == null ? null : e.PBands.Select(b => b.Clone()).ToList(), Chain = e.Capture && e.Chain != null ? e.Chain.Clean() : null };
         }
 
         public static SharedMix Make(Settings S, string outId, string micId)
@@ -63,6 +63,7 @@ namespace HallowMixer
                 r.PBands = e.PBands.Where(b => b != null).Take(10).Select(b => new PBand {
                     Type = Types.Contains(b.Type) ? b.Type : "PK", Freq = Clamp(b.Freq, 20, 20000), Gain = Clamp(b.Gain, -15, 15), Q = Clamp(b.Q, 0.1, 10), On = b.On }).ToList();
             if (r.Param && (r.PBands == null || r.PBands.Count == 0)) r.Param = false;
+            if (capture && e.Chain != null) r.Chain = e.Chain.Clean();   // v3.16 mic chain, inside the plugin's ranges
             return r;
         }
 
@@ -99,7 +100,7 @@ namespace HallowMixer
             var h = output == null ? null : CleanEq(m.HeadsetEq, output.Name, false);
             if (h != null) { S.Eq[output.Id] = h; done.Add("headset EQ on " + output.Name); }
             var mi = mic == null ? null : CleanEq(m.MicEq, mic.Name, true);
-            if (mi != null) { S.Eq[mic.Id] = mi; done.Add("mic EQ on " + mic.Name); }
+            if (mi != null) { S.Eq[mic.Id] = mi; done.Add("mic EQ on " + mic.Name + (mi.Chain != null && mi.Chain.On ? " (with mic chain " + mi.Chain.Preset + ")" : "")); }
             if (h != null || mi != null) Eq.Write(S.Eq);
             S.Save(); eng.Apply();
             return done;

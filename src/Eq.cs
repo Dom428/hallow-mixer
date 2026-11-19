@@ -1,4 +1,4 @@
-// Hallow Mixer - EQ for each device, through Equalizer APO (free, open source: equalizerapo.sourceforge.io).
+﻿// Hallow Mixer - EQ for each device, through Equalizer APO (free, open source: equalizerapo.sourceforge.io).
 // Hallow Mixer writes C:\ProgramData\HallowMixer\eq.txt; Equalizer APO's config.txt includes it once ("Connect"),
 // and Equalizer APO reloads it by itself whenever it changes.
 using System;
@@ -29,6 +29,7 @@ namespace HallowMixer
         [DataMember] public bool Param;        // v1.9: parametric mode (PBands) instead of the 10 graphic bands
         [DataMember] public List<PBand> PBands;
         [DataMember] public int Space;         // v3.0: headphone space (crossfeed) for outputs - 0 off, 1 light, 2 medium, 3 strong
+        [DataMember] public MicChain Chain;    // v3.16: gate / compressor / limiter for mics (null = never set up)
     }
 
     public static class Eq
@@ -147,18 +148,32 @@ namespace HallowMixer
         public static void Write(Dictionary<string, EqState> eq)
         {
             if (Snap.On) return;
+            var text = Text(eq);
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(ConfigFile));
+                File.WriteAllText(ConfigFile, text, new UTF8Encoding(false));
+            }
+            catch { }
+        }
+        // The text of our Equalizer APO file.
+        public static string Text(Dictionary<string, EqState> eq)
+        {
             var sb = new StringBuilder();
             sb.AppendLine("# Written by Hallow Mixer - change it in Hallow Mixer > EQ (edits here are overwritten).");
             foreach (var kv in eq)
             {
-                var e = kv.Value; if (!e.On || e.Gains == null) continue;
+                var e = kv.Value; if (e.Gains == null) e.Gains = new int[10];
                 bool param = e.Param && e.PBands != null;
                 var act = param ? e.PBands.Where(PEq.Active).ToList() : null;
                 int space = e.Capture ? 0 : e.Space;
-                if ((param ? act.Count == 0 : e.Gains.All(g => g == 0)) && e.LowCut <= 0 && space <= 0) continue;
+                bool eqOn = e.On && !((param ? act.Count == 0 : e.Gains.All(g => g == 0)) && e.LowCut <= 0 && space <= 0);
+                string chain = e.Capture && e.Chain != null && e.Chain.On ? e.Chain.ConfigLine() : null;   // v3.16 mic chain, after the EQ
+                if (!eqOn && chain == null) continue;
                 sb.AppendLine();
-                sb.AppendLine("# " + (e.Name ?? kv.Key) + " - " + e.Preset + (param ? " (parametric)" : ""));
+                sb.AppendLine("# " + (e.Name ?? kv.Key) + " - " + (eqOn ? e.Preset + (param ? " (parametric)" : "") : "no EQ") + (chain != null ? " + mic chain " + e.Chain.Preset : ""));
                 sb.AppendLine("Device: " + Guid(kv.Key));
+                if (!eqOn) { sb.AppendLine(chain); continue; }
                 double max = param ? Math.Ceiling(PEq.MaxBoost(act) * 10) / 10 : Math.Max(0, e.Gains.Max());
                 sb.AppendLine("Preamp: " + (-max).ToString("0.#", CultureInfo.InvariantCulture) + " dB");   // headroom, so boosts never distort
                 if (param) foreach (var b in act) sb.AppendLine(PEq.Line(b));
@@ -166,15 +181,11 @@ namespace HallowMixer
                     sb.AppendLine("GraphicEQ: " + string.Join("; ", Bands.Select((f, i) => f.ToString(CultureInfo.InvariantCulture) + " " + e.Gains[i].ToString(CultureInfo.InvariantCulture))));
                 if (e.LowCut > 0) sb.AppendLine("Filter: ON HP Fc " + e.LowCut.ToString(CultureInfo.InvariantCulture) + " Hz");   // true 12 dB/oct high-pass
                 foreach (var line in SpaceLines(space)) sb.AppendLine(line);
+                if (chain != null) sb.AppendLine(chain);
             }
             sb.AppendLine();
             sb.AppendLine("Device: all");
-            try
-            {
-                Directory.CreateDirectory(Path.GetDirectoryName(ConfigFile));
-                File.WriteAllText(ConfigFile, sb.ToString(), new UTF8Encoding(false));
-            }
-            catch { }
+            return sb.ToString();
         }
     }
 
@@ -245,6 +256,7 @@ namespace HallowMixer
             DockPanel.SetDock(lcl, Dock.Left); DockPanel.SetDock(lowCut, Dock.Left);
             lowCutRow.Children.Add(lcl); lowCutRow.Children.Add(lowCut); lowCutRow.Children.Add(lch);
             sp.Children.Add(lowCutRow);
+            sp.Children.Add(BuildChain());
             spaceRow = new DockPanel { Margin = new Thickness(0, 0, 0, 12) };
             var spl = new TextBlock { Text = "Headphone space", Foreground = (Brush)FindResource("Muted"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) };
             space = new ComboBox { Style = (Style)FindResource("Combo"), Width = 120, ItemsSource = Eq.SpaceNames,
@@ -332,6 +344,7 @@ namespace HallowMixer
             onSwitch.IsChecked = st.On;
             for (int i = 0; i < 10; i++) { bands[i].Value = st.Gains[i]; vals[i].Text = (st.Gains[i] > 0 ? "+" : "") + st.Gains[i]; }
             lowCutRow.Visibility = st.Capture ? Visibility.Visible : Visibility.Collapsed;
+            LoadChain(st);
             lowCut.SelectedIndex = Math.Max(0, Array.IndexOf(Eq.LowCuts, st.LowCut));
             spaceRow.Visibility = st.Capture ? Visibility.Collapsed : Visibility.Visible;
             space.SelectedIndex = Math.Max(0, Math.Min(3, st.Space));
@@ -379,6 +392,96 @@ namespace HallowMixer
         }
 
         void Changed() { writeTimer.Stop(); writeTimer.Start(); }
+
+        // ---- v3.16 mic chain: noise gate -> compressor -> limiter after the mic's EQ (Hallow Mic Chain plugin in Equalizer APO)
+        Border chainPanel; CheckBox chainOn, gateOn, compOn, limOn; WrapPanel chainPresets; bool chainLoading;
+        Slider gateThr, gateRange, compThr, compRatio, compMakeup, limCeil;
+        MicChain ChainOf(EqState st) { if (st.Chain == null) st.Chain = MicChain.Make("Off"); return st.Chain; }
+        void ChainEdit(Action<MicChain> change)
+        {
+            if (chainLoading) return;
+            var st = Cur(); if (st == null || !st.Capture) return;
+            var c = ChainOf(st); change(c); c.Preset = "Custom"; Changed(); LoadChain(st);
+        }
+        UIElement BuildChain()
+        {
+            var sp = new StackPanel();
+            var top = new DockPanel { Margin = new Thickness(0, 0, 0, 8) };
+            chainOn = new CheckBox { Content = "Mic chain", Style = (Style)FindResource("Switch"), FontWeight = FontWeights.SemiBold,
+                ToolTip = "Noise gate, compressor and limiter on your mic, after the EQ - steadier voice, no background hiss between words, never too loud" };
+            chainOn.Click += (o, e) =>
+            {
+                var st = Cur(); if (st == null) return;
+                var c = ChainOf(st);
+                if (chainOn.IsChecked == true && c.Preset == "Off") st.Chain = MicChain.Make("Light");   // first time: a gentle start
+                else c.On = chainOn.IsChecked == true;                                                    // keeps your settings for next time
+                Changed(); LoadChain(st);
+                Status(st.Chain.On ? "Mic chain on (" + st.Chain.Preset + ")" + (Eq.Connected ? "." : " - connect Equalizer APO above for it to take effect.") : "Mic chain off.");
+            };
+            DockPanel.SetDock(chainOn, Dock.Left); top.Children.Add(chainOn);
+            top.Children.Add(new TextBlock { Text = "gate  >  compressor  >  limiter, after the EQ", Foreground = (Brush)FindResource("Muted"), FontSize = 11, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0) });
+            sp.Children.Add(top);
+            chainPresets = new WrapPanel { Margin = new Thickness(0, 0, 0, 6) };
+            foreach (var n in MicChain.PresetNames)
+            {
+                var name = n;
+                var b = new Button { Content = name, Style = (Style)FindResource("Btn"), Margin = new Thickness(0, 0, 6, 6), Tag = name,
+                    ToolTip = name == "Off" ? "No gate, compressor or limiter" : name == "Light" ? "Gentle gate and compressor - a steadier voice" : name == "Streamer" ? "Stronger compressor and limiter - even and loud, never clipping" : "Stronger gate - keyboards, fans and the room stay out between words" };
+                b.Click += (o, e) =>
+                {
+                    var st = Cur(); if (st == null) return;
+                    st.Chain = MicChain.Make(name); Changed(); LoadChain(st);
+                    Status(name == "Off" ? "Mic chain off." : name + " mic chain on " + st.Name + (Eq.Connected ? "." : " - connect Equalizer APO above for it to take effect."));
+                };
+                chainPresets.Children.Add(b);
+            }
+            sp.Children.Add(chainPresets);
+            var g = new Grid(); g.ColumnDefinitions.Add(new ColumnDefinition()); g.ColumnDefinitions.Add(new ColumnDefinition()); g.ColumnDefinitions.Add(new ColumnDefinition());
+            Func<string, string, CheckBox> stage = (text, tip) => new CheckBox { Content = text, Style = (Style)FindResource("Switch"), ToolTip = tip, Margin = new Thickness(0, 0, 0, 4) };
+            Func<StackPanel, string, double, double, string, Action<MicChain, float>, Slider> slider = (col, label, lo, hi, unit, set) =>
+            {
+                var t = new TextBlock { FontSize = 11, Foreground = (Brush)FindResource("Muted") };
+                var sl = new Slider { Style = (Style)FindResource("HFader"), Minimum = lo, Maximum = hi, Foreground = B("#F05A8C"), Height = 22, Margin = new Thickness(0, 0, 0, 4) };
+                System.Windows.Automation.AutomationProperties.SetName(sl, label);
+                Action text = () => { t.Text = label + "  " + sl.Value.ToString(unit == ":1" ? "0.0" : "0") + (unit == ":1" ? ":1" : " " + unit); };
+                sl.Tag = text;
+                sl.ValueChanged += (o, e) =>
+                {
+                    text();
+                    var v = (float)Math.Round(sl.Value, unit == ":1" ? 1 : 0); ChainEdit(c => set(c, v));
+                };
+                col.Children.Add(t); col.Children.Add(sl); return sl;
+            };
+            var gc = new StackPanel { Margin = new Thickness(0, 0, 14, 0) }; var cc = new StackPanel { Margin = new Thickness(0, 0, 14, 0) }; var lc = new StackPanel();
+            gateOn = stage("Noise gate", "Turns the mic down between words (keyboard, fan, room)"); gateOn.Click += (o, e) => ChainEdit(c => c.GateOn = gateOn.IsChecked == true); gc.Children.Add(gateOn);
+            gateThr = slider(gc, "Opens above", -80, -10, "dB", (c, v) => c.GateThr = v);
+            gateRange = slider(gc, "Turns down by", -90, 0, "dB", (c, v) => c.GateRange = v);
+            compOn = stage("Compressor", "Evens out loud and quiet talking"); compOn.Click += (o, e) => ChainEdit(c => c.CompOn = compOn.IsChecked == true); cc.Children.Add(compOn);
+            compThr = slider(cc, "Threshold", -60, 0, "dB", (c, v) => c.CompThr = v);
+            compRatio = slider(cc, "Ratio", 1, 10, ":1", (c, v) => c.CompRatio = v);
+            compMakeup = slider(cc, "Makeup", 0, 24, "dB", (c, v) => c.CompMakeup = v);
+            limOn = stage("Limiter", "Never louder than the ceiling - no clipping when you shout"); limOn.Click += (o, e) => ChainEdit(c => c.LimOn = limOn.IsChecked == true); lc.Children.Add(limOn);
+            limCeil = slider(lc, "Ceiling", -24, 0, "dB", (c, v) => c.LimCeil = v);
+            Grid.SetColumn(cc, 1); Grid.SetColumn(lc, 2); g.Children.Add(gc); g.Children.Add(cc); g.Children.Add(lc);
+            sp.Children.Add(g);
+            chainPanel = new Border { Background = (Brush)FindResource("Panel"), CornerRadius = new CornerRadius(8), Padding = new Thickness(14, 10, 14, 8), Margin = new Thickness(0, 0, 0, 12), Child = sp, Visibility = Visibility.Collapsed };
+            return chainPanel;
+        }
+        void LoadChain(EqState st)
+        {
+            if (chainPanel == null) return;
+            chainPanel.Visibility = st != null && st.Capture ? Visibility.Visible : Visibility.Collapsed;
+            if (st == null || !st.Capture) return;
+            var c = st.Chain ?? MicChain.Make("Off");
+            chainLoading = true;
+            chainOn.IsChecked = c.On; gateOn.IsChecked = c.GateOn; compOn.IsChecked = c.CompOn; limOn.IsChecked = c.LimOn;
+            gateThr.Value = c.GateThr; gateRange.Value = c.GateRange; compThr.Value = c.CompThr; compRatio.Value = c.CompRatio; compMakeup.Value = c.CompMakeup; limCeil.Value = c.LimCeil;
+            foreach (var sl in new[] { gateThr, gateRange, compThr, compRatio, compMakeup, limCeil }) ((Action)sl.Tag)();
+            foreach (Button b in chainPresets.Children) b.Style = (Style)FindResource((string)b.Tag == (c.On ? c.Preset : "Off") ? "Accent" : "Btn");
+            bool en = c.On; gateOn.IsEnabled = compOn.IsEnabled = limOn.IsEnabled = en;
+            gateThr.IsEnabled = gateRange.IsEnabled = en && c.GateOn; compThr.IsEnabled = compRatio.IsEnabled = compMakeup.IsEnabled = en && c.CompOn; limCeil.IsEnabled = en && c.LimOn;
+            chainLoading = false;
+        }
         void SetMode(bool param)
         {
             var st = Cur(); if (st == null || st.Param == param) return;
@@ -387,6 +490,12 @@ namespace HallowMixer
             Status(param ? "Parametric EQ - your graphic EQ was carried over. Drag the dots, or pick a preset." : "Graphic EQ - your parametric bands are kept for when you switch back.");
         }
         public void Reload() { LoadDevice(); }
+        // --snap: the mic with the Streamer chain, to check the layout (settings are frozen in snaps)
+        public void SnapMic()
+        {
+            var mic = (device.ItemsSource as List<AudioDevice>).FirstOrDefault(d => d.Name.StartsWith("Mic: ")); if (mic == null) return;
+            device.SelectedItem = mic; var st = Cur(); if (st != null) { st.Chain = MicChain.Make("Streamer"); LoadDevice(); }
+        }
         public Func<string> OnChanged;   // returns the running game's name when the change was saved for it
     }
 }

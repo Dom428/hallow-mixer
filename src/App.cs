@@ -22,14 +22,14 @@ using WF = System.Windows.Forms;
 [assembly: AssemblyTitle("Hallow Mixer")]
 [assembly: AssemblyProduct("Hallow Mixer")]
 [assembly: AssemblyDescription("Per-app volume mixer: game, chat, music, media")]
-[assembly: AssemblyVersion("3.15.0.0")]
-[assembly: AssemblyFileVersion("3.15.0.0")]
+[assembly: AssemblyVersion("3.16.0.0")]
+[assembly: AssemblyFileVersion("3.16.0.0")]
 
 namespace HallowMixer
 {
     public static class Program
     {
-        public const string Version = "3.15";
+        public const string Version = "3.16";
         public static List<CliCommand> StartupCommands = new List<CliCommand>();
         public static string HubApp = "Hub";
         [STAThread]
@@ -330,6 +330,7 @@ namespace HallowMixer
             Snap.Save(this, System.IO.Path.Combine(dir, "settings.png"), 1010, 900);
             settingsPanel.Visibility = Visibility.Collapsed;
             try { var e = new EqWindow(eng.S); Snap.Save(e, System.IO.Path.Combine(dir, "eq.png"), W(e), H(e)); } catch (Exception ex) { File.WriteAllText(System.IO.Path.Combine(dir, "eq.err.txt"), ex.ToString()); }
+            try { var e2 = new EqWindow(eng.S); e2.SnapMic(); Snap.Save(e2, System.IO.Path.Combine(dir, "eq-mic.png"), W(e2), H(e2)); } catch (Exception ex) { File.WriteAllText(System.IO.Path.Combine(dir, "eq-mic.err.txt"), ex.ToString()); }
             try { var g = new GamesWindow(eng, () => { }); Snap.Save(g, System.IO.Path.Combine(dir, "games.png"), W(g), H(g)); } catch (Exception ex) { File.WriteAllText(System.IO.Path.Combine(dir, "games.err.txt"), ex.ToString()); }
             try { var n = new WhatsNewWindow(WhatsNew.Since("3.8")); Snap.Save(n, System.IO.Path.Combine(dir, "whatsnew.png"), W(n), H(n)); } catch (Exception ex) { File.WriteAllText(System.IO.Path.Combine(dir, "whatsnew.err.txt"), ex.ToString()); }
             try { var m = new MiniWindow(eng.S, strips.Values.Select(st => Tuple.Create(st.Id, st.Color, st.Fader)), balance, null); Snap.Save(m, System.IO.Path.Combine(dir, "mini.png"), 330, 0); } catch (Exception ex) { File.WriteAllText(System.IO.Path.Combine(dir, "mini.err.txt"), ex.ToString()); }

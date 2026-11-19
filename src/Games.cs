@@ -41,7 +41,7 @@ namespace HallowMixer
         public void Fill()
         {
             list.Children.Clear();
-            var keys = eng.S.GameLevels.Keys.Union(eng.S.GameEq.Keys).Union(eng.S.GameMic.Keys).Distinct()
+            var keys = eng.S.GameLevels.Keys.Union(eng.S.GameEq.Keys).Union(eng.S.GameMic.Keys).Union(eng.S.GameChain.Keys).Distinct()
                 .OrderByDescending(k => k == eng.CurrentGame).ThenBy(k => NameOf(k), StringComparer.OrdinalIgnoreCase).ToList();
             if (keys.Count == 0)
             {
@@ -82,7 +82,7 @@ namespace HallowMixer
             btns.Children.Add(Btn("Forget", "Forget " + name + "'s levels and EQ - it starts fresh next time", () =>
             {
                 if (MessageBox.Show(this, "Forget " + name + "'s saved levels and EQ?", "Hallow Mixer", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
-                eng.ForgetGame(key, true, true); eng.SetGameMic(key, null); changed(); Fill();
+                eng.ForgetGame(key, true, true); eng.SetGameMic(key, null); eng.SetGameChain(key, null); changed(); Fill();
             }));
             top.Children.Add(btns);
             var title = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
@@ -142,18 +142,34 @@ namespace HallowMixer
             DockPanel.SetDock(box, Dock.Left); micRow.Children.Add(box);
             var micHint = new TextBlock { Foreground = (Brush)FindResource("Muted"), FontSize = 11.5, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis,
                 Text = now && eng.S.GameMicOn != null ? "on now" : "" };
+            // v3.16 mic chain for this game
+            var chains = new List<string> { NormalChain }; chains.AddRange(MicChain.PresetNames.Select(c => "Chain: " + c));
+            string curChain; if (!eng.S.GameChain.TryGetValue(key, out curChain) || !MicChain.IsPreset(curChain)) curChain = null;
+            var cbox = new ComboBox { Style = (Style)FindResource("Combo"), Width = 170, ItemsSource = chains, SelectedItem = curChain == null ? NormalChain : "Chain: " + curChain, Margin = new Thickness(8, 0, 0, 0),
+                ToolTip = "Noise gate, compressor and limiter on your mic while " + name + " runs - your own chain comes back when it closes" };
+            System.Windows.Automation.AutomationProperties.SetName(cbox, name + " mic chain");
+            DockPanel.SetDock(cbox, Dock.Left); micRow.Children.Add(cbox);
             micRow.Children.Add(micHint);
+            Action hint = () =>
+            {
+                bool any = (box.SelectedItem as string) != NormalMic || (cbox.SelectedItem as string) != NormalChain;
+                micHint.Text = key == eng.CurrentGame && eng.S.GameMicOn != null ? "on now" : !any ? "" : "comes on when " + name + " starts";
+            };
             box.SelectionChanged += (s, e) =>
             {
                 var pick = box.SelectedItem as string; if (pick == null) return;
-                eng.SetGameMic(key, pick == NormalMic ? null : pick); changed();
-                micHint.Text = key == eng.CurrentGame && eng.S.GameMicOn != null ? "on now" : pick == NormalMic ? "" : "comes on when " + name + " starts";
+                eng.SetGameMic(key, pick == NormalMic ? null : pick); changed(); hint();
+            };
+            cbox.SelectionChanged += (s, e) =>
+            {
+                var pick = cbox.SelectedItem as string; if (pick == null) return;
+                eng.SetGameChain(key, pick == NormalChain ? null : pick.Substring(7)); changed(); hint();
             };
             sp.Children.Add(micRow);
             card.Child = sp;
             return card;
         }
-        const string NormalMic = "My normal mic EQ";
+        const string NormalMic = "My normal mic EQ", NormalChain = "My normal mic chain";
         static string ShortName(string n)
         {
             if (string.IsNullOrEmpty(n)) return "Device";
