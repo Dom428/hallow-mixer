@@ -1,4 +1,4 @@
-// Hallow Mixer - window, tray icon and hotkeys. WPF built in code (C# 5 / .NET Framework 4.8, no installs needed).
+﻿// Hallow Mixer - window, tray icon and hotkeys. WPF built in code (C# 5 / .NET Framework 4.8, no installs needed).
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -22,14 +22,14 @@ using WF = System.Windows.Forms;
 [assembly: AssemblyTitle("Hallow Mixer")]
 [assembly: AssemblyProduct("Hallow Mixer")]
 [assembly: AssemblyDescription("Per-app volume mixer: game, chat, music, media")]
-[assembly: AssemblyVersion("3.12.0.0")]
-[assembly: AssemblyFileVersion("3.12.0.0")]
+[assembly: AssemblyVersion("3.13.0.0")]
+[assembly: AssemblyFileVersion("3.13.0.0")]
 
 namespace HallowMixer
 {
     public static class Program
     {
-        public const string Version = "3.12";
+        public const string Version = "3.13";
         public static List<CliCommand> StartupCommands = new List<CliCommand>();
         [STAThread]
         public static void Main(string[] args)
@@ -283,6 +283,7 @@ namespace HallowMixer
                 UpdateDefaults();
                 KeepMicLevel();
                 TickQuiet();
+                UpdateNotices();
                 if (eng.S.NowPlayingOn) NowPlaying.Poll(m => Dispatcher.BeginInvoke(new Action(() => ShowNow(m))));
                 if (++cleanTick % 5 == 0 && eng.S.ChatClean && eng.CheckChatClean(CoreAudio.Devices(0)))
                 { LoadValues(); UpdateCleanButton(); Status("NVIDIA Broadcast's speaker is gone, so Chat is back on its normal output."); }
@@ -312,6 +313,11 @@ namespace HallowMixer
             Func<Window, double> W = x => double.IsNaN(x.Width) ? 560 : x.Width;
             Func<Window, double> H = x => x.SizeToContent == SizeToContent.Height || double.IsNaN(x.Height) ? 0 : x.Height;
             Snap.Save(this, System.IO.Path.Combine(dir, "main.png"), 1010, 690);
+            var sv = startNotice.Visibility; var mv = micNotice.Visibility; var mt = micNoticeText.Text;
+            startNotice.Visibility = Visibility.Visible; micNotice.Visibility = Visibility.Visible;
+            micNoticeText.Text = "Microphone (QuadCast 2S) is muted in Windows - games and Discord hear nothing from you.";
+            Snap.Save(this, System.IO.Path.Combine(dir, "main-notices.png"), 1010, 760);
+            startNotice.Visibility = sv; micNotice.Visibility = mv; micNoticeText.Text = mt;
             settingsPanel.Visibility = Visibility.Visible;
             Snap.Save(this, System.IO.Path.Combine(dir, "settings.png"), 1010, 900);
             settingsPanel.Visibility = Visibility.Collapsed;
@@ -394,7 +400,8 @@ namespace HallowMixer
             masterMute.Click += (s, e) => { var id = CoreAudio.DefaultId(0); if (id != null) CoreAudio.SetMute(id, masterMute.IsChecked == true); masterMute.Content = masterMute.IsChecked == true ? "Muted" : "Mute"; };
             mp.Children.Add(masterMute);
             DockPanel.SetDock(mp, Dock.Right); head.Children.Add(mp);
-            Grid.SetRow(head, 0); root.Children.Add(head);
+            var top = new StackPanel(); top.Children.Add(head); top.Children.Add(BuildNotices());
+            Grid.SetRow(top, 0); root.Children.Add(top);
 
             // ---- channel strips + mic
             var row = new UniformGrid { Rows = 1 };
@@ -434,6 +441,70 @@ namespace HallowMixer
             settingsPanel = BuildSettings();
             outer.Children.Add(settingsPanel);
             return outer;
+        }
+
+        // ---- v3.13 notices under the header: not starting with Windows, mic muted in Windows
+        Border startNotice, micNotice; TextBlock micNoticeText; bool mutedHere;
+        Border Notice(string icon, string hex, TextBlock text, params Button[] buttons)
+        {
+            var col = C(hex); var panel = C("#211B2A");
+            Func<double, Color> mix = a => Color.FromRgb((byte)(panel.R + (col.R - panel.R) * a), (byte)(panel.G + (col.G - panel.G) * a), (byte)(panel.B + (col.B - panel.B) * a));
+            var b = new Border { Background = B(mix(0.14)), BorderBrush = B(mix(0.55)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(10),
+                Padding = new Thickness(12, 7, 8, 7), Margin = new Thickness(5, 0, 5, 10), Visibility = Visibility.Collapsed };
+            var dp = new DockPanel();
+            var ic = Icons.Make(icon, 16, B(col)); ic.Margin = new Thickness(2, 0, 12, 0); ic.VerticalAlignment = VerticalAlignment.Center;
+            DockPanel.SetDock(ic, Dock.Left); dp.Children.Add(ic);
+            var bp = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0) };
+            foreach (var x in buttons) { x.Margin = new Thickness(6, 0, 0, 0); bp.Children.Add(x); }
+            DockPanel.SetDock(bp, Dock.Right); dp.Children.Add(bp);
+            text.VerticalAlignment = VerticalAlignment.Center; text.TextWrapping = TextWrapping.Wrap; dp.Children.Add(text);
+            b.Child = dp; return b;
+        }
+        UIElement BuildNotices()
+        {
+            var sp = new StackPanel();
+            var on = new Button { Content = "Start with Windows", Style = (Style)FindResource("Accent"), ToolTip = "Hallow Mixer starts in the tray when you sign in (your own start-up list - turn it off any time in Settings or the tray menu)" };
+            on.Click += (s, e) =>
+            {
+                try { SetStartWithWindows(true); } catch (Exception ex) { Status("Couldn't add Hallow Mixer to your start-up list: " + ex.Message); return; }
+                if (trayStartup != null) trayStartup.Checked = true;
+                RebuildSettings(); UpdateNotices();
+                Status("Hallow Mixer now starts with Windows (in the tray), so the phone controls and Overlay's mic warning are there after a restart.");
+            };
+            var no = new Button { Content = "Don't show again", Style = (Style)FindResource("Btn"), ToolTip = "Hide this - Settings and the tray menu still have Start with Windows" };
+            no.Click += (s, e) => { eng.S.StartNoticeOff = true; dirty = true; UpdateNotices(); Status("OK. Start with Windows is in Settings and the tray menu if you change your mind."); };
+            startNotice = Notice("power-off", "#F07820", new TextBlock { Text = "Hallow Mixer doesn't start with Windows. After a restart your levels, hotkeys, phone controls and Hallow Overlay's mic warning stay off until you open it." }, on, no);
+            sp.Children.Add(startNotice);
+            var un = new Button { Content = "Unmute mic", Style = (Style)FindResource("Accent"), ToolTip = "Turns the mic's mute off in Windows (Ctrl+Alt+M also does it)" };
+            un.Click += (s, e) => { SetMicMute(false); Status("Mic on - games and Discord hear you again."); };
+            micNoticeText = new TextBlock();
+            micNotice = Notice("microphone-slash", "#F05A8C", micNoticeText, un);
+            sp.Children.Add(micNotice);
+            return sp;
+        }
+        // Every 2 s and after mic changes. Also keeps the Mic strip's button in step when Windows (or another app) mutes the mic.
+        void UpdateNotices()
+        {
+            if (startNotice == null) return;
+            bool start = false; try { start = !eng.S.StartNoticeOff && !StartsWithWindows(); } catch { }
+            startNotice.Visibility = start ? Visibility.Visible : Visibility.Collapsed;
+            bool muted = false; string id = null;
+            try { id = CoreAudio.DefaultId(1); muted = id != null && CoreAudio.GetMute(id); } catch { }
+            bool ptt = (eng.S.MicMode ?? "off") != "off";
+            if (!ptt && id != null && (mic.Mute.IsChecked == true) != muted)
+            {
+                if (!muted) mutedHere = false;
+                mic.Mute.IsChecked = muted; mic.Mute.Content = muted ? "Mic muted" : "Mute mic";
+                if (trayMicMute != null) trayMicMute.Checked = muted;
+            }
+            if (muted && !ptt)
+            {
+                var dev = CoreAudio.Devices(1).FirstOrDefault(d => d.Id == id);
+                var name = dev != null ? dev.Name : "Your mic";
+                micNoticeText.Text = mutedHere ? name + " is muted (you muted it here or with Ctrl+Alt+M) - games and Discord hear nothing from you."
+                                               : name + " is muted in Windows - games and Discord hear nothing from you.";
+            }
+            micNotice.Visibility = muted && !ptt ? Visibility.Visible : Visibility.Collapsed;
         }
 
         // ---- settings flyout (top right)
@@ -555,7 +626,7 @@ namespace HallowMixer
                 if (v) { var id = CoreAudio.DefaultId(1); var l = id == null ? -1 : CoreAudio.GetLevel(id); eng.S.MicKeepLevel = l < 0 ? -1 : (int)Math.Round(l * 100); keptMic = id;
                     Status("Your mic stays at " + eng.S.MicKeepLevel + "%. Move the Mic fader to change it."); }
             });
-            var st = sw("Start with Windows (in the tray)", StartsWithWindows(), v => { SetStartWithWindows(v); if (trayStartup != null) trayStartup.Checked = v; });
+            var st = sw("Start with Windows (in the tray)", StartsWithWindows(), v => { SetStartWithWindows(v); if (trayStartup != null) trayStartup.Checked = v; if (!v) eng.S.StartNoticeOff = true; UpdateNotices(); });
             var sc = new Button { Content = "Shortcuts for Stream Deck...", Style = (Style)FindResource("Btn"), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 10, 0, 0),
                 ToolTip = "Copy command lines for Stream Deck's Open action, AutoHotkey or desktop shortcuts" };
             sc.Click += (s, e) =>
@@ -777,6 +848,7 @@ namespace HallowMixer
             FillDevices(mic.Output, 1, null, false);
             var d = mic.Output.SelectedItem as AudioDevice; mic.Sub.Text = d != null ? d.Name : "No mic found";
             if (trayMicMute != null) trayMicMute.Checked = mic.Mute.IsChecked == true;
+            UpdateNotices();
         }
 
         void UpdateBalanceText()
@@ -1327,7 +1399,7 @@ namespace HallowMixer
             setupWin = new SetupWindow(eng, (mode, ready, start) =>
             {
                 lastAuto = null; UpdateDefaults(); eng.Refresh(); RebuildApps(); LoadValues();
-                if (start) { SetStartWithWindows(true); if (trayStartup != null) trayStartup.Checked = true; }
+                if (start) { SetStartWithWindows(true); if (trayStartup != null) trayStartup.Checked = true; UpdateNotices(); }
                 if (ready) DiscordReady();
                 UpdateCleanButton();
                 // rebuild the settings flyout so its switches and device boxes show what setup chose
@@ -1536,6 +1608,7 @@ namespace HallowMixer
             var id = CoreAudio.DefaultId(1); if (id == null) return;
             CoreAudio.SetMute(id, m); mic.Mute.IsChecked = m; mic.Mute.Content = m ? "Mic muted" : "Mute mic";
             if (trayMicMute != null) trayMicMute.Checked = m;
+            mutedHere = m; UpdateNotices();
         }
         void Status(string t) { if (status != null) status.Text = t; }
 
@@ -1683,7 +1756,7 @@ namespace HallowMixer
             trayMicMute = new WF.ToolStripMenuItem("Mute mic   Ctrl+Alt+M"); trayMicMute.Click += (s, e) => SetMicMute(!(mic.Mute.IsChecked == true)); menu.Items.Add(trayMicMute);
             menu.Items.Add(new WF.ToolStripSeparator());
             trayStartup = new WF.ToolStripMenuItem("Start with Windows") { Checked = StartsWithWindows() };
-            trayStartup.Click += (s, e) => { SetStartWithWindows(!trayStartup.Checked); trayStartup.Checked = StartsWithWindows(); };
+            trayStartup.Click += (s, e) => { SetStartWithWindows(!trayStartup.Checked); trayStartup.Checked = StartsWithWindows(); if (!trayStartup.Checked) { eng.S.StartNoticeOff = true; dirty = true; } UpdateNotices(); RebuildSettings(); };
             menu.Items.Add(trayStartup);
             var exit = new WF.ToolStripMenuItem("Exit (apps go back to full volume)"); exit.Click += (s, e) => ExitApp(); menu.Items.Add(exit);
             tray.ContextMenuStrip = menu;

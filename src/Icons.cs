@@ -30,6 +30,7 @@ namespace HallowMixer
             { "Graphic EQ", "chart-simple" }, { "Parametric EQ", "wave-square" }, { "Reset", "arrow-rotate-left" },
             { "Remove band", "minus" }, { "Add band", "plus" }, { "Set up OBS for me", "wand-magic-sparkles" },
             { "All release notes", "arrow-up-right-from-square" }, { "Got it", "check" },
+            { "Start with Windows", "power-off" }, { "Don't show again", "xmark" }, { "Unmute mic", "microphone" },
             { "Use my current levels", "floppy-disk" }, { "Forget", "eraser" }, { "Flat", "minus" }, { "Bass boost", "drum" }, { "Footsteps (FPS)", "shoe-prints" }, { "Voice clarity", "microphone-lines" }, { "Gaming", "gamepad" }, { "Movie", "film" }, { "Chill", "mug-hot" }, { "Music", "music" }, { "Night", "moon" }, { "Streaming", "tower-broadcast" },
         };
         // label starts with -> icon

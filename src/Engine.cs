@@ -66,6 +66,8 @@ namespace HallowMixer
         [DataMember] public bool EqPerGame = true;        // each game remembers its headset/speaker EQ
         [DataMember] public Dictionary<string, Dictionary<string, EqState>> GameEq = new Dictionary<string, Dictionary<string, EqState>>();
         [DataMember] public bool LevelMedia;              // even out loud and quiet moments in the Media channel
+        // v3.13
+        [DataMember] public bool StartNoticeOff;          // "doesn't start with Windows" notice dismissed (or start-up turned off on purpose)
         // v3.9
         [DataMember] public string LastSeenVersion = "";   // for "What's new" after an update
         // v3.7 - split headset
