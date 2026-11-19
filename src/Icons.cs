@@ -18,7 +18,7 @@ namespace HallowMixer
 
         // exact label -> icon
         static readonly Dictionary<string, string> Labels = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) {
-            { "Mini", "window-restore" }, { "EQ", "sliders" }, { "Stream", "tower-broadcast" }, { "Games", "gamepad" }, { "Settings", "gear" },
+            { "Mini", "window-restore" }, { "EQ", "sliders" }, { "Stream", "tower-broadcast" }, { "Games", "gamepad" }, { "Apps", "layer-group" }, { "Add app", "plus" }, { "Settings", "gear" },
             { "Mute", "volume-high" }, { "Muted", "volume-xmark" }, { "Mute mic", "microphone" }, { "Mic muted", "microphone-slash" },
             { "Test mic", "circle-play" }, { "Playing back...", "volume-high" }, { "Auto level", "wand-magic-sparkles" }, { "Discord-ready", "discord" },
             { "Noise removal", "filter" }, { "NVIDIA mic", "filter" },

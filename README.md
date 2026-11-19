@@ -46,6 +46,7 @@ A per-app volume mixer for Windows 10/11 - one fader per kind of sound, a game/c
 - **Your EQ presets:** save your own, export them for a friend, import or paste AutoEQ / Equalizer APO text, and A/B compare (EQ window).
 - **Quick output switching:** tray menu > Output or Ctrl+Alt+O, and each output remembers where every channel plays.
 - **Smart Volume and loudness meter:** even out Game, Chat, Music and Media (each on its own), and see how loud what you hear is in LUFS.
+- **App rules:** the Apps window (top bar) lists every app, running or not - pick its channel, output and mute ahead of time, add one by name, and make it always start at the same level (also right-click an app > When it starts).
 - **Headphone space:** crossfeed for headphones (EQ window) - sound feels like speakers in front of you instead of inside your head.
 - **Game profiles:** the Games window shows every game's saved levels and EQ - change them or forget a game.
 - **Preset hotkeys:** Ctrl+Alt+1 to 9 switch presets from inside a game, Ctrl+Alt+0 goes to the next one.

@@ -13,6 +13,7 @@ namespace HallowMixer
     {
         // Newest first. One or two short lines per version.
         public static readonly Tuple<string, string[]>[] Notes = {
+            Tuple.Create("3.22", new[] { "Apps (top bar): every app's channel, output and rules in one place - also apps that aren't running, or add one by name", "Right-click an app > When it starts: it always starts at the level you pick" }),
             Tuple.Create("3.21", new[] { "Smart Volume for Game, Chat and Music too, not only Media (Settings)", "A loudness meter (LUFS) under the mixer" }),
             Tuple.Create("3.20", new[] { "Switch the output from the tray menu or with Ctrl+Alt+O", "Each headset and speaker remembers which output every channel plays on" }),
             Tuple.Create("3.19", new[] { "EQ window: save your own presets, export them for a friend, import or paste AutoEQ / Equalizer APO text", "A/B: switch between your changes and how the EQ was before" }),

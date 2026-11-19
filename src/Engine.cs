@@ -69,6 +69,9 @@ namespace HallowMixer
         // v3.21 - Smart Volume on more channels (Media stays on LevelMedia)
         [DataMember] public List<string> LevelOn = new List<string>();   // "game", "chat", "music"
         [DataMember] public bool LoudnessMeter = true;
+        // v3.22 - app rules: an app always starts at this level (process name -> 0..100); names of remembered apps that aren't running
+        [DataMember] public Dictionary<string, int> AppStart = new Dictionary<string, int>();
+        [DataMember] public Dictionary<string, string> AppNames = new Dictionary<string, string>();
         // v3.20 - quick output switching
         [DataMember] public Dictionary<string, Dictionary<string, string>> OutputsByHeadset = new Dictionary<string, Dictionary<string, string>>();   // default output -> channel -> output ("" = default)
         [DataMember] public bool OutputKey = true;          // Ctrl+Alt+O = next output
@@ -143,6 +146,7 @@ namespace HallowMixer
             AutoUpdate = true; LastUpdateCheck = ""; MicKeepLevel = -1; ApiOn = true; UseHallowIcon = true; UseHallowAccent = true; LastCrashShown = ""; SidetoneLevel = 30; SidetoneMic = ""; MyEq = new List<EqUserPreset>(); OutputsByHeadset = new Dictionary<string, Dictionary<string, string>>(); OutputKey = true; LevelOn = new List<string>(); LoudnessMeter = true; NowPlayingOn = true; SmartDuck = true; PresetKeys = true; MutedWarn = true; QuietFrom = 23; QuietTo = 7; QuietMax = 40; ProfileName = "Default"; SplitPrev = ""; LastSeenVersion = ""; BgLevel = new Dictionary<string, int>(); SetupMode = ""; ChatCleanPrev = ""; ObsHost = "localhost"; ObsPort = 4455; ObsPass = ""; EqPerGame = true; GameEq = new Dictionary<string, Dictionary<string, EqState>>(); MicMode = "off"; PttKey = 0x05; WinLeft = -1; WinTop = -1; WinWidth = -1; WinHeight = -1;
             MutedApps = new List<string>(); GameLevels = new Dictionary<string, Preset>(); GameMic = new Dictionary<string, string>(); GameChain = new Dictionary<string, string>(); GameMicDevice = "";
             AppChannel = new Dictionary<string, string>(); AppVolume = new Dictionary<string, int>();
+            AppStart = new Dictionary<string, int>(); AppNames = new Dictionary<string, string>();
         }
 
         static string Dir { get { return Program.DataDir; } }
@@ -167,6 +171,8 @@ namespace HallowMixer
             if (s.MutedApps == null) s.MutedApps = new List<string>();
             if (s.Eq == null) s.Eq = new Dictionary<string, EqState>();
             if (s.AppOutput == null) s.AppOutput = new Dictionary<string, string>();
+            if (s.AppStart == null) s.AppStart = new Dictionary<string, int>();
+            if (s.AppNames == null) s.AppNames = new Dictionary<string, string>();
             if (s.GameLevels == null) s.GameLevels = new Dictionary<string, Preset>();
             if (s.GameEq == null) s.GameEq = new Dictionary<string, Dictionary<string, EqState>>();
             if (s.GameMic == null) s.GameMic = new Dictionary<string, string>();
@@ -388,6 +394,8 @@ namespace HallowMixer
             }
             bool changed = byKey.Count != Apps.Count || byKey.Keys.Any(k => !old.ContainsKey(k));
             Apps = byKey.Values.OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase).ToList();
+            foreach (var a in Apps) if (!old.ContainsKey(a.Key)) AppStarted(a);
+            refreshes++;
             if (exeCache.Count > 500) exeCache.Clear();
             if (CheckGame()) LevelsSwitched = true;
             Apply();
@@ -698,6 +706,112 @@ namespace HallowMixer
             }
         }
 
+        // ---- v3.22 app rules: "always start at X%" and every remembered app, running or not
+        readonly DateTime created = DateTime.Now;
+        int refreshes;
+        public string StartNote;   // "Spotify started at 40%." for the status line (the window takes it)
+        // Should an app that just showed up get its start level? Yes if it appeared while Hallow Mixer was running;
+        // right after Hallow Mixer starts, only if the app started with it (Windows start-up) - not one that's been playing for a while (a restart, a profile switch).
+        public static bool StartFresh(int refreshCount, DateTime mixerStarted, IEnumerable<DateTime?> processStarts)
+        {
+            if (refreshCount > 0) return true;
+            foreach (var t in processStarts) if (t.HasValue && t.Value > mixerStarted.AddSeconds(-90)) return true;
+            return false;
+        }
+        void AppStarted(MixApp a)
+        {
+            if (a.Key == "system") return;
+            if (S.AppStart.ContainsKey(a.Key) || S.AppChannel.ContainsKey(a.Key) || S.AppOutput.ContainsKey(a.Key) || S.BgLevel.ContainsKey(a.Key) || S.MutedApps.Contains(a.Key))
+                RememberName(a.Key, a.Name);
+            int lv; if (!S.AppStart.TryGetValue(a.Key, out lv)) return;
+            if (!StartFresh(refreshes, created, a.Pids.Select(p => Proc.Started(p)).ToList())) return;
+            lv = Math.Max(0, Math.Min(100, lv));
+            if (AppVolume(a.Key) != lv) ApplyStart(a.Key, lv);
+            StartNote = (a.Name ?? a.Key) + " started at " + lv + "% (its app rule).";
+        }
+        public void ApplyStart(string key, int level)
+        {
+            level = Math.Max(0, Math.Min(100, level));
+            if (level == 100) S.AppVolume.Remove(key); else S.AppVolume[key] = level;
+            S.Save();
+        }
+        public void RememberName(string key, string name)
+        {
+            if (string.IsNullOrEmpty(key) || string.IsNullOrEmpty(name) || key == "system") return;
+            string old; if (S.AppNames.TryGetValue(key, out old) && old == name) return;
+            if (S.AppNames.Count >= 300 && !S.AppNames.ContainsKey(key)) return;
+            S.AppNames[key] = name.Length > 60 ? name.Substring(0, 60) : name;
+        }
+        public int? StartLevel(string key) { int v; return S.AppStart.TryGetValue(key, out v) ? (int?)v : null; }
+        public void SetStartLevel(string key, int? level, string name)
+        {
+            if (level == null) S.AppStart.Remove(key); else { S.AppStart[key] = Math.Max(0, Math.Min(100, level.Value)); RememberName(key, name); }
+            S.Save();
+        }
+        // "Spotify.exe", "C:\...\Spotify.exe", " spotify " -> "spotify"; null if it can't be a process name
+        public static string CleanAppKey(string s)
+        {
+            if (s == null) return null;
+            s = s.Trim().Trim('"').Trim();
+            int slash = Math.Max(s.LastIndexOf('\\'), s.LastIndexOf('/')); if (slash >= 0) s = s.Substring(slash + 1);
+            if (s.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) s = s.Substring(0, s.Length - 4);
+            s = s.Trim().ToLowerInvariant();
+            if (s.Length == 0 || s.Length > 60 || s == "system") return null;
+            foreach (var ch in s) if (!(char.IsLetterOrDigit(ch) || ch == ' ' || ch == '-' || ch == '_' || ch == '.' || ch == '+' || ch == '(' || ch == ')')) return null;
+            return s;
+        }
+        // every app with a choice saved, plus the ones playing now
+        public List<string> RememberedApps()
+        {
+            return S.AppChannel.Keys.Concat(S.AppVolume.Keys).Concat(S.AppOutput.Keys).Concat(S.MutedApps).Concat(S.BgLevel.Keys).Concat(S.AppStart.Keys)
+                .Concat(Apps.Select(a => a.Key)).Where(k => !string.IsNullOrEmpty(k) && k != "system").Distinct().ToList();
+        }
+        public bool AppRunning(string key) { return Apps.Any(x => x.Key == key); }
+        public string AppName(string key)
+        {
+            var a = Apps.FirstOrDefault(x => x.Key == key); if (a != null && !string.IsNullOrEmpty(a.Name)) return a.Name;
+            string n; if (S.AppNames.TryGetValue(key, out n) && !string.IsNullOrEmpty(n)) return n;
+            return key.Length > 0 ? char.ToUpperInvariant(key[0]) + key.Substring(1) : key;
+        }
+        // the channel an app goes to when you haven't picked one
+        public string AutoChannelOf(string key)
+        {
+            var a = Apps.FirstOrDefault(x => x.Key == key);
+            string saved; bool had = S.AppChannel.TryGetValue(key, out saved);
+            if (had) S.AppChannel.Remove(key);
+            try { return Guess(key, a != null ? a.ExePath : null); } finally { if (had) S.AppChannel[key] = saved; }
+        }
+        // channel: null = automatic
+        public void SetAppChannel(string key, string channel)
+        {
+            if (channel == null) S.AppChannel.Remove(key); else if (ChannelIds.Contains(channel)) S.AppChannel[key] = channel; else return;
+            var a = Apps.FirstOrDefault(x => x.Key == key);
+            if (a != null) { a.Channel = Guess(a.Key, a.ExePath); a.AutoChannel = channel == null; }
+            S.Save(); Apply();
+        }
+        public void SetAppOutput(string key, string deviceId)
+        {
+            if (deviceId == null) S.AppOutput.Remove(key); else S.AppOutput[key] = deviceId;
+            S.Save(); Apply();
+        }
+        public void SetAppMuted(string key, bool muted)
+        {
+            S.MutedApps.Remove(key); if (muted) S.MutedApps.Add(key);
+            S.Save(); Apply();
+        }
+        public void SetBgLevel(string key, int level)   // -1 = keep playing
+        {
+            if (level < 0) S.BgLevel.Remove(key); else S.BgLevel[key] = Math.Max(0, Math.Min(99, level));
+            S.Save(); Apply();
+        }
+        public void ForgetApp(string key)
+        {
+            S.AppChannel.Remove(key); S.AppVolume.Remove(key); S.AppOutput.Remove(key); S.MutedApps.Remove(key); S.BgLevel.Remove(key); S.AppStart.Remove(key); S.AppNames.Remove(key);
+            var a = Apps.FirstOrDefault(x => x.Key == key);
+            if (a != null) { a.Channel = Guess(a.Key, a.ExePath); a.AutoChannel = true; }
+            S.Save(); Apply();
+        }
+
         public void SetAppOutput(MixApp a, string deviceId)
         {
             if (deviceId == null) S.AppOutput.Remove(a.Key); else S.AppOutput[a.Key] = deviceId;
@@ -727,7 +841,7 @@ namespace HallowMixer
         }
         public void ResetApp(MixApp a)
         {
-            S.AppChannel.Remove(a.Key); S.AppVolume.Remove(a.Key); S.AppOutput.Remove(a.Key); S.MutedApps.Remove(a.Key); S.BgLevel.Remove(a.Key);
+            S.AppChannel.Remove(a.Key); S.AppVolume.Remove(a.Key); S.AppOutput.Remove(a.Key); S.MutedApps.Remove(a.Key); S.BgLevel.Remove(a.Key); S.AppStart.Remove(a.Key);
             a.Channel = Guess(a.Key, a.ExePath); a.AutoChannel = true; S.Save(); Apply();
         }
         public void ApplyPreset(Preset p)

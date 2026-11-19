@@ -49,6 +49,7 @@ The goal: everything SteelSeries Sonar does for a gamer - and the things it does
 | **3.19** | EQ presets you can share: "Mine" row in the EQ window - Save as, Export (Hallow preset .json or Equalizer APO text), Import (Hallow preset, AutoEQ ParametricEQ.txt / GraphicEQ.txt, Equalizer APO Filter: lines) and Paste the same text from the clipboard (peak, shelves, low/high cut; first 10 filters; values checked; the preamp is set for you); right-click a preset to export or delete it; A/B switches between your changes and how the EQ was when you opened it |
 | **3.20** | Quick output switching: tray menu > Output lists every output (the one in use ticked) and Ctrl+Alt+O goes to the next one, with the on-screen pop-up (skipped on keyboards where it types a character; Settings switch); each output remembers which output every channel plays on (A50: Chat on A50 Voice; speakers: everything on the default) and puts it back when Windows' default output changes, by you, Headset first or anything else; Chat is left to Split headset / Clean voices while they're on |
 | **3.21** | Smart Volume everywhere and a loudness meter: Settings > Smart Volume per channel - Game (x0.45-1.25, keeps its punch), Chat (x0.4-1.6, lifts quiet friends), Music and Media - the same levelling Media had; loudness meter in the status line: LUFS (ITU-R BS.1770 K-weighting, 0.4 s momentary, 3 s short-term in the tooltip) of what you hear, read from Windows' loopback of the default output only while the window is open (Settings switch) |
+| **3.22** | App rules: an Apps window (top bar) lists every app Hallow Mixer remembers - running or not - with its channel (or Automatic), "Starts at" (where you left it, or always 0-100%), its own output, what it does while you're in another app, and mute; add an app by program name before it ever plays; Forget puts it back to automatic; right-click an app > When it starts; the start level is set when the app appears while Hallow Mixer runs, or at Hallow Mixer's start only for apps that started with it (not after a restart or profile switch) |
 
 ## Next
 
@@ -76,6 +77,7 @@ What SteelSeries Sonar (and Voicemeeter / EarTrumpet for parts) do that Hallow M
 | Channel outputs remembered per headset | Sonar | Yes - 3.20 |
 | Smart Volume on every channel (Game, Chat, Music - not only Media) | Sonar | Yes - 3.21 |
 | Loudness meter (LUFS) | Voicemeeter-style meters | Yes - 3.21 |
+| App rules: every app's channel, output and start level in one place, also for apps that aren't running (an app always starts at X%) | Sonar, EarTrumpet | Yes - 3.22 |
 | Virtual Game / Chat / Media / Aux / Mic devices and buses | Sonar, Voicemeeter | No - needs a signed audio driver |
 | ClearCast AI noise cancellation (mic and chat) without an RTX card | Sonar | No - needs a trained AI model; NVIDIA Broadcast covers RTX cards |
 | 360 spatial audio | Sonar | No - needs licensed HRTFs and cross-ear convolution Equalizer APO can't do (Headphone space covers part) |

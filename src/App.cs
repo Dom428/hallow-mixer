@@ -22,14 +22,14 @@ using WF = System.Windows.Forms;
 [assembly: AssemblyTitle("Hallow Mixer")]
 [assembly: AssemblyProduct("Hallow Mixer")]
 [assembly: AssemblyDescription("Per-app volume mixer: game, chat, music, media")]
-[assembly: AssemblyVersion("3.21.0.0")]
-[assembly: AssemblyFileVersion("3.21.0.0")]
+[assembly: AssemblyVersion("3.22.0.0")]
+[assembly: AssemblyFileVersion("3.22.0.0")]
 
 namespace HallowMixer
 {
     public static class Program
     {
-        public const string Version = "3.21";
+        public const string Version = "3.22";
         public static List<CliCommand> StartupCommands = new List<CliCommand>();
         public static string HubApp = "Hub";
         public static string DataDir = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "HallowMixer");
@@ -308,7 +308,8 @@ namespace HallowMixer
                 if (++cleanTick % 5 == 0 && eng.S.ChatClean && eng.CheckChatClean(CoreAudio.Devices(0)))
                 { LoadValues(); UpdateCleanButton(); Status("NVIDIA Broadcast's speaker is gone, so Chat is back on its normal output."); }
                 if (eng.S.ObsAuto && !obs.Connected && !obsConnecting && (DateTime.Now - lastObsTry).TotalSeconds > 30) { var t = ConnectObs(true); }
-                if (eng.Refresh()) RebuildApps(); else UpdateSubs();
+                if (eng.Refresh()) { RebuildApps(); if (appsWin != null && appsWin.IsLoaded) appsWin.Fill(); } else UpdateSubs();
+                if (eng.StartNote != null) { Status(eng.StartNote); eng.StartNote = null; }
                 if (eng.LevelsSwitched) { eng.LevelsSwitched = false; LoadValues(); Status(eng.LevelsNote); if (eng.S.Overlay) osd.Flash(eng.LevelsNote, -1); }
                 if (eng.EqSwitched) { eng.EqSwitched = false; if (eqWin != null && eqWin.IsLoaded) eqWin.Reload(); }
                 if (eng.MicNote != null) { Status(eng.MicNote); eng.MicNote = null; }
@@ -351,6 +352,7 @@ namespace HallowMixer
             try { var cw = new CrashWindow(Crash.Newest() ?? "2026-11-19 20-00-00.txt"); Snap.Save(cw, System.IO.Path.Combine(dir, "crash.png"), W(cw), H(cw)); } catch (Exception ex) { File.WriteAllText(System.IO.Path.Combine(dir, "crash.err.txt"), ex.ToString()); }
             try { var e2 = new EqWindow(eng.S); e2.SnapMic(); Snap.Save(e2, System.IO.Path.Combine(dir, "eq-mic.png"), W(e2), H(e2)); } catch (Exception ex) { File.WriteAllText(System.IO.Path.Combine(dir, "eq-mic.err.txt"), ex.ToString()); }
             try { var g = new GamesWindow(eng, () => { }); Snap.Save(g, System.IO.Path.Combine(dir, "games.png"), W(g), H(g)); } catch (Exception ex) { File.WriteAllText(System.IO.Path.Combine(dir, "games.err.txt"), ex.ToString()); }
+            try { var aw = new AppsWindow(eng, () => { }); Snap.Save(aw, System.IO.Path.Combine(dir, "apps.png"), W(aw), H(aw)); } catch (Exception ex) { File.WriteAllText(System.IO.Path.Combine(dir, "apps.err.txt"), ex.ToString()); }
             try { var n = new WhatsNewWindow(WhatsNew.Since("3.8")); Snap.Save(n, System.IO.Path.Combine(dir, "whatsnew.png"), W(n), H(n)); } catch (Exception ex) { File.WriteAllText(System.IO.Path.Combine(dir, "whatsnew.err.txt"), ex.ToString()); }
             try { var m = new MiniWindow(eng.S, strips.Values.Select(st => Tuple.Create(st.Id, st.Color, st.Fader)), balance, null); Snap.Save(m, System.IO.Path.Combine(dir, "mini.png"), 330, 0); } catch (Exception ex) { File.WriteAllText(System.IO.Path.Combine(dir, "mini.err.txt"), ex.ToString()); }
             try { tray.Dispose(); } catch { }
@@ -406,6 +408,9 @@ namespace HallowMixer
                 else { gamesWin.Fill(); gamesWin.Activate(); }
             };
             mp.Children.Add(gamesBtn);
+            var appsBtn = new Button { Content = "Apps", Tag = "icon", Width = 36, Height = 30, Padding = new Thickness(0), Style = (Style)FindResource("Btn"), Margin = new Thickness(0, 0, 8, 0), ToolTip = "App rules: each app's channel, start level and output - also for apps that aren't running" };
+            appsBtn.Click += (s, e) => OpenApps();
+            mp.Children.Add(appsBtn);
             mp.Children.Add(gear);
             mp.Children.Add(new Viewbox { Width = 16, Height = 16, Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center, Child = Icons.Make("headphones", 16, (Brush)FindResource("Muted")), ToolTip = "Output" });
             outputPick = new ComboBox { Width = 230, Style = (Style)FindResource("Combo"), ToolTip = "Windows' default output - where apps play unless a channel sends them somewhere else" };
@@ -1016,6 +1021,30 @@ namespace HallowMixer
                 bg.Items.Add(mi);
             }
             cm.Items.Add(bg);
+            // v3.22 app rules: always start at a level
+            var starts = new MenuItem { Header = "When it starts" };
+            int? startLv = eng.StartLevel(a.Key);
+            var keep = new MenuItem { Header = "Where I left it", IsChecked = startLv == null };
+            keep.Click += (o2, e2) => { eng.SetStartLevel(a.Key, null, a.Name); Status(a.Name + " keeps the level you last gave it."); };
+            starts.Items.Add(keep);
+            int nowLv = eng.AppVolume(a.Key);
+            var atNow = new MenuItem { Header = "Always at " + nowLv + "% (its level now)", IsChecked = startLv == nowLv };
+            atNow.Click += (o2, e2) => { eng.SetStartLevel(a.Key, nowLv, a.Name); Status(a.Name + " will start at " + nowLv + "% every time."); };
+            starts.Items.Add(atNow);
+            starts.Items.Add(new Separator());
+            foreach (var lvOpt in new[] { 25, 50, 75, 100 })
+            {
+                if (lvOpt == nowLv) continue;
+                var lv = lvOpt;
+                var mi = new MenuItem { Header = "Always at " + lv + "%", IsChecked = startLv == lv };
+                mi.Click += (o2, e2) => { eng.SetStartLevel(a.Key, lv, a.Name); eng.ApplyStart(a.Key, lv); eng.Apply(); RebuildApps(); Status(a.Name + " is at " + lv + "% now and will start there every time."); };
+                starts.Items.Add(mi);
+            }
+            starts.Items.Add(new Separator());
+            var more = new MenuItem { Header = "All app rules..." };
+            more.Click += (o2, e2) => OpenApps();
+            starts.Items.Add(more);
+            cm.Items.Add(starts);
             var reset = new MenuItem { Header = "Back to automatic" };
             reset.Click += (o, e) => { eng.ResetApp(a); RebuildApps(); };
             cm.Items.Add(reset);
@@ -1491,7 +1520,12 @@ namespace HallowMixer
         }
 
         // ---- v2.2 first-run setup
-        SetupWindow setupWin; GamesWindow gamesWin;
+        SetupWindow setupWin; GamesWindow gamesWin; AppsWindow appsWin;
+        void OpenApps()
+        {
+            if (appsWin == null || !appsWin.IsLoaded) { appsWin = new AppsWindow(eng, () => { RebuildApps(); }) { Owner = this }; appsWin.Show(); }
+            else { appsWin.Fill(); appsWin.Activate(); }
+        }
         void OpenSetup()
         {
             if (setupWin != null && setupWin.IsLoaded) { setupWin.Activate(); return; }

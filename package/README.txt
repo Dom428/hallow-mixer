@@ -54,6 +54,7 @@ WHAT IT DOES
 - EQ > Mine: save, export, import or paste presets (AutoEQ text works), A/B compare.
 - Tray > Output or Ctrl+Alt+O: switch output; each output remembers its channel outputs.
 - Settings > Smart Volume per channel; loudness meter (LUFS) bottom right.
+- Apps (top bar): every app's channel, output and start level, also for apps that aren't running; right-click an app > When it starts.
 - EQ > Headphone space: crossfeed for headphones (Light / Medium / Strong).
 - Games (top bar): every game's saved levels and EQ - change them or forget a game.
 - Ctrl+Alt+1 to 9 = your presets, Ctrl+Alt+0 = next preset.

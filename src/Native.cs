@@ -355,5 +355,14 @@ namespace HallowMixer
             try { var sb = new StringBuilder(1024); int n = sb.Capacity; return QueryFullProcessImageName(h, 0, sb, ref n) ? sb.ToString() : null; }
             finally { CloseHandle(h); }
         }
+        [DllImport("kernel32.dll")] static extern bool GetProcessTimes(IntPtr h, out long created, out long exited, out long kernel, out long user);
+        // v3.22: when a process started (local time), null if Windows won't say
+        public static DateTime? Started(uint pid)
+        {
+            IntPtr h = OpenProcess(0x1000, false, pid); if (h == IntPtr.Zero) return null;
+            try { long c, e, k, u; return GetProcessTimes(h, out c, out e, out k, out u) && c > 0 ? (DateTime?)DateTime.FromFileTime(c) : null; }
+            catch { return null; }
+            finally { CloseHandle(h); }
+        }
     }
 }
