@@ -43,14 +43,17 @@ The goal: everything SteelSeries Sonar does for a gamer - and the things it does
 
 ## Next
 
-### Fixes from testing at home
+### 3.13 - Fixes from testing at home
 - Whatever comes up on the real A50, QuadCast 2S, Equalizer APO, OBS, Stream Deck and Discord
+- Start with Windows: say so on the main window when Hallow Mixer isn't set to start with Windows (after a reboot it wasn't running, so the Overlay's mic warning and the phone controls were gone)
+- A clear warning when the mic is muted in Windows itself, with one click to unmute
+
+### 3.14 - Hallow family, part 4
+- Tell Hallow Overlay and Hallow Remote right away when the mic, preset or profile changes, instead of them asking every second
+- Mic presets per game, next to the per-game channel levels and EQ
 
 ### Later
 - Volume schedule for kids' accounts: quiet hours (3.5) and profiles (3.6) cover most of it; a PIN lock would need care so it can't lock you out
-
-### Fixes from testing at home
-- Whatever comes up on the real A50, QuadCast 2S, Equalizer APO, OBS and Discord
 
 
 ### Later - closing the gap to Sonar
