@@ -142,6 +142,11 @@ namespace HallowMixer
             return st;
         }
 
+        public static EqState Clone(EqState e)
+        {
+            return new EqState { Name = e.Name, Capture = e.Capture, On = e.On, Preset = e.Preset, LowCut = e.LowCut, Space = e.Space, Gains = e.Gains == null ? new int[10] : (int[])e.Gains.Clone(),
+                Param = e.Param, PBands = e.PBands == null ? null : PEq.Copy(e.PBands), Chain = e.Chain == null ? null : e.Chain.Copy() };
+        }
         static string Guid(string deviceId) { int i = deviceId.LastIndexOf('.'); return i >= 0 ? deviceId.Substring(i + 1) : deviceId; }
 
         // Writes every device's EQ. Equalizer APO picks the change up within a second.
@@ -247,6 +252,8 @@ namespace HallowMixer
             sp.Children.Add(mr);
             presetRow = new WrapPanel { Margin = new Thickness(0, 0, 0, 12) };
             sp.Children.Add(presetRow);
+            myRow = new WrapPanel { Margin = new Thickness(0, 0, 0, 12) };   // v3.19 your own presets, import / export, A/B
+            sp.Children.Add(myRow);
             lowCutRow = new DockPanel { Margin = new Thickness(0, 0, 0, 12) };
             var lcl = new TextBlock { Text = "Low cut", Foreground = (Brush)FindResource("Muted"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) };
             lowCut = new ComboBox { Style = (Style)FindResource("Combo"), Width = 120, ToolTip = "Removes rumble, desk bumps and fan hum below this pitch (voices stay untouched). 80 Hz suits most voices." };
@@ -345,6 +352,8 @@ namespace HallowMixer
             for (int i = 0; i < 10; i++) { bands[i].Value = st.Gains[i]; vals[i].Text = (st.Gains[i] > 0 ? "+" : "") + st.Gains[i]; }
             lowCutRow.Visibility = st.Capture ? Visibility.Visible : Visibility.Collapsed;
             LoadChain(st);
+            var curId = CurId(); if (curId != null && !abOther.ContainsKey(curId)) abOther[curId] = Eq.Clone(st);   // A = how it was when you opened it
+            FillMine(st);
             lowCut.SelectedIndex = Math.Max(0, Array.IndexOf(Eq.LowCuts, st.LowCut));
             spaceRow.Visibility = st.Capture ? Visibility.Collapsed : Visibility.Visible;
             space.SelectedIndex = Math.Max(0, Math.Min(3, st.Space));
@@ -392,6 +401,93 @@ namespace HallowMixer
         }
 
         void Changed() { writeTimer.Stop(); writeTimer.Start(); }
+
+        // ---- v3.19 your own presets, import / export / paste, A/B compare
+        WrapPanel myRow;
+        readonly Dictionary<string, EqState> abOther = new Dictionary<string, EqState>(); readonly HashSet<string> abOnA = new HashSet<string>();
+        string CurId() { var d = device.SelectedItem as AudioDevice; return d == null ? null : d.Id; }
+        Button MyBtn(string text, string tip, Action click)
+        {
+            var b = new Button { Content = text, Style = (Style)FindResource("Btn"), Margin = new Thickness(0, 0, 6, 6), ToolTip = tip };
+            System.Windows.Automation.AutomationProperties.SetName(b, text);
+            b.Click += (o, e) => click(); myRow.Children.Add(b); return b;
+        }
+        void FillMine(EqState st)
+        {
+            myRow.Children.Clear();
+            myRow.Children.Add(new TextBlock { Text = "Mine", Foreground = (Brush)FindResource("Muted"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 6) });
+            foreach (var p in s.MyEq.Where(x => x.Capture == st.Capture).ToList())
+            {
+                var preset = p;
+                var b = MyBtn(p.Name, "Your preset - click to use it. Right-click to export or delete it.", () =>
+                {
+                    var cur = Cur(); if (cur == null) return;
+                    EqFiles.ApplyTo(preset, cur); Changed(); LoadDevice();
+                    Status(preset.Name + " on " + cur.Name + (Eq.Connected ? "." : " - connect Equalizer APO above for it to take effect."));
+                });
+                if (st.Preset == p.Name) b.Style = (Style)FindResource("Accent");
+                var cm = new ContextMenu();
+                var ex = new MenuItem { Header = "Export..." }; ex.Click += (o, e) => Export(preset); cm.Items.Add(ex);
+                var del = new MenuItem { Header = "Delete" }; del.Click += (o, e) => { s.MyEq.Remove(preset); s.Save(); FillMine(Cur()); Status("Deleted your preset " + preset.Name + "."); }; cm.Items.Add(del);
+                b.ContextMenu = cm;
+            }
+            MyBtn("Save as...", "Save this EQ as your own preset", () =>
+            {
+                var cur = Cur(); if (cur == null) return;
+                var n = MixerWindow.AskIn(this, "Save EQ preset", "Name for this EQ:", MicChain.IsPreset(cur.Preset) || string.IsNullOrEmpty(cur.Preset) || cur.Preset == "Custom" || cur.Preset == "Flat" ? "My EQ" : cur.Preset);
+                if (string.IsNullOrWhiteSpace(n)) return;
+                var p = EqFiles.From(cur, n.Trim());
+                s.MyEq.RemoveAll(x => x.Capture == p.Capture && string.Equals(x.Name, p.Name, StringComparison.OrdinalIgnoreCase));
+                s.MyEq.Add(p); cur.Preset = p.Name; s.Save(); FillMine(cur);
+                Status("Saved as " + p.Name + ". Right-click it to export it for a friend.");
+            });
+            MyBtn("Export...", "Save this EQ to a file - a Hallow Mixer preset, or Equalizer APO text for other apps", () => { var cur = Cur(); if (cur != null) Export(EqFiles.From(cur, string.IsNullOrEmpty(cur.Preset) ? "My EQ" : cur.Preset)); });
+            MyBtn("Import...", "Open a Hallow Mixer preset, AutoEQ ParametricEQ.txt / GraphicEQ.txt or Equalizer APO text", () =>
+            {
+                var d = new Microsoft.Win32.OpenFileDialog { Filter = "EQ presets (*.json;*.txt)|*.json;*.txt|All files (*.*)|*.*" };
+                if (d.ShowDialog(this) != true) return;
+                string text; try { if (new FileInfo(d.FileName).Length > 512 * 1024) { Status("That file is too big for an EQ preset."); return; } text = File.ReadAllText(d.FileName); } catch (Exception ex) { Status("Couldn't read it: " + ex.Message); return; }
+                UseImported(text, Path.GetFileNameWithoutExtension(d.FileName));
+            });
+            MyBtn("Paste", "Paste EQ text you copied - AutoEQ's ParametricEQ.txt, GraphicEQ.txt or Equalizer APO Filter: lines", () =>
+            {
+                string text = null; try { text = Clipboard.GetText(); } catch { }
+                if (string.IsNullOrWhiteSpace(text)) { Status("Copy the EQ text first (for example everything in AutoEQ's ParametricEQ.txt), then click Paste."); return; }
+                var n = MixerWindow.AskIn(this, "Pasted EQ", "Name for this EQ (for example your headphones):", "Pasted EQ");
+                if (string.IsNullOrWhiteSpace(n)) return;
+                UseImported(text, n.Trim());
+            });
+            var id = CurId();
+            bool onA = id != null && abOnA.Contains(id);
+            var ab = MyBtn(onA ? "A/B: hearing before" : "A/B: hearing now", "Switch between this EQ and how it was when you opened the window - to hear the difference", () =>
+            {
+                var i = CurId(); var cur = Cur(); EqState other; if (i == null || cur == null || !abOther.TryGetValue(i, out other)) return;
+                abOther[i] = Eq.Clone(cur); s.Eq[i] = Eq.Clone(other);
+                if (!abOnA.Remove(i)) abOnA.Add(i);
+                Changed(); LoadDevice();
+                Status(abOnA.Contains(i) ? "A: how it was before. Click A/B again for your changes." : "B: your changes.");
+            });
+            if (onA) ab.Style = (Style)FindResource("Accent");
+        }
+        void UseImported(string text, string name)
+        {
+            var cur = Cur(); if (cur == null) return;
+            string note; var p = EqFiles.Parse(text, name, out note);
+            if (p == null) { Status(note); return; }
+            p.Capture = cur.Capture;
+            EqFiles.ApplyTo(p, cur);
+            s.MyEq.RemoveAll(x => x.Capture == p.Capture && string.Equals(x.Name, p.Name, StringComparison.OrdinalIgnoreCase));
+            s.MyEq.Add(p); s.Save(); Changed(); LoadDevice();
+            Status(p.Name + " is on " + cur.Name + " and saved under Mine" + (p.Param ? " (parametric, " + p.PBands.Count + " bands; the preamp is set for you)" : "") + "." + (note != null ? " " + note : "") + (Eq.Connected ? "" : " Connect Equalizer APO above for it to take effect."));
+        }
+        void Export(EqUserPreset p)
+        {
+            var safe = new string((p.Name ?? "EQ").Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c).ToArray());
+            var d = new Microsoft.Win32.SaveFileDialog { FileName = safe, Filter = "Hallow Mixer EQ preset (*.json)|*.json|Equalizer APO text (*.txt)|*.txt", InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Desktop) };
+            if (d.ShowDialog(this) != true) return;
+            try { File.WriteAllText(d.FileName, d.FilterIndex == 2 ? EqFiles.ToApoText(p) : EqFiles.ToJson(p), new UTF8Encoding(false)); Status("Saved " + p.Name + " to " + d.FileName); }
+            catch (Exception ex) { Status("Couldn't save it: " + ex.Message); }
+        }
 
         // ---- v3.16 mic chain: noise gate -> compressor -> limiter after the mic's EQ (Hallow Mic Chain plugin in Equalizer APO)
         Border chainPanel; CheckBox chainOn, gateOn, compOn, limOn; WrapPanel chainPresets; bool chainLoading;

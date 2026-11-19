@@ -22,14 +22,14 @@ using WF = System.Windows.Forms;
 [assembly: AssemblyTitle("Hallow Mixer")]
 [assembly: AssemblyProduct("Hallow Mixer")]
 [assembly: AssemblyDescription("Per-app volume mixer: game, chat, music, media")]
-[assembly: AssemblyVersion("3.18.0.0")]
-[assembly: AssemblyFileVersion("3.18.0.0")]
+[assembly: AssemblyVersion("3.19.0.0")]
+[assembly: AssemblyFileVersion("3.19.0.0")]
 
 namespace HallowMixer
 {
     public static class Program
     {
-        public const string Version = "3.18";
+        public const string Version = "3.19";
         public static List<CliCommand> StartupCommands = new List<CliCommand>();
         public static string HubApp = "Hub";
         public static string DataDir = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "HallowMixer");
@@ -1226,17 +1226,18 @@ namespace HallowMixer
         }
 
         // Small dark text prompt (used for preset names).
-        string Ask(string title, string question, string value)
+        string Ask(string title, string question, string value) { return AskIn(this, title, question, value); }
+        public static string AskIn(Window owner, string title, string question, string value)
         {
-            var w = new Window { Title = title, Owner = this, Width = 360, SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.NoResize,
-                WindowStartupLocation = WindowStartupLocation.CenterOwner, Background = (Brush)FindResource("Bg"), Foreground = (Brush)FindResource("Text"), FontFamily = FontFamily };
+            var w = new Window { Title = title, Owner = owner, Width = 360, SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.NoResize,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner, Background = (Brush)owner.FindResource("Bg"), Foreground = (Brush)owner.FindResource("Text"), FontFamily = owner.FontFamily };
             var sp = new StackPanel { Margin = new Thickness(18) };
             sp.Children.Add(new TextBlock { Text = question, Margin = new Thickness(0, 0, 0, 8), TextWrapping = TextWrapping.Wrap });
-            var box = new TextBox { Text = value, Background = (Brush)FindResource("PanelHi"), Foreground = (Brush)FindResource("Text"), BorderBrush = (Brush)FindResource("Line"), Padding = new Thickness(6, 4, 6, 4), CaretBrush = Brushes.White };
+            var box = new TextBox { Text = value, Background = (Brush)owner.FindResource("PanelHi"), Foreground = (Brush)owner.FindResource("Text"), BorderBrush = (Brush)owner.FindResource("Line"), Padding = new Thickness(6, 4, 6, 4), CaretBrush = Brushes.White };
             sp.Children.Add(box);
             var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 12, 0, 0) };
-            var ok = new Button { Content = "OK", Style = (Style)FindResource("Accent"), IsDefault = true, MinWidth = 70, Margin = new Thickness(0, 0, 8, 0) };
-            var cancel = new Button { Content = "Cancel", Style = (Style)FindResource("Btn"), IsCancel = true, MinWidth = 70 };
+            var ok = new Button { Content = "OK", Style = (Style)owner.FindResource("Accent"), IsDefault = true, MinWidth = 70, Margin = new Thickness(0, 0, 8, 0) };
+            var cancel = new Button { Content = "Cancel", Style = (Style)owner.FindResource("Btn"), IsCancel = true, MinWidth = 70 };
             string result = null;
             ok.Click += (s, e) => { result = box.Text; w.DialogResult = true; };
             row.Children.Add(ok); row.Children.Add(cancel); sp.Children.Add(row);

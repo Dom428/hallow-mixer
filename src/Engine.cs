@@ -66,6 +66,8 @@ namespace HallowMixer
         [DataMember] public bool EqPerGame = true;        // each game remembers its headset/speaker EQ
         [DataMember] public Dictionary<string, Dictionary<string, EqState>> GameEq = new Dictionary<string, Dictionary<string, EqState>>();
         [DataMember] public bool LevelMedia;              // even out loud and quiet moments in the Media channel
+        // v3.19 - your own EQ presets
+        [DataMember] public List<EqUserPreset> MyEq = new List<EqUserPreset>();
         // v3.18 - sidetone
         [DataMember] public bool SidetoneOn;               // hear your own mic in your headset (off by default)
         [DataMember] public int SidetoneLevel = 30;        // 0..100
@@ -132,7 +134,7 @@ namespace HallowMixer
             DuckOnChat = true; DuckAmount = 50; PerGame = true; Overlay = true;
             PrimaryOut = ""; FallbackOut = ""; PrimaryMic = ""; MiniLeft = -1; MiniTop = -1;
             Eq = new Dictionary<string, EqState>(); AppOutput = new Dictionary<string, string>();
-            AutoUpdate = true; LastUpdateCheck = ""; MicKeepLevel = -1; ApiOn = true; UseHallowIcon = true; UseHallowAccent = true; LastCrashShown = ""; SidetoneLevel = 30; SidetoneMic = ""; NowPlayingOn = true; SmartDuck = true; PresetKeys = true; MutedWarn = true; QuietFrom = 23; QuietTo = 7; QuietMax = 40; ProfileName = "Default"; SplitPrev = ""; LastSeenVersion = ""; BgLevel = new Dictionary<string, int>(); SetupMode = ""; ChatCleanPrev = ""; ObsHost = "localhost"; ObsPort = 4455; ObsPass = ""; EqPerGame = true; GameEq = new Dictionary<string, Dictionary<string, EqState>>(); MicMode = "off"; PttKey = 0x05; WinLeft = -1; WinTop = -1; WinWidth = -1; WinHeight = -1;
+            AutoUpdate = true; LastUpdateCheck = ""; MicKeepLevel = -1; ApiOn = true; UseHallowIcon = true; UseHallowAccent = true; LastCrashShown = ""; SidetoneLevel = 30; SidetoneMic = ""; MyEq = new List<EqUserPreset>(); NowPlayingOn = true; SmartDuck = true; PresetKeys = true; MutedWarn = true; QuietFrom = 23; QuietTo = 7; QuietMax = 40; ProfileName = "Default"; SplitPrev = ""; LastSeenVersion = ""; BgLevel = new Dictionary<string, int>(); SetupMode = ""; ChatCleanPrev = ""; ObsHost = "localhost"; ObsPort = 4455; ObsPass = ""; EqPerGame = true; GameEq = new Dictionary<string, Dictionary<string, EqState>>(); MicMode = "off"; PttKey = 0x05; WinLeft = -1; WinTop = -1; WinWidth = -1; WinHeight = -1;
             MutedApps = new List<string>(); GameLevels = new Dictionary<string, Preset>(); GameMic = new Dictionary<string, string>(); GameChain = new Dictionary<string, string>(); GameMicDevice = "";
             AppChannel = new Dictionary<string, string>(); AppVolume = new Dictionary<string, int>();
         }
@@ -163,6 +165,7 @@ namespace HallowMixer
             if (s.GameEq == null) s.GameEq = new Dictionary<string, Dictionary<string, EqState>>();
             if (s.GameMic == null) s.GameMic = new Dictionary<string, string>();
             if (s.GameChain == null) s.GameChain = new Dictionary<string, string>();
+            if (s.MyEq == null) s.MyEq = new List<EqUserPreset>();
             if (s.GameMicDevice == null) s.GameMicDevice = "";
             if (s.StreamLinks == null) s.StreamLinks = new Dictionary<string, List<string>>();
             if (s.StreamLevel == null) s.StreamLevel = new Dictionary<string, int>();
