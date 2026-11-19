@@ -47,6 +47,13 @@ The goal: everything SteelSeries Sonar does for a gamer - and the things it does
 
 ## Next
 
+### 3.17 - Hallow accent and crash reports
+- The Hallow family's shared accent colour (from Hallow Toolkit, `%APPDATA%\Hallow\theme.json`) on Hallow Mixer's buttons and highlights, live; channel colours stay. Settings switch "Use the Hallow accent"
+- Crash reports kept on this PC (`%APPDATA%\HallowMixer\crashes`, newest 20, never settings or keys), a notice on the next start (Show details / Open folder), `lastCrash` in the family pipe's status
+
+### 3.18 - Sidetone
+- Hear your own mic in your headset: low-latency shared-mode capture of the mic played to the headset (aim under 30 ms), level slider, off by default, silent while muted or push-to-talk is up; the raw mic (no EQ or mic chain). Not Windows' "Listen to this device"
+
 ### Fixes from testing at home
 - Whatever comes up on the real A50, QuadCast 2S, Equalizer APO, OBS, Stream Deck and Discord
 
@@ -55,6 +62,8 @@ The goal: everything SteelSeries Sonar does for a gamer - and the things it does
 
 
 ### Later - closing the gap to Sonar
+- Soundboard into the mic: needs a virtual mic device (a driver) or a live, connected Equalizer APO to mix clips in safely
+- Automatic headset EQ profiles: needs a downloaded database of headphone measurements
 - 360 spatial audio (true virtual surround) through Equalizer APO's convolution filter - needs 3D sound profiles (HRTFs) we're allowed to ship, and Equalizer APO's convolution can't mix one ear into the other on its own. Headphone space (3.0) covers the "speakers in a room" part
 - Quick switch for Windows spatial sound (Windows Sonic / Dolby Atmos): Windows has no public way for apps to change it, so this needs research first
 
