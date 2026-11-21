@@ -19,6 +19,8 @@ namespace HallowMixer
         public static readonly Color Own = Color.FromRgb(0xF0, 0x78, 0x20);
         // Unfrozen brushes shared by every window: changing their colour recolours everything that uses them, live.
         public static readonly SolidColorBrush Brush = new SolidColorBrush(Own), Hi = new SolidColorBrush(Lighter(Own)), Text = new SolidColorBrush(TextOn(Own));
+        // v3.25 the accent for text, thin lines and icons: the accent itself on dark, darkened to 4.5:1 on white in light mode
+        public static readonly SolidColorBrush Ink = new SolidColorBrush(Own);
         public static Color Current { get { return Brush.Color; } }
         public static string OverrideFile;   // --theme-file <path>: developer testing only
         public static string File { get { return OverrideFile ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), @"Hallow\theme.json"); } }
@@ -33,20 +35,29 @@ namespace HallowMixer
         static void Publish()
         {
             if (app == null) return;
-            app.Resources["AccentBrush"] = new SolidColorBrush(Brush.Color); app.Resources["AccentHiBrush"] = new SolidColorBrush(Hi.Color); app.Resources["AccentTextBrush"] = new SolidColorBrush(Text.Color);
+            app.Resources["AccentBrush"] = new SolidColorBrush(Brush.Color); app.Resources["AccentHiBrush"] = new SolidColorBrush(Hi.Color); app.Resources["AccentTextBrush"] = new SolidColorBrush(Text.Color); app.Resources["AccentInkBrush"] = new SolidColorBrush(Ink.Color);
         }
-        // The accent from theme.json, or null (missing, unreadable or not #RRGGBB). Never throws.
-        public static Color? Read()
+        // v3.25 theme.json's text, or null (missing, too big or unreadable). Never throws. Toolkit replaces the file atomically.
+        public static string ReadText()
         {
             try
             {
                 var f = File; if (!System.IO.File.Exists(f)) return null;
-                string text;
                 using (var s = new FileStream(f, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
                 {
                     if (s.Length > 64 * 1024) return null;
-                    text = new StreamReader(s, Encoding.UTF8).ReadToEnd();
+                    return new StreamReader(s, Encoding.UTF8).ReadToEnd();
                 }
+            }
+            catch { return null; }
+        }
+        // The accent from theme.json, or null (missing, unreadable or not #RRGGBB). Never throws.
+        public static Color? Read() { return AccentFrom(ReadText()); }
+        public static Color? AccentFrom(string text)
+        {
+            try
+            {
+                if (text == null) return null;
                 var m = Regex.Match(text, "\"accent\"\\s*:\\s*\"#([0-9a-fA-F]{6})\"");
                 if (!m.Success) return null;
                 int v = Convert.ToInt32(m.Groups[1].Value, 16);
@@ -58,8 +69,15 @@ namespace HallowMixer
         {
             Color c = Own;
             if (useHallow) { var f = Read(); if (f.HasValue) c = f.Value; }
-            if (Brush.Color == c) return;
-            Brush.Color = c; Hi.Color = Lighter(c); Text.Color = TextOn(c);
+            if (Brush.Color == c && painted == Look.IsLight) return;
+            Brush.Color = c; Repaint();
+        }
+        static bool? painted;
+        // v3.25 also after a light/dark change: the ink and the text on accent buttons depend on the mode (dark = as before)
+        public static void Repaint()
+        {
+            var c = Brush.Color; painted = Look.IsLight;
+            Hi.Color = Lighter(c); Text.Color = Look.IsLight ? Look.TextOnFill(c) : TextOn(c); Ink.Color = Look.InkOf(c);
             Publish();
         }
 
@@ -68,7 +86,7 @@ namespace HallowMixer
         public static void Watch(Dispatcher ui, Func<bool> useHallow)
         {
             debounce = new DispatcherTimer(DispatcherPriority.Normal, ui) { Interval = TimeSpan.FromMilliseconds(300) };
-            debounce.Tick += (s, e) => { debounce.Stop(); try { Apply(useHallow()); } catch { } };
+            debounce.Tick += (s, e) => { debounce.Stop(); try { Apply(useHallow()); } catch { } try { Look.Update(); } catch { } };
             slow = new DispatcherTimer(DispatcherPriority.Background, ui) { Interval = TimeSpan.FromSeconds(5) };
             slow.Tick += (s, e) =>
             {
@@ -76,6 +94,7 @@ namespace HallowMixer
                 {
                     var t = System.IO.File.Exists(File) ? System.IO.File.GetLastWriteTimeUtc(File) : DateTime.MinValue;
                     if (t != lastStamp) { lastStamp = t; Apply(useHallow()); }
+                    Look.Update();   // v3.25 also follows Windows' light/dark setting when the mode is "system" (a cheap registry read)
                     if (fsw == null) StartWatcher(ui);
                 }
                 catch { }
@@ -183,12 +202,12 @@ namespace HallowMixer
         public CrashWindow(string file)
         {
             Title = "Hallow Mixer"; Width = 460; SizeToContent = SizeToContent.Height; ResizeMode = ResizeMode.NoResize;
-            Background = (Brush)FindResource("Bg"); Foreground = (Brush)FindResource("Text"); FontFamily = new FontFamily("Segoe UI"); FontSize = 12.5;
+            Background = Look.Bg; Foreground = Look.Text; FontFamily = new FontFamily("Segoe UI"); FontSize = 12.5;
             WindowStartupLocation = WindowStartupLocation.CenterScreen;
             var sp = new System.Windows.Controls.StackPanel { Margin = new Thickness(22, 18, 22, 16) };
-            sp.Children.Add(new System.Windows.Controls.TextBlock { Text = "Hallow Mixer closed unexpectedly last time", FontSize = 16, FontWeight = FontWeights.Bold, Foreground = Accent.Brush, TextWrapping = TextWrapping.Wrap });
+            sp.Children.Add(new System.Windows.Controls.TextBlock { Text = "Hallow Mixer closed unexpectedly last time", FontSize = 16, FontWeight = FontWeights.Bold, Foreground = Accent.Ink, TextWrapping = TextWrapping.Wrap });
             sp.Children.Add(new System.Windows.Controls.TextBlock { Text = "A crash report was saved on this PC" + (file != null ? " (" + Path.GetFileName(file) + ")" : "") + ". Nothing is sent anywhere. If it keeps happening, the details help find the cause.",
-                Foreground = (Brush)FindResource("Muted"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 14) });
+                Foreground = Look.Muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 14) });
             var row = new System.Windows.Controls.StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
             Func<string, string, Action, System.Windows.Controls.Button> btn = (text, style, click) =>
             {

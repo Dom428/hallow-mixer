@@ -26,23 +26,23 @@ namespace HallowMixer
         {
             eng = engine; changed = onChanged;
             Title = "Hallow Mixer - apps"; Width = 940; Height = 620; MinWidth = 760; MinHeight = 360;
-            Background = (Brush)FindResource("Bg"); Foreground = (Brush)FindResource("Text");
+            Background = Look.Bg; Foreground = Look.Text;
             FontFamily = new FontFamily("Segoe UI"); FontSize = 12.5;
             WindowStartupLocation = WindowStartupLocation.CenterOwner;
             var dp = new DockPanel { Margin = new Thickness(22, 16, 22, 16) };
             var head = new StackPanel(); DockPanel.SetDock(head, Dock.Top);
-            head.Children.Add(new TextBlock { Text = "App rules", FontSize = 20, FontWeight = FontWeights.Bold, Foreground = Accent.Brush });
+            head.Children.Add(new TextBlock { Text = "App rules", FontSize = 20, FontWeight = FontWeights.Bold, Foreground = Accent.Ink });
             head.Children.Add(new TextBlock { Text = "Where each app goes and how loud it starts - also for apps that aren't running. \"Starts at\" puts the app back to that level every time it starts, whatever you changed it to last time.",
-                Foreground = (Brush)FindResource("Muted"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 10) });
+                Foreground = Look.Muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 10) });
             var addRow = new DockPanel { Margin = new Thickness(0, 0, 0, 12) };
             var addBtn = new Button { Content = "Add app", Style = (Style)FindResource("Btn"), Margin = new Thickness(8, 0, 0, 0), ToolTip = "Add an app by its program name, before it plays anything" };
             System.Windows.Automation.AutomationProperties.SetName(addBtn, "Add app");
             DockPanel.SetDock(addBtn, Dock.Left);
-            addBox = new TextBox { Width = 240, Background = (Brush)FindResource("PanelHi"), Foreground = (Brush)FindResource("Text"), BorderBrush = (Brush)FindResource("Line"), Padding = new Thickness(6, 4, 6, 4), CaretBrush = Brushes.White,
+            addBox = new TextBox { Width = 240, Background = Look.PanelHi, Foreground = Look.Text, BorderBrush = Look.Line, Padding = new Thickness(6, 4, 6, 4), CaretBrush = Look.Text,
                 ToolTip = "The program's name, e.g. spotify or Spotify.exe" };
             System.Windows.Automation.AutomationProperties.SetName(addBox, "App to add");
             DockPanel.SetDock(addBox, Dock.Left);
-            addNote = new TextBlock { Text = "Program name, e.g. spotify, discord or vlc.exe", Foreground = (Brush)FindResource("Muted"), FontSize = 11.5, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis };
+            addNote = new TextBlock { Text = "Program name, e.g. spotify, discord or vlc.exe", Foreground = Look.Muted, FontSize = 11.5, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis };
             addBtn.Click += (s, e) => AddTyped();
             addBox.KeyDown += (s, e) => { if (e.Key == Key.Enter) { AddTyped(); e.Handled = true; } };
             addRow.Children.Add(addBox); addRow.Children.Add(addBtn); addRow.Children.Add(addNote);
@@ -72,7 +72,7 @@ namespace HallowMixer
             if (keys.Count == 0)
             {
                 list.Children.Add(new TextBlock { Text = "No apps yet. Apps show up here when they play sound, or add one by name above.",
-                    Foreground = (Brush)FindResource("Muted"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 20, 0, 0) });
+                    Foreground = Look.Muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 20, 0, 0) });
                 return;
             }
             List<AudioDevice> outs; try { outs = CoreAudio.Devices(0); } catch { outs = new List<AudioDevice>(); }
@@ -97,7 +97,7 @@ namespace HallowMixer
         UIElement Row(string key, List<AudioDevice> outs)
         {
             var name = eng.AppName(key); bool running = eng.AppRunning(key);
-            var card = new Border { Background = (Brush)FindResource("Panel"), CornerRadius = new CornerRadius(8), Padding = new Thickness(16, 10, 16, 12), Margin = new Thickness(0, 0, 0, 8) };
+            var card = new Border { Background = Look.Panel, CornerRadius = new CornerRadius(8), Padding = new Thickness(16, 10, 16, 12), Margin = new Thickness(0, 0, 0, 8) };
             System.Windows.Automation.AutomationProperties.SetName(card, name);
             var sp = new StackPanel();
             var top = new DockPanel();
@@ -111,7 +111,7 @@ namespace HallowMixer
             DockPanel.SetDock(forget, Dock.Right); top.Children.Add(forget);
             var title = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
             title.Children.Add(new TextBlock { Text = name, FontSize = 14.5, FontWeight = FontWeights.Bold });
-            if (!string.Equals(name, key, StringComparison.OrdinalIgnoreCase)) title.Children.Add(new TextBlock { Text = key + ".exe", Foreground = (Brush)FindResource("Muted"), FontSize = 11, Margin = new Thickness(8, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center });
+            if (!string.Equals(name, key, StringComparison.OrdinalIgnoreCase)) title.Children.Add(new TextBlock { Text = key + ".exe", Foreground = Look.Muted, FontSize = 11, Margin = new Thickness(8, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center });
             if (running) title.Children.Add(new Border { Background = Accent.Brush, CornerRadius = new CornerRadius(4), Padding = new Thickness(6, 1, 6, 1), Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center,
                 Child = new TextBlock { Text = "PLAYING NOW", FontSize = 10, FontWeight = FontWeights.Bold, Foreground = Accent.Text } });
             top.Children.Add(title);
@@ -125,12 +125,12 @@ namespace HallowMixer
             foreach (var id in Engine.ChannelIds) ch.Items.Add(new Item { Text = Engine.ChannelNames[id], Value = id });
             Select(ch, picked ? cur : "");
             var chLabel = Labelled("Channel", ch);
-            ((TextBlock)chLabel.Children[0]).Foreground = B(Hex[picked && Hex.ContainsKey(cur) ? cur : auto]);
+            ((TextBlock)chLabel.Children[0]).Foreground = Look.Ink((Color)ColorConverter.ConvertFromString(Hex[picked && Hex.ContainsKey(cur) ? cur : auto]));
             ch.SelectionChanged += (s, e) =>
             {
                 var it = ch.SelectedItem as Item; if (it == null) return;
                 var v = (string)it.Value; eng.SetAppChannel(key, v == "" ? null : v);
-                ((TextBlock)chLabel.Children[0]).Foreground = B(Hex[v == "" ? auto : v]); changed();
+                ((TextBlock)chLabel.Children[0]).Foreground = Look.Ink((Color)ColorConverter.ConvertFromString(Hex[v == "" ? auto : v])); changed();
             };
             wrap.Children.Add(chLabel);
 

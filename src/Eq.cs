@@ -209,7 +209,7 @@ namespace HallowMixer
         {
             s = settings;
             Title = "Hallow Mixer - EQ"; Width = 640; SizeToContent = SizeToContent.Height; ResizeMode = ResizeMode.CanMinimize;
-            Background = (Brush)FindResource("Bg"); Foreground = (Brush)FindResource("Text"); FontFamily = new FontFamily("Segoe UI"); FontSize = 12.5;
+            Background = Look.Bg; Foreground = Look.Text; FontFamily = new FontFamily("Segoe UI"); FontSize = 12.5;
             WindowStartupLocation = WindowStartupLocation.CenterOwner;
             writeTimer.Tick += (o, e) =>
             {
@@ -221,9 +221,9 @@ namespace HallowMixer
 
             var sp = new StackPanel { Margin = new Thickness(20, 16, 20, 16) };
             var head = new DockPanel();
-            var eqIcon = Icons.Make("sliders", 20, Accent.Brush); eqIcon.Margin = new Thickness(0, 0, 10, 0); var eqT = new StackPanel { Orientation = Orientation.Horizontal }; eqT.Children.Add(eqIcon); eqT.Children.Add(new TextBlock { Text = "EQ", FontSize = 22, FontWeight = FontWeights.Bold, Foreground = Accent.Brush }); head.Children.Add(eqT);
+            var eqIcon = Icons.Make("sliders", 20, Accent.Ink); eqIcon.Margin = new Thickness(0, 0, 10, 0); var eqT = new StackPanel { Orientation = Orientation.Horizontal }; eqT.Children.Add(eqIcon); eqT.Children.Add(new TextBlock { Text = "EQ", FontSize = 22, FontWeight = FontWeights.Bold, Foreground = Accent.Ink }); head.Children.Add(eqT);
             sp.Children.Add(head);
-            apoText = new TextBlock { TextWrapping = TextWrapping.Wrap, Foreground = (Brush)FindResource("Muted"), Margin = new Thickness(0, 4, 0, 8) };
+            apoText = new TextBlock { TextWrapping = TextWrapping.Wrap, Foreground = Look.Muted, Margin = new Thickness(0, 4, 0, 8) };
             sp.Children.Add(apoText);
             var ab = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) };
             connectBtn = new Button { Content = "Connect to Equalizer APO", Style = (Style)FindResource("Accent"), Margin = new Thickness(0, 0, 8, 0) };
@@ -234,7 +234,7 @@ namespace HallowMixer
             sp.Children.Add(ab);
 
             var dr = new DockPanel { Margin = new Thickness(0, 0, 0, 10) };
-            var dl = new TextBlock { Text = "Device", Foreground = (Brush)FindResource("Muted"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) };
+            var dl = new TextBlock { Text = "Device", Foreground = Look.Muted, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) };
             DockPanel.SetDock(dl, Dock.Left); dr.Children.Add(dl);
             onSwitch = new CheckBox { Content = "EQ on", Style = (Style)FindResource("Switch"), Margin = new Thickness(14, 0, 0, 0) };
             onSwitch.Click += (o, e) => { var st = Cur(); if (st != null) { st.On = onSwitch.IsChecked == true; Changed(); } };
@@ -255,32 +255,32 @@ namespace HallowMixer
             myRow = new WrapPanel { Margin = new Thickness(0, 0, 0, 12) };   // v3.19 your own presets, import / export, A/B
             sp.Children.Add(myRow);
             lowCutRow = new DockPanel { Margin = new Thickness(0, 0, 0, 12) };
-            var lcl = new TextBlock { Text = "Low cut", Foreground = (Brush)FindResource("Muted"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) };
+            var lcl = new TextBlock { Text = "Low cut", Foreground = Look.Muted, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) };
             lowCut = new ComboBox { Style = (Style)FindResource("Combo"), Width = 120, ToolTip = "Removes rumble, desk bumps and fan hum below this pitch (voices stay untouched). 80 Hz suits most voices." };
             lowCut.ItemsSource = Eq.LowCuts.Select(h => h == 0 ? "Off" : h + " Hz").ToList();
             lowCut.SelectionChanged += (o, e) => { if (loading) return; var st = Cur(); if (st == null || lowCut.SelectedIndex < 0) return; st.LowCut = Eq.LowCuts[lowCut.SelectedIndex]; if (st.LowCut > 0) { st.On = true; onSwitch.IsChecked = true; } Changed(); };
-            var lch = new TextBlock { Text = "removes rumble and desk bumps", Foreground = (Brush)FindResource("Muted"), FontSize = 11, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0) };
+            var lch = new TextBlock { Text = "removes rumble and desk bumps", Foreground = Look.Muted, FontSize = 11, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0) };
             DockPanel.SetDock(lcl, Dock.Left); DockPanel.SetDock(lowCut, Dock.Left);
             lowCutRow.Children.Add(lcl); lowCutRow.Children.Add(lowCut); lowCutRow.Children.Add(lch);
             sp.Children.Add(lowCutRow);
             sp.Children.Add(BuildChain());
             spaceRow = new DockPanel { Margin = new Thickness(0, 0, 0, 12) };
-            var spl = new TextBlock { Text = "Headphone space", Foreground = (Brush)FindResource("Muted"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) };
+            var spl = new TextBlock { Text = "Headphone space", Foreground = Look.Muted, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) };
             space = new ComboBox { Style = (Style)FindResource("Combo"), Width = 120, ItemsSource = Eq.SpaceNames,
                 ToolTip = "Crossfeed: each ear hears a little of the other side, softened and slightly delayed - like speakers in a room. Less tiring on headphones, and hard-left/right sounds stop feeling stuck inside one ear." };
             System.Windows.Automation.AutomationProperties.SetName(space, "Headphone space");
             space.SelectionChanged += (o, e) => { if (loading) return; var st = Cur(); if (st == null || space.SelectedIndex < 0) return; st.Space = space.SelectedIndex; if (st.Space > 0) { st.On = true; onSwitch.IsChecked = true; } Changed(); };
-            var sph = new TextBlock { Text = "headphones only - speakers in a room, not inside your head", Foreground = (Brush)FindResource("Muted"), FontSize = 11, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0) };
+            var sph = new TextBlock { Text = "headphones only - speakers in a room, not inside your head", Foreground = Look.Muted, FontSize = 11, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0) };
             DockPanel.SetDock(spl, Dock.Left); DockPanel.SetDock(space, Dock.Left);
             spaceRow.Children.Add(spl); spaceRow.Children.Add(space); spaceRow.Children.Add(sph);
             sp.Children.Add(spaceRow);
 
-            var grid = new Grid { Height = 210, Background = (Brush)FindResource("Panel") };
+            var grid = new Grid { Height = 210, Background = Look.Panel };
             for (int i = 0; i < 10; i++)
             {
                 grid.ColumnDefinitions.Add(new ColumnDefinition());
                 var col = new DockPanel { Margin = new Thickness(0, 8, 0, 6) };
-                var name = new TextBlock { Text = Eq.BandNames[i], HorizontalAlignment = HorizontalAlignment.Center, Foreground = (Brush)FindResource("Muted"), FontSize = 11 };
+                var name = new TextBlock { Text = Eq.BandNames[i], HorizontalAlignment = HorizontalAlignment.Center, Foreground = Look.Muted, FontSize = 11 };
                 vals[i] = new TextBlock { HorizontalAlignment = HorizontalAlignment.Center, FontSize = 11, FontWeight = FontWeights.SemiBold };
                 DockPanel.SetDock(name, Dock.Bottom); DockPanel.SetDock(vals[i], Dock.Top);
                 col.Children.Add(name); col.Children.Add(vals[i]);
@@ -299,12 +299,12 @@ namespace HallowMixer
                 col.Children.Add(bands[i]);
                 Grid.SetColumn(col, i); grid.Children.Add(col);
             }
-            shell = new Border { CornerRadius = new CornerRadius(8), Background = (Brush)FindResource("Panel"), Child = grid, Padding = new Thickness(6) };
+            shell = new Border { CornerRadius = new CornerRadius(8), Background = Look.Panel, Child = grid, Padding = new Thickness(6) };
             sp.Children.Add(shell);
             peq = new PEqEditor { Visibility = Visibility.Collapsed };
             peq.Changed = () => { var st = Cur(); if (st == null) return; st.Preset = "Custom"; if (!st.On) { st.On = true; onSwitch.IsChecked = true; } Changed(); };
             sp.Children.Add(peq);
-            status = new TextBlock { Foreground = (Brush)FindResource("Muted"), FontSize = 11.5, Margin = new Thickness(0, 10, 0, 0), TextWrapping = TextWrapping.Wrap };
+            status = new TextBlock { Foreground = Look.Muted, FontSize = 11.5, Margin = new Thickness(0, 10, 0, 0), TextWrapping = TextWrapping.Wrap };
             sp.Children.Add(status);
             Content = sp;
 
@@ -415,7 +415,7 @@ namespace HallowMixer
         void FillMine(EqState st)
         {
             myRow.Children.Clear();
-            myRow.Children.Add(new TextBlock { Text = "Mine", Foreground = (Brush)FindResource("Muted"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 6) });
+            myRow.Children.Add(new TextBlock { Text = "Mine", Foreground = Look.Muted, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 6) });
             foreach (var p in s.MyEq.Where(x => x.Capture == st.Capture).ToList())
             {
                 var preset = p;
@@ -515,7 +515,7 @@ namespace HallowMixer
                 Status(st.Chain.On ? "Mic chain on (" + st.Chain.Preset + ")" + (Eq.Connected ? "." : " - connect Equalizer APO above for it to take effect.") : "Mic chain off.");
             };
             DockPanel.SetDock(chainOn, Dock.Left); top.Children.Add(chainOn);
-            top.Children.Add(new TextBlock { Text = "gate  >  compressor  >  limiter, after the EQ", Foreground = (Brush)FindResource("Muted"), FontSize = 11, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0) });
+            top.Children.Add(new TextBlock { Text = "gate  >  compressor  >  limiter, after the EQ", Foreground = Look.Muted, FontSize = 11, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0) });
             sp.Children.Add(top);
             chainPresets = new WrapPanel { Margin = new Thickness(0, 0, 0, 6) };
             foreach (var n in MicChain.PresetNames)
@@ -536,7 +536,7 @@ namespace HallowMixer
             Func<string, string, CheckBox> stage = (text, tip) => new CheckBox { Content = text, Style = (Style)FindResource("Switch"), ToolTip = tip, Margin = new Thickness(0, 0, 0, 4) };
             Func<StackPanel, string, double, double, string, Action<MicChain, float>, Slider> slider = (col, label, lo, hi, unit, set) =>
             {
-                var t = new TextBlock { FontSize = 11, Foreground = (Brush)FindResource("Muted") };
+                var t = new TextBlock { FontSize = 11, Foreground = Look.Muted };
                 var sl = new Slider { Style = (Style)FindResource("HFader"), Minimum = lo, Maximum = hi, Foreground = B("#F05A8C"), Height = 22, Margin = new Thickness(0, 0, 0, 4) };
                 System.Windows.Automation.AutomationProperties.SetName(sl, label);
                 Action text = () => { t.Text = label + "  " + sl.Value.ToString(unit == ":1" ? "0.0" : "0") + (unit == ":1" ? ":1" : " " + unit); };
@@ -560,7 +560,7 @@ namespace HallowMixer
             limCeil = slider(lc, "Ceiling", -24, 0, "dB", (c, v) => c.LimCeil = v);
             Grid.SetColumn(cc, 1); Grid.SetColumn(lc, 2); g.Children.Add(gc); g.Children.Add(cc); g.Children.Add(lc);
             sp.Children.Add(g);
-            chainPanel = new Border { Background = (Brush)FindResource("Panel"), CornerRadius = new CornerRadius(8), Padding = new Thickness(14, 10, 14, 8), Margin = new Thickness(0, 0, 0, 12), Child = sp, Visibility = Visibility.Collapsed };
+            chainPanel = new Border { Background = Look.Panel, CornerRadius = new CornerRadius(8), Padding = new Thickness(14, 10, 14, 8), Margin = new Thickness(0, 0, 0, 12), Child = sp, Visibility = Visibility.Collapsed };
             return chainPanel;
         }
         void LoadChain(EqState st)

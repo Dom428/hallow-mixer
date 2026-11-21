@@ -134,7 +134,7 @@ namespace HallowMixer
 
         public NowBar(bool compact)
         {
-            Background = (Brush)FindResource("Panel"); CornerRadius = new CornerRadius(8);
+            Background = Look.Panel; CornerRadius = new CornerRadius(8);
             Padding = compact ? new Thickness(10, 6, 8, 6) : new Thickness(16, 8, 12, 8);
             Visibility = Visibility.Collapsed;
             var dp = new DockPanel();
@@ -146,7 +146,7 @@ namespace HallowMixer
             DockPanel.SetDock(dot, Dock.Left); dp.Children.Add(dot);
             var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
             title = new TextBlock { FontWeight = FontWeights.SemiBold, FontSize = compact ? 11.5 : 12.5, TextTrimming = TextTrimming.CharacterEllipsis };
-            sub = new TextBlock { Foreground = (Brush)FindResource("Muted"), FontSize = compact ? 10.5 : 11, TextTrimming = TextTrimming.CharacterEllipsis };
+            sub = new TextBlock { Foreground = Look.Muted, FontSize = compact ? 10.5 : 11, TextTrimming = TextTrimming.CharacterEllipsis };
             text.Children.Add(title); text.Children.Add(sub);
             dp.Children.Add(text);
             Child = dp;
@@ -177,7 +177,7 @@ namespace HallowMixer
             b.Click += (s, e) => { if (Command != null) Command(cmd); };
             return b;
         }
-        static FrameworkElement Ic(string name) { return Icons.Make(name, 9, new SolidColorBrush(Color.FromRgb(0xEC, 0xE8, 0xF4))); }
+        static FrameworkElement Ic(string name) { return Icons.Make(name, 9, Look.Text); }
 
         public NowCard()
         {
@@ -187,7 +187,7 @@ namespace HallowMixer
             for (int i = 0; i < 3; i++) g.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             title = new TextBlock { FontWeight = FontWeights.SemiBold, FontSize = 11.5, TextTrimming = TextTrimming.CharacterEllipsis };
             g.Children.Add(title);
-            sub = new TextBlock { Foreground = (Brush)FindResource("Muted"), FontSize = 10.5, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
+            sub = new TextBlock { Foreground = Look.Muted, FontSize = 10.5, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
             Grid.SetRow(sub, 1); g.Children.Add(sub);
             var btns = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 5, 0, 0) };
             playIcon = Ic("play"); pauseIcon = Ic("pause");
@@ -201,9 +201,7 @@ namespace HallowMixer
         {
             if (m == null) { Visibility = Visibility.Collapsed; return; }
             Visibility = Visibility.Visible;
-            var panel = Color.FromRgb(0x21, 0x1B, 0x2A);
-            Func<double, Color> mix = a => Color.FromRgb((byte)(panel.R + (c.R - panel.R) * a), (byte)(panel.G + (c.G - panel.G) * a), (byte)(panel.B + (c.B - panel.B) * a));
-            Background = new SolidColorBrush(mix(0.13)); BorderBrush = new SolidColorBrush(mix(0.4));
+            Background = Look.Tint(c, 0.13); BorderBrush = Look.Tint(c, 0.4);   // v3.25 follows light / dark
             title.Text = m.Title;
             sub.Text = string.IsNullOrEmpty(m.Artist) ? m.App : m.Artist;
             ToolTip = m.Line + "\n" + m.App + (m.Playing ? "" : " (paused)");

@@ -22,14 +22,14 @@ namespace HallowMixer
         {
             eng = engine; changed = onChanged;
             Title = "Hallow Mixer - games"; Width = 760; Height = 600; MinWidth = 640; MinHeight = 360;
-            Background = (Brush)FindResource("Bg"); Foreground = (Brush)FindResource("Text");
+            Background = Look.Bg; Foreground = Look.Text;
             FontFamily = new FontFamily("Segoe UI"); FontSize = 12.5;
             WindowStartupLocation = WindowStartupLocation.CenterOwner;
             var dp = new DockPanel { Margin = new Thickness(22, 16, 22, 16) };
             var head = new StackPanel(); DockPanel.SetDock(head, Dock.Top);
-            head.Children.Add(new TextBlock { Text = "Game profiles", FontSize = 20, FontWeight = FontWeights.Bold, Foreground = Accent.Brush });
+            head.Children.Add(new TextBlock { Text = "Game profiles", FontSize = 20, FontWeight = FontWeights.Bold, Foreground = Accent.Ink });
             head.Children.Add(new TextBlock { Text = "Each game's own levels, headset EQ and mic preset come back when it starts. Change them here, or forget a game to start fresh.",
-                Foreground = (Brush)FindResource("Muted"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 12) });
+                Foreground = Look.Muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 12) });
             dp.Children.Add(head);
             dp.Children.Add(new ScrollViewer { Content = list, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled });
             Content = dp;
@@ -48,7 +48,7 @@ namespace HallowMixer
                 list.Children.Add(new TextBlock { Text = eng.S.PerGame || eng.S.EqPerGame
                     ? "No games yet. Start a game: Hallow Mixer remembers its levels (and EQ) from then on."
                     : "Remembering levels and EQ per game is off - turn it on in Settings.",
-                    Foreground = (Brush)FindResource("Muted"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 20, 0, 0) });
+                    Foreground = Look.Muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 20, 0, 0) });
                 return;
             }
             foreach (var k in keys) list.Children.Add(Card(k));
@@ -71,7 +71,7 @@ namespace HallowMixer
         UIElement Card(string key)
         {
             var name = NameOf(key); bool now = key == eng.CurrentGame;
-            var card = new Border { Background = (Brush)FindResource("Panel"), CornerRadius = new CornerRadius(8), Padding = new Thickness(16, 12, 16, 12), Margin = new Thickness(0, 0, 0, 10) };
+            var card = new Border { Background = Look.Panel, CornerRadius = new CornerRadius(8), Padding = new Thickness(16, 12, 16, 12), Margin = new Thickness(0, 0, 0, 10) };
             System.Windows.Automation.AutomationProperties.SetName(card, name);
             var sp = new StackPanel();
             var top = new DockPanel();
@@ -99,7 +99,7 @@ namespace HallowMixer
             {
                 var id = ch; int v = lv != null && lv.Volumes.ContainsKey(id) ? lv.Volumes[id] : 100;
                 var cell = new StackPanel { Margin = new Thickness(0, 10, 12, 0) };
-                var lab = new TextBlock { Text = (id == "other" ? "System" : Engine.ChannelNames[id]) + "  " + v + "%", FontSize = 11.5, Foreground = B(Hex[id]) };
+                var lab = new TextBlock { Text = (id == "other" ? "System" : Engine.ChannelNames[id]) + "  " + v + "%", FontSize = 11.5, Foreground = Look.Ink((Color)ColorConverter.ConvertFromString(Hex[id])) };
                 var sl = new Slider { Style = (Style)FindResource("HFader"), Minimum = 0, Maximum = 100, Value = v, Foreground = B(Hex[id]), Height = 22, IsEnabled = hasLv };
                 System.Windows.Automation.AutomationProperties.SetName(sl, name + " " + Engine.ChannelNames[id]);
                 sl.ValueChanged += (s, e) =>
@@ -115,7 +115,7 @@ namespace HallowMixer
                 grid.Children.Add(cell);
             }
             sp.Children.Add(grid);
-            if (!hasLv) sp.Children.Add(new TextBlock { Text = "No saved levels (only EQ). Click Use my current levels to save some.", Foreground = (Brush)FindResource("Muted"), FontSize = 11.5, Margin = new Thickness(0, 4, 0, 0) });
+            if (!hasLv) sp.Children.Add(new TextBlock { Text = "No saved levels (only EQ). Click Use my current levels to save some.", Foreground = Look.Muted, FontSize = 11.5, Margin = new Thickness(0, 4, 0, 0) });
 
             // EQ
             var eqRow = new DockPanel { Margin = new Thickness(0, 10, 0, 0) };
@@ -127,12 +127,12 @@ namespace HallowMixer
             var eqText = hasEq
                 ? "EQ: " + string.Join(",  ", geq.Values.Select(e => ShortName(e.Name) + " - " + (e.On ? (e.Param ? "parametric" : (e.Preset ?? "custom")) : "off")))
                 : "EQ: your normal EQ" + (eng.S.EqPerGame ? " (change the EQ while it runs to give it its own)" : "");
-            eqRow.Children.Add(new TextBlock { Text = eqText, Foreground = (Brush)FindResource("Muted"), VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis });
+            eqRow.Children.Add(new TextBlock { Text = eqText, Foreground = Look.Muted, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis });
             sp.Children.Add(eqRow);
 
             // v3.14 mic preset: a mic EQ preset while this game runs, your own mic EQ when it closes
             var micRow = new DockPanel { Margin = new Thickness(0, 8, 0, 0) };
-            var micLab = new TextBlock { Text = "Mic:", Foreground = (Brush)FindResource("Muted"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+            var micLab = new TextBlock { Text = "Mic:", Foreground = Look.Muted, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
             DockPanel.SetDock(micLab, Dock.Left); micRow.Children.Add(micLab);
             var names = new List<string> { NormalMic }; names.AddRange(Engine.MicPresetNames());
             string curMic; if (!eng.S.GameMic.TryGetValue(key, out curMic) || !names.Contains(curMic)) curMic = NormalMic;
@@ -140,7 +140,7 @@ namespace HallowMixer
                 ToolTip = "A mic EQ preset while " + name + " runs - your own mic EQ comes back when it closes (needs Equalizer APO on your mic)" };
             System.Windows.Automation.AutomationProperties.SetName(box, name + " mic preset");
             DockPanel.SetDock(box, Dock.Left); micRow.Children.Add(box);
-            var micHint = new TextBlock { Foreground = (Brush)FindResource("Muted"), FontSize = 11.5, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis,
+            var micHint = new TextBlock { Foreground = Look.Muted, FontSize = 11.5, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis,
                 Text = now && eng.S.GameMicOn != null ? "on now" : "" };
             // v3.16 mic chain for this game
             var chains = new List<string> { NormalChain }; chains.AddRange(MicChain.PresetNames.Select(c => "Chain: " + c));

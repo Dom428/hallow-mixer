@@ -142,7 +142,7 @@ namespace HallowMixer
         public PEqEditor()
         {
             plot = new Canvas { Width = W, Height = H, ClipToBounds = true, Background = Brushes.Transparent, Cursor = Cursors.Cross };
-            var gridBrush = B("#2E2838"); var lab = B("#6E6680");
+            var gridBrush = Look.Get("PlotGrid"); var lab = Look.Get("PlotLabel");   // v3.25 light / dark
             foreach (var f in new double[] { 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000 })
             {
                 plot.Children.Add(new Line { X1 = X(f), X2 = X(f), Y1 = 0, Y2 = H, Stroke = gridBrush, StrokeThickness = 1 });
@@ -151,7 +151,7 @@ namespace HallowMixer
             }
             foreach (var db in new double[] { 12, 6, 0, -6, -12 })
             {
-                plot.Children.Add(new Line { X1 = 0, X2 = W, Y1 = Y(db), Y2 = Y(db), Stroke = db == 0 ? B("#4A4258") : gridBrush, StrokeThickness = 1 });
+                plot.Children.Add(new Line { X1 = 0, X2 = W, Y1 = Y(db), Y2 = Y(db), Stroke = db == 0 ? Look.Get("PlotZero") : gridBrush, StrokeThickness = 1 });
                 var t = new TextBlock { Text = (db > 0 ? "+" : "") + db, Foreground = lab, FontSize = 10 };
                 Canvas.SetLeft(t, 3); Canvas.SetTop(t, Y(db) - 14); plot.Children.Add(t);
             }
@@ -174,10 +174,10 @@ namespace HallowMixer
                 var b = bands[sel]; b.Q = Math.Round(Math.Max(0.3, Math.Min(10, b.Q * (e.Delta > 0 ? 1.15 : 1 / 1.15))) * 100) / 100;
                 e.Handled = true; Redraw(); Sync(); Fire();
             };
-            Children.Add(new Border { CornerRadius = new CornerRadius(8), Background = B("#1E1926"), Padding = new Thickness(6), Child = plot });
+            Children.Add(new Border { CornerRadius = new CornerRadius(8), Background = Look.Get("Plot"), BorderBrush = Look.Get("CardLine"), BorderThickness = new Thickness(1), Padding = new Thickness(6), Child = plot });
 
             hint = new TextBlock { Text = "Drag a dot: left/right = pitch, up/down = boost or cut. Scroll = narrow/wide. Double-click empty space = new band.",
-                Foreground = B("#8C84A0"), FontSize = 11, Margin = new Thickness(0, 6, 0, 8), TextWrapping = TextWrapping.Wrap };
+                Foreground = Look.Get("Hint"), FontSize = 11, Margin = new Thickness(0, 6, 0, 8), TextWrapping = TextWrapping.Wrap };
             Children.Add(hint);
 
             // the selected band's controls
@@ -198,7 +198,7 @@ namespace HallowMixer
             Func<string, TextBlock, Slider, UIElement> row = (label, val, sl) =>
             {
                 var d = new DockPanel { Margin = new Thickness(0, 2, 0, 2) };
-                var l = new TextBlock { Text = label, Width = 70, Foreground = B("#8C84A0"), VerticalAlignment = VerticalAlignment.Center };
+                var l = new TextBlock { Text = label, Width = 70, Foreground = Look.Get("Hint"), VerticalAlignment = VerticalAlignment.Center };
                 val.Width = 70; val.VerticalAlignment = VerticalAlignment.Center; val.TextAlignment = TextAlignment.Right;
                 DockPanel.SetDock(l, Dock.Left); DockPanel.SetDock(val, Dock.Right);
                 d.Children.Add(l); d.Children.Add(val); d.Children.Add(sl); return d;
@@ -240,13 +240,13 @@ namespace HallowMixer
                 for (int i = 0; i <= 160; i++) { double x = W * i / 160; one.Add(new Point(x, Y(PEq.Db(sb, F(x))))); }
                 dyn.Children.Add(new Polyline { Points = one, Stroke = B(Colors[sel % Colors.Length]), StrokeThickness = 1, Opacity = 0.55, StrokeDashArray = new DoubleCollection { 3, 3 } });
             }
-            dyn.Children.Add(new Polyline { Points = pts, Stroke = Accent.Brush, StrokeThickness = 2.2 });
+            dyn.Children.Add(new Polyline { Points = pts, Stroke = Accent.Ink, StrokeThickness = 2.2 });
             for (int i = 0; i < bands.Count; i++)
             {
                 var b = bands[i]; int idx = i;
                 double y = PEq.HasGain(b) ? Y(b.Gain) : Y(PEq.Response(bands, b.Freq));
                 var dot = new Grid { Width = 18, Height = 18, Cursor = Cursors.SizeAll, ToolTip = PEq.TypeNames[Math.Max(0, Array.IndexOf(PEq.Types, b.Type))] + " " + FText(b.Freq) };
-                dot.Children.Add(new Ellipse { Fill = b.On ? B(Colors[i % Colors.Length]) : B("#4A4258"), Stroke = i == sel ? Brushes.White : B("#1E1926"), StrokeThickness = i == sel ? 2 : 1.5 });
+                dot.Children.Add(new Ellipse { Fill = b.On ? B(Colors[i % Colors.Length]) : Look.Get("PlotZero"), Stroke = i == sel ? Look.Text : Look.Get("Plot"), StrokeThickness = i == sel ? 2 : 1.5 });
                 dot.Children.Add(new TextBlock { Text = (i + 1).ToString(), FontSize = 10, FontWeight = FontWeights.Bold, Foreground = B("#1E1926"), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false });
                 dot.MouseLeftButtonDown += (o, e) =>
                 {

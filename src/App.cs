@@ -22,14 +22,14 @@ using WF = System.Windows.Forms;
 [assembly: AssemblyTitle("Hallow Mixer")]
 [assembly: AssemblyProduct("Hallow Mixer")]
 [assembly: AssemblyDescription("Per-app volume mixer: game, chat, music, media")]
-[assembly: AssemblyVersion("3.24.0.0")]
-[assembly: AssemblyFileVersion("3.24.0.0")]
+[assembly: AssemblyVersion("3.25.0.0")]
+[assembly: AssemblyFileVersion("3.25.0.0")]
 
 namespace HallowMixer
 {
     public static class Program
     {
-        public const string Version = "3.24";
+        public const string Version = "3.25";
         public static List<CliCommand> StartupCommands = new List<CliCommand>();
         public static string HubApp = "Hub";
         public static string DataDir = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "HallowMixer");
@@ -75,6 +75,7 @@ namespace HallowMixer
             Crash.HookUi(app); Accent.Install(app);
             using (var s = Assembly.GetExecutingAssembly().GetManifestResourceStream("HallowMixer.Theme.xaml"))
                 app.Resources.MergedDictionaries.Add((ResourceDictionary)XamlReader.Load(s));
+            Look.Install(app, null);   // v3.25 light / dark (the window adds its own Look setting)
             var w = new MixerWindow(args.Contains("--tray"));
             var t = new Thread(() => { while (showEvent.WaitOne()) w.Dispatcher.BeginInvoke(new Action(w.ShowFromTray)); }) { IsBackground = true };
             t.Start();
@@ -88,6 +89,7 @@ namespace HallowMixer
             Accent.Install(app);
             using (var s = Assembly.GetExecutingAssembly().GetManifestResourceStream("HallowMixer.Theme.xaml"))
                 app.Resources.MergedDictionaries.Add((ResourceDictionary)XamlReader.Load(s));
+            Look.Install(app, null);
             new MixerWindow(true).SnapAll(dir);
         }
     }
@@ -152,7 +154,7 @@ namespace HallowMixer
             var close = new Button { Content = "x", Style = (Style)FindResource("Btn"), Padding = new Thickness(8, 1, 8, 3), ToolTip = "Close the mini mixer" };
             close.Click += (o, e) => { s.MiniOpen = false; s.Save(); Hide(); };
             DockPanel.SetDock(close, Dock.Right); head.Children.Add(close);
-            head.Children.Add(new TextBlock { Text = "HALLOW MIXER", FontWeight = FontWeights.Bold, FontSize = 11, Foreground = Accent.Brush, VerticalAlignment = VerticalAlignment.Center });
+            head.Children.Add(new TextBlock { Text = "HALLOW MIXER", FontWeight = FontWeights.Bold, FontSize = 11, Foreground = Accent.Ink, VerticalAlignment = VerticalAlignment.Center });
             sp.Children.Add(head);
             foreach (var r in rows)
             {
@@ -160,10 +162,10 @@ namespace HallowMixer
                 g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(62) });
                 g.ColumnDefinitions.Add(new ColumnDefinition());
                 g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(38) });
-                var name = new TextBlock { Text = r.Item1, FontSize = 11.5, Foreground = new SolidColorBrush(r.Item2), VerticalAlignment = VerticalAlignment.Center };
+                var name = new TextBlock { Text = r.Item1, FontSize = 11.5, Foreground = Look.Ink(r.Item2), VerticalAlignment = VerticalAlignment.Center };
                 var sl = new Slider { Style = (Style)FindResource("HFader"), Minimum = 0, Maximum = 100, Foreground = new SolidColorBrush(r.Item2), Height = 22 };
                 sl.SetBinding(RangeBase.ValueProperty, new System.Windows.Data.Binding("Value") { Source = r.Item3, Mode = System.Windows.Data.BindingMode.TwoWay });
-                var pct = new TextBlock { FontSize = 11, Foreground = new SolidColorBrush(Color.FromRgb(0x8F, 0x88, 0xA0)), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
+                var pct = new TextBlock { FontSize = 11, Foreground = Look.Muted, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
                 pct.SetBinding(TextBlock.TextProperty, new System.Windows.Data.Binding("Value") { Source = r.Item3, StringFormat = "{0:0}%" });
                 sl.PreviewMouseWheel += (o, e) => { sl.Value = Math.Max(0, Math.Min(100, Math.Round(sl.Value) + (e.Delta > 0 ? 3 : -3))); e.Handled = true; };
                 Grid.SetColumn(sl, 1); Grid.SetColumn(pct, 2);
@@ -172,8 +174,8 @@ namespace HallowMixer
             }
             var bg = new Grid { Margin = new Thickness(0, 8, 0, 0) };
             bg.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(40) }); bg.ColumnDefinitions.Add(new ColumnDefinition()); bg.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(38) });
-            var gl = new TextBlock { Text = "GAME", FontSize = 10, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush(Color.FromRgb(0xF0, 0x78, 0x20)), VerticalAlignment = VerticalAlignment.Center };
-            var cl = new TextBlock { Text = "CHAT", FontSize = 10, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush(Color.FromRgb(0xA9, 0x8B, 0xE0)), VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right };
+            var gl = new TextBlock { Text = "GAME", FontSize = 10, FontWeight = FontWeights.Bold, Foreground = Look.Ink(Color.FromRgb(0xF0, 0x78, 0x20)), VerticalAlignment = VerticalAlignment.Center };
+            var cl = new TextBlock { Text = "CHAT", FontSize = 10, FontWeight = FontWeights.Bold, Foreground = Look.Ink(Color.FromRgb(0xA9, 0x8B, 0xE0)), VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right };
             var bs = new Slider { Style = (Style)FindResource("Balance"), Minimum = -100, Maximum = 100, Height = 22, ToolTip = "Game / chat balance (double-click to centre)" };
             bs.SetBinding(RangeBase.ValueProperty, new System.Windows.Data.Binding("Value") { Source = balance, Mode = System.Windows.Data.BindingMode.TwoWay });
             bs.MouseDoubleClick += (o, e) => { bs.Value = 0; };
@@ -181,7 +183,7 @@ namespace HallowMixer
             bg.Children.Add(gl); bg.Children.Add(bs); bg.Children.Add(cl);
             sp.Children.Add(bg);
             if (extra != null) sp.Children.Add(extra);
-            var shell = new Border { Background = new SolidColorBrush(Color.FromArgb(240, 0x1C, 0x17, 0x24)), BorderBrush = new SolidColorBrush(Color.FromRgb(0x3A, 0x32, 0x48)),
+            var shell = new Border { Background = Look.Get("MiniShell"), BorderBrush = Look.Line,
                 BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(10), Padding = new Thickness(14, 10, 14, 12), Child = sp,
                 ToolTip = null };
             shell.MouseLeftButtonDown += (o, e) => { if (e.OriginalSource is Border || e.OriginalSource is TextBlock || e.OriginalSource is StackPanel) { DragMove(); s.MiniLeft = Left; s.MiniTop = Top; s.Save(); } };
@@ -267,9 +269,10 @@ namespace HallowMixer
         public MixerWindow(bool hidden)
         {
             startHidden = hidden;
+            Look.SetOverride(() => eng.S.LookMode);   // v3.25 light / dark: this app's Look setting, else the Hallow mode
             Accent.Apply(eng.S.UseHallowAccent);   // v3.17 the family accent (before anything is built)
             Title = "Hallow Mixer"; Width = 1010; Height = 690; MinWidth = 900; MinHeight = 600;
-            Background = (Brush)FindResource("Bg"); Foreground = (Brush)FindResource("Text");
+            Background = Look.Bg; Foreground = Look.Text;
             FontFamily = new FontFamily("Segoe UI"); FontSize = 12.5;
             WindowStartupLocation = WindowStartupLocation.CenterScreen;
             try { Icon = BitmapFromIcon(); } catch { }
@@ -378,7 +381,8 @@ namespace HallowMixer
             startNotice.Visibility = sv; micNotice.Visibility = mv; micNoticeText.Text = mt;
             settingsPanel.Visibility = Visibility.Visible;
             Snap.Save(this, System.IO.Path.Combine(dir, "settings.png"), 1010, 900);
-            try { var sv2 = (ScrollViewer)settingsPanel.Child; sv2.ScrollToVerticalOffset(560); Snap.Save(this, System.IO.Path.Combine(dir, "settings2.png"), 1010, 900); sv2.ScrollToVerticalOffset(0); } catch { }
+            try { var sv2 = (ScrollViewer)settingsPanel.Child; sv2.ScrollToVerticalOffset(560); Snap.Save(this, System.IO.Path.Combine(dir, "settings2.png"), 1010, 900);
+                  sv2.ScrollToVerticalOffset(5000); Snap.Save(this, System.IO.Path.Combine(dir, "settings3.png"), 1010, 900); sv2.ScrollToVerticalOffset(0); } catch { }
             settingsPanel.Visibility = Visibility.Collapsed;
             try { var e = new EqWindow(eng.S); Snap.Save(e, System.IO.Path.Combine(dir, "eq.png"), W(e), H(e)); } catch (Exception ex) { File.WriteAllText(System.IO.Path.Combine(dir, "eq.err.txt"), ex.ToString()); }
             try { var cw = new CrashWindow(Crash.Newest() ?? "2026-11-19 20-00-00.txt"); Snap.Save(cw, System.IO.Path.Combine(dir, "crash.png"), W(cw), H(cw)); } catch (Exception ex) { File.WriteAllText(System.IO.Path.Combine(dir, "crash.err.txt"), ex.ToString()); }
@@ -387,6 +391,52 @@ namespace HallowMixer
             try { var aw = new AppsWindow(eng, () => { }); Snap.Save(aw, System.IO.Path.Combine(dir, "apps.png"), W(aw), H(aw)); } catch (Exception ex) { File.WriteAllText(System.IO.Path.Combine(dir, "apps.err.txt"), ex.ToString()); }
             try { var n = new WhatsNewWindow(WhatsNew.Since("3.8")); Snap.Save(n, System.IO.Path.Combine(dir, "whatsnew.png"), W(n), H(n)); } catch (Exception ex) { File.WriteAllText(System.IO.Path.Combine(dir, "whatsnew.err.txt"), ex.ToString()); }
             try { var m = new MiniWindow(eng.S, strips.Values.Select(st => Tuple.Create(st.Id, st.Color, st.Fader)), balance, null); Snap.Save(m, System.IO.Path.Combine(dir, "mini.png"), 330, 0); } catch (Exception ex) { File.WriteAllText(System.IO.Path.Combine(dir, "mini.err.txt"), ex.ToString()); }
+            // v3.25 the other windows too, so both looks can be checked
+            try { var sw = new StreamWindow(eng, obs, q => System.Threading.Tasks.Task.FromResult(0)); var rt = sw.Refresh(); Snap.Save(sw, System.IO.Path.Combine(dir, "stream.png"), W(sw), H(sw)); } catch (Exception ex) { File.WriteAllText(System.IO.Path.Combine(dir, "stream.err.txt"), ex.ToString()); }
+            try { var su = new SetupWindow(eng, (a, b, c) => { }); Snap.Save(su, System.IO.Path.Combine(dir, "setup.png"), W(su), H(su)); } catch (Exception ex) { File.WriteAllText(System.IO.Path.Combine(dir, "setup.err.txt"), ex.ToString()); }
+            // a right-click menu as it looks (menus open in pop-ups, so it's drawn here from the same styles)
+            try
+            {
+                var ms = new StackPanel();
+                Func<string, bool, MenuItem> mi = (h, c) => { var x = new MenuItem { Header = h, IsChecked = c }; ms.Children.Add(x); return x; };
+                mi("Move to", false).Items.Add(new MenuItem { Header = "Game" }); mi("Play on", false).Items.Add(new MenuItem { Header = "x" });
+                ms.Children.Add(new Separator { Style = (Style)FindResource(MenuItem.SeparatorStyleKey) });
+                mi("Where I left it", true); mi("Always at 50%", false); mi("Back to automatic", false).IsEnabled = false;
+                var mw = new Window { Background = Look.Bg, Foreground = Look.Text, FontFamily = FontFamily, FontSize = 12,
+                    Content = new Border { Margin = new Thickness(16), Background = Look.Field, BorderBrush = Look.Line, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(4), Child = ms, HorizontalAlignment = HorizontalAlignment.Left } };
+                Snap.Save(mw, System.IO.Path.Combine(dir, "menu.png"), 240, 0);
+            }
+            catch (Exception ex) { File.WriteAllText(System.IO.Path.Combine(dir, "menu.err.txt"), ex.ToString()); }
+            // live switch test (developer only: --theme-file + HALLOW_SNAP_LIVE=1): rewrite the test theme.json to the other mode
+            // while the normal theme.json watcher runs, wait for it, and snap again - nothing is rebuilt, the open windows recolour.
+            if (Accent.OverrideFile != null && Environment.GetEnvironmentVariable("HALLOW_SNAP_LIVE") == "1")
+            {
+                var log = new System.Text.StringBuilder();
+                try
+                {
+                    var before = Look.Mode; var want = Look.IsLight ? "dark" : "light";
+                    var mini2 = new MiniWindow(eng.S, strips.Values.Select(st => Tuple.Create(st.Id, st.Color, st.Fader)), balance, null);
+                    Accent.Watch(Dispatcher, () => eng.S.UseHallowAccent);
+                    var old = File.Exists(Accent.OverrideFile) ? File.ReadAllText(Accent.OverrideFile) : "{}";
+                    var json = System.Text.RegularExpressions.Regex.IsMatch(old, "\"mode\"\\s*:") ? System.Text.RegularExpressions.Regex.Replace(old, "\"mode\"\\s*:\\s*\"[^\"]*\"", "\"mode\":\"" + want + "\"")
+                                                                                                  : old.TrimEnd().TrimEnd('}') + (old.Contains(":") ? "," : "") + "\"mode\":\"" + want + "\"}";
+                    var tmp = Accent.OverrideFile + ".tmp"; File.WriteAllText(tmp, json); File.Copy(tmp, Accent.OverrideFile, true); File.Delete(tmp);
+                    var t0 = DateTime.Now;
+                    while (Look.Mode != want && (DateTime.Now - t0).TotalSeconds < 12)
+                    {
+                        var frame = new DispatcherFrame();
+                        var tm = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) }; tm.Tick += (s, e) => { tm.Stop(); frame.Continue = false; }; tm.Start();
+                        Dispatcher.PushFrame(frame);
+                    }
+                    log.AppendLine("before " + before + ", wanted " + want + ", now " + Look.Mode + " after " + (int)(DateTime.Now - t0).TotalMilliseconds + " ms");
+                    Snap.Save(this, System.IO.Path.Combine(dir, "live-main.png"), 974, 733);
+                    settingsPanel.Visibility = Visibility.Visible; Snap.Save(this, System.IO.Path.Combine(dir, "live-settings.png"), 1010, 900); settingsPanel.Visibility = Visibility.Collapsed;
+                    Snap.Save(mini2, System.IO.Path.Combine(dir, "live-mini.png"), 330, 0);
+                    File.WriteAllText(Accent.OverrideFile, old);
+                }
+                catch (Exception ex) { log.AppendLine(ex.ToString()); }
+                File.WriteAllText(System.IO.Path.Combine(dir, "live.txt"), log.ToString());
+            }
             try { tray.Dispose(); } catch { }
         }
 
@@ -414,8 +464,8 @@ namespace HallowMixer
             head.ColumnDefinitions[4].MaxWidth = 230; head.ColumnDefinitions[4].MinWidth = 100;
             var title = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
             try { title.Children.Add(new Image { Source = BitmapFromIcon(), Width = 30, Height = 30, Margin = new Thickness(0, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center }); } catch { }
-            title.Children.Add(new TextBlock { Text = "HALLOW", FontSize = 22, FontWeight = FontWeights.Bold, Foreground = Accent.Brush, VerticalAlignment = VerticalAlignment.Center });
-            title.Children.Add(new TextBlock { Text = " MIXER", FontSize = 22, FontWeight = FontWeights.Light, Foreground = B("#ECE8F4"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 18, 0) });
+            title.Children.Add(new TextBlock { Text = "HALLOW", FontSize = 22, FontWeight = FontWeights.Bold, Foreground = Accent.Ink, VerticalAlignment = VerticalAlignment.Center });
+            title.Children.Add(new TextBlock { Text = " MIXER", FontSize = 22, FontWeight = FontWeights.Light, Foreground = Look.Text, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 18, 0) });
             head.Children.Add(title);
             var mp = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
             var gear = gearBtn = new ToggleButton { Content = "Settings", Tag = "icon", Width = 36, Height = 30, Padding = new Thickness(0), ToolTip = "Settings", Style = (Style)FindResource("Btn"), Margin = new Thickness(0, 0, 18, 0) };
@@ -448,7 +498,7 @@ namespace HallowMixer
             appsBtn.Click += (s, e) => OpenApps();
             mp.Children.Add(appsBtn);
             mp.Children.Add(gear);
-            var phones = new Viewbox { Width = 16, Height = 16, Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center, Child = Icons.Make("headphones", 16, (Brush)FindResource("Muted")), ToolTip = "Output" };
+            var phones = new Viewbox { Width = 16, Height = 16, Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center, Child = Icons.Make("headphones", 16, Look.Muted), ToolTip = "Output" };
             Grid.SetColumn(phones, 3); head.Children.Add(phones);
             outputPick = new ComboBox { Style = (Style)FindResource("Combo"), ToolTip = "Windows' default output - where apps play unless a channel sends them somewhere else" };
             outputPick.DropDownOpened += (s, e) => FillDevices(outputPick, 0, null, false);
@@ -456,7 +506,7 @@ namespace HallowMixer
             Grid.SetColumn(outputPick, 4); head.Children.Add(outputPick);
             masterMeter = new Rectangle { Width = 0, Height = 4, Fill = Accent.Brush, HorizontalAlignment = HorizontalAlignment.Left, RadiusX = 2, RadiusY = 2 };
             var ms = new Grid { Width = 130, Margin = new Thickness(14, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center };
-            master = new Slider { Style = (Style)FindResource("HFader"), Minimum = 0, Maximum = 100, Foreground = B("#ECE8F4"), VerticalAlignment = VerticalAlignment.Center, ToolTip = "Master volume" };
+            master = new Slider { Style = (Style)FindResource("HFader"), Minimum = 0, Maximum = 100, Foreground = Look.Text, VerticalAlignment = VerticalAlignment.Center, ToolTip = "Master volume" };
             master.ValueChanged += (s, e) => { if (!loading) { var id = CoreAudio.DefaultId(0); if (id != null) CoreAudio.SetLevel(id, (float)(master.Value / 100)); } };
             ms.Children.Add(master);
             var mm = new Border { Height = 4, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, -6), Child = masterMeter };
@@ -476,18 +526,18 @@ namespace HallowMixer
             Grid.SetRow(row, 1); root.Children.Add(row);
 
             // ---- game / chat balance + presets
-            var bar = new Border { Background = (Brush)FindResource("Panel"), CornerRadius = new CornerRadius(12), Padding = new Thickness(16, 7, 10, 7), Margin = new Thickness(5, 10, 5, 0),
-                BorderBrush = B("#2C2538"), BorderThickness = new Thickness(1) };
+            var bar = new Border { Background = Look.Panel, CornerRadius = new CornerRadius(12), Padding = new Thickness(16, 7, 10, 7), Margin = new Thickness(5, 10, 5, 0),
+                BorderBrush = Look.Get("BarLine"), BorderThickness = new Thickness(1) };
             var bg = new DockPanel();
             var bl = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-            bl.Children.Add(new TextBlock { Text = "GAME", FontWeight = FontWeights.Bold, Foreground = B("#F07820"), VerticalAlignment = VerticalAlignment.Center });
+            bl.Children.Add(new TextBlock { Text = "GAME", FontWeight = FontWeights.Bold, Foreground = Look.Ink(Colors["game"]), VerticalAlignment = VerticalAlignment.Center });
             balance = new Slider { Style = (Style)FindResource("Balance"), Minimum = -100, Maximum = 100, Width = 240, Margin = new Thickness(12, 0, 12, 0), VerticalAlignment = VerticalAlignment.Center,
                 ToolTip = "Game / chat balance. Drag toward CHAT to turn the game down while you talk. Ctrl+Alt+PageUp / PageDown. Double-click to centre." };
             balance.ValueChanged += (s, e) => { if (loading) return; eng.S.ChatMix = (int)Math.Round(balance.Value); eng.Apply(); eng.NoteLevelsChanged(); dirty = true; UpdateBalanceText(); };
             balance.MouseDoubleClick += (s, e) => { balance.Value = 0; };
             bl.Children.Add(balance);
-            bl.Children.Add(new TextBlock { Text = "CHAT", FontWeight = FontWeights.Bold, Foreground = B("#A98BE0"), VerticalAlignment = VerticalAlignment.Center });
-            balanceText = new TextBlock { Foreground = (Brush)FindResource("Muted"), Margin = new Thickness(14, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, Width = 110 };
+            bl.Children.Add(new TextBlock { Text = "CHAT", FontWeight = FontWeights.Bold, Foreground = Look.Ink(Colors["chat"]), VerticalAlignment = VerticalAlignment.Center });
+            balanceText = new TextBlock { Foreground = Look.Muted, Margin = new Thickness(14, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, Width = 110 };
             bl.Children.Add(balanceText);
             DockPanel.SetDock(bl, Dock.Left); bg.Children.Add(bl);
             presetBar = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
@@ -497,9 +547,9 @@ namespace HallowMixer
             Grid.SetRow(bar, 2); root.Children.Add(bar);
 
             // ---- status line
-            status = new TextBlock { Foreground = (Brush)FindResource("Muted"), FontSize = 11.5, Margin = new Thickness(8, 8, 6, 0), TextTrimming = TextTrimming.CharacterEllipsis };
+            status = new TextBlock { Foreground = Look.Muted, FontSize = 11.5, Margin = new Thickness(8, 8, 6, 0), TextTrimming = TextTrimming.CharacterEllipsis };
             status.SetBinding(FrameworkElement.ToolTipProperty, new System.Windows.Data.Binding("Text") { Source = status });
-            loudText = new TextBlock { Foreground = (Brush)FindResource("Muted"), FontSize = 11.5, Margin = new Thickness(12, 8, 6, 0) };   // v3.21 loudness meter
+            loudText = new TextBlock { Foreground = Look.Muted, FontSize = 11.5, Margin = new Thickness(12, 8, 6, 0) };   // v3.21 loudness meter
             var srow = new DockPanel(); DockPanel.SetDock(loudText, Dock.Right); srow.Children.Add(loudText); srow.Children.Add(status);
             Grid.SetRow(srow, 4); root.Children.Add(srow);
             // v3.23 now playing sits in its channel's column (NowCard), no separate bar
@@ -516,13 +566,12 @@ namespace HallowMixer
         Border startNotice, micNotice; TextBlock micNoticeText; bool mutedHere;
         Border Notice(string icon, string hex, TextBlock text, params Button[] buttons)
         {
-            var col = C(hex); var panel = C("#211B2A");
-            Func<double, Color> mix = a => Color.FromRgb((byte)(panel.R + (col.R - panel.R) * a), (byte)(panel.G + (col.G - panel.G) * a), (byte)(panel.B + (col.B - panel.B) * a));
-            // v3.23 one slim line: the whole message is in the tooltip when it doesn't fit
-            var b = new Border { Background = B(mix(0.12)), BorderBrush = B(mix(0.45)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(9),
+            var col = C(hex);
+            // v3.23 one slim line: the whole message is in the tooltip when it doesn't fit (v3.25 tints follow light / dark)
+            var b = new Border { Background = Look.Tint(col, 0.12), BorderBrush = Look.Tint(col, 0.45), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(9),
                 Padding = new Thickness(10, 3, 4, 3), Margin = new Thickness(5, 0, 5, 8), Visibility = Visibility.Collapsed };
             var dp = new DockPanel();
-            var ic = Icons.Make(icon, 13, B(col)); ic.Margin = new Thickness(1, 0, 10, 0); ic.VerticalAlignment = VerticalAlignment.Center;
+            var ic = Icons.Make(icon, 13, Look.Ink(col)); ic.Margin = new Thickness(1, 0, 10, 0); ic.VerticalAlignment = VerticalAlignment.Center;
             DockPanel.SetDock(ic, Dock.Left); dp.Children.Add(ic);
             var bp = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) };
             foreach (var x in buttons) { x.Margin = new Thickness(4, 0, 0, 0); x.Padding = new Thickness(10, 2, 10, 2); x.Height = 24; x.FontSize = 11.5; bp.Children.Add(x); }
@@ -591,16 +640,16 @@ namespace HallowMixer
         Border settingsPanel; ToggleButton gearBtn;
         Border BuildSettings()
         {
-            var b = new Border { Background = B("#241E2E"), BorderBrush = B("#3A3248"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(14),
+            var b = new Border { Background = Look.Field, BorderBrush = Look.Line, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(14),
                 Padding = new Thickness(18, 14, 18, 14), Width = 440, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top,
                 Margin = new Thickness(0, 58, 18, 18), Visibility = Visibility.Collapsed };
-            b.Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 24, Opacity = 0.5, ShadowDepth = 4 };
+            b.Effect = Look.Live(new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 24, ShadowDepth = 4 }, x => x.Opacity = Look.IsLight ? 0.16 : 0.5);   // v3.25 softer in light mode
             var sp = new StackPanel();
             var sh = new DockPanel { Margin = new Thickness(0, 0, 0, 12) };
             var shClose = new Button { Content = "x", Tag = "icon", Style = (Style)FindResource("Btn"), Width = 30, Height = 28, Padding = new Thickness(0), ToolTip = "Close settings" };
             shClose.Click += (s, e) => { if (gearBtn != null) gearBtn.IsChecked = false; else b.Visibility = Visibility.Collapsed; };
             DockPanel.SetDock(shClose, Dock.Right); sh.Children.Add(shClose);
-            var shIcon = Icons.Make("gear", 16, Accent.Brush); shIcon.Margin = new Thickness(0, 0, 10, 0); shIcon.VerticalAlignment = VerticalAlignment.Center;
+            var shIcon = Icons.Make("gear", 16, Accent.Ink); shIcon.Margin = new Thickness(0, 0, 10, 0); shIcon.VerticalAlignment = VerticalAlignment.Center;
             DockPanel.SetDock(shIcon, Dock.Left); sh.Children.Add(shIcon);
             sh.Children.Add(new TextBlock { Text = "Settings", FontWeight = FontWeights.Bold, FontSize = 16, VerticalAlignment = VerticalAlignment.Center });
             sp.Children.Add(sh);
@@ -633,7 +682,7 @@ namespace HallowMixer
             sw("Turn game, music and media down when someone talks in Chat", eng.S.DuckOnChat, v => eng.S.DuckOnChat = v);
             sw("Turn music and media down when I talk", eng.S.DuckOnMic, v => eng.S.DuckOnMic = v);
             var dr = new DockPanel { Margin = new Thickness(52, 2, 0, 8) };
-            var dl = new TextBlock { Width = 110, Foreground = (Brush)FindResource("Muted"), VerticalAlignment = VerticalAlignment.Center };
+            var dl = new TextBlock { Width = 110, Foreground = Look.Muted, VerticalAlignment = VerticalAlignment.Center };
             var ds = new Slider { Style = (Style)FindResource("HFader"), Minimum = 10, Maximum = 90, Value = eng.S.DuckAmount, Foreground = Accent.Brush, VerticalAlignment = VerticalAlignment.Center };
             Action dtext = () => { dl.Text = "Turn down by " + eng.S.DuckAmount + "%"; };
             ds.ValueChanged += (s, e) => { eng.S.DuckAmount = (int)Math.Round(ds.Value / 5) * 5; dtext(); dirty = true; };
@@ -695,7 +744,7 @@ namespace HallowMixer
             mode.SelectedIndex = eng.S.MicMode == "ptt" ? 1 : eng.S.MicMode == "ptm" ? 2 : 0;
             mode.SelectionChanged += (s, e) => { eng.S.MicMode = mode.SelectedIndex == 1 ? "ptt" : mode.SelectedIndex == 2 ? "ptm" : "off"; eng.S.Save();
                 Status(mode.SelectedIndex == 1 ? "Push to talk: your mic is muted until you hold " + KeyName(eng.S.PttKey) + "." : mode.SelectedIndex == 2 ? "Push to mute: hold " + KeyName(eng.S.PttKey) + " to mute your mic." : "Mic always on."); };
-            pttKeyText = new TextBlock { Text = KeyName(eng.S.PttKey), Foreground = (Brush)FindResource("Muted"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 8, 0), TextTrimming = TextTrimming.CharacterEllipsis };
+            pttKeyText = new TextBlock { Text = KeyName(eng.S.PttKey), Foreground = Look.Muted, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 8, 0), TextTrimming = TextTrimming.CharacterEllipsis };
             pttKeyBtn = new Button { Content = "Change", Style = (Style)FindResource("Btn"), ToolTip = "Then press the key or mouse button you want (Esc = cancel)" };
             pttKeyBtn.Click += (s, e) => { captureKey = 0; pttKeyBtn.Content = "Press a key..."; Dispatcher.BeginInvoke(new Action(() => { captureKey = 1; }), DispatcherPriority.Background); };
             DockPanel.SetDock(pml, Dock.Left); DockPanel.SetDock(mode, Dock.Left); DockPanel.SetDock(pttKeyBtn, Dock.Right);
@@ -705,14 +754,14 @@ namespace HallowMixer
             // v3.18 sidetone
             sw("Sidetone: hear your own mic in your headset", eng.S.SidetoneOn, v => { eng.S.SidetoneOn = v; UpdateSidetone(true); });
             var str = new DockPanel { Margin = new Thickness(52, 2, 0, 2) };
-            var stl = new TextBlock { Width = 80, Foreground = (Brush)FindResource("Muted"), VerticalAlignment = VerticalAlignment.Center };
+            var stl = new TextBlock { Width = 80, Foreground = Look.Muted, VerticalAlignment = VerticalAlignment.Center };
             var sts = new Slider { Style = (Style)FindResource("HFader"), Minimum = 0, Maximum = 100, Value = eng.S.SidetoneLevel, Foreground = Accent.Brush, VerticalAlignment = VerticalAlignment.Center, ToolTip = "How loud you hear yourself" };
             System.Windows.Automation.AutomationProperties.SetName(sts, "Sidetone level");
             Action sttext = () => { stl.Text = "Level " + eng.S.SidetoneLevel + "%"; };
             sts.ValueChanged += (s, e) => { eng.S.SidetoneLevel = (int)Math.Round(sts.Value); sttext(); side.Gain = Sidetone.Curve(eng.S.SidetoneLevel); dirty = true; };
             sttext(); DockPanel.SetDock(stl, Dock.Left); str.Children.Add(stl); str.Children.Add(sts); sp.Children.Add(str);
             var smr = new DockPanel { Margin = new Thickness(52, 2, 0, 2) };
-            var sml = new TextBlock { Text = "Mic", Width = 80, Foreground = (Brush)FindResource("Muted"), VerticalAlignment = VerticalAlignment.Center };
+            var sml = new TextBlock { Text = "Mic", Width = 80, Foreground = Look.Muted, VerticalAlignment = VerticalAlignment.Center };
             var smb = new ComboBox { Style = (Style)FindResource("Combo") };
             System.Windows.Automation.AutomationProperties.SetName(smb, "Sidetone mic");
             Action fillSm = () =>
@@ -725,12 +774,12 @@ namespace HallowMixer
             smb.SelectionChanged += (s, e) => { if (loading) return; var d = smb.SelectedItem as AudioDevice; if (d == null) return; eng.S.SidetoneMic = d.Id; eng.S.Save(); UpdateSidetone(true); };
             DockPanel.SetDock(sml, Dock.Left); smr.Children.Add(sml); smr.Children.Add(smb); sp.Children.Add(smr);
             sp.Children.Add(new TextBlock { Text = "Plays on your headset (Windows' default output), about 25 ms behind. It's your mic as it comes in - Hallow Mixer's mic EQ and mic chain aren't in what you hear. Silent while your mic is muted or push-to-talk is up.",
-                Foreground = (Brush)FindResource("Muted"), FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(52, 2, 0, 8) });
+                Foreground = Look.Muted, FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(52, 2, 0, 8) });
             sw("Quiet hours: cap the volume and turn Windows sounds down at night", eng.S.QuietOn, v => { eng.S.QuietOn = v; TickQuiet(); });
             var qr = new WrapPanel { Margin = new Thickness(52, 0, 0, 8) };
             Func<string, IEnumerable<string>, int, Action<int>, ComboBox> qc = (label, items, sel, set) =>
             {
-                qr.Children.Add(new TextBlock { Text = label, Foreground = (Brush)FindResource("Muted"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0) });
+                qr.Children.Add(new TextBlock { Text = label, Foreground = Look.Muted, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0) });
                 var c = new ComboBox { Style = (Style)FindResource("Combo"), Width = 72, Margin = new Thickness(0, 0, 10, 0), ItemsSource = items.ToList(), SelectedIndex = sel };
                 System.Windows.Automation.AutomationProperties.SetName(c, "Quiet hours " + label);
                 c.SelectionChanged += (s, e) => { if (c.SelectedIndex >= 0) { set(c.SelectedIndex); eng.S.Save(); TickQuiet(); } };
@@ -771,6 +820,18 @@ namespace HallowMixer
             sw("Check for updates when Hallow Mixer starts (asks before installing)", eng.S.AutoUpdate, v => eng.S.AutoUpdate = v);
             sw("Let Hallow Toolkit and its phone dashboard control the mixer (this PC only)", eng.S.ApiOn, v => { eng.S.ApiOn = v; if (v) StartApi(); else StopApi(); });
             sw("Use the Hallow accent: Hallow Mixer's buttons and highlights take the colour picked in Hallow Toolkit (channel colours stay)", eng.S.UseHallowAccent, v => { eng.S.UseHallowAccent = v; Accent.Apply(v); });
+            // v3.25 Look: Follow Hallow (Hallow Toolkit's light / dark / same as Windows) or this app's own choice
+            var lk = new DockPanel { Margin = new Thickness(0, 6, 0, 6) };
+            var lkl = new TextBlock { Text = "Look", Width = 52, VerticalAlignment = VerticalAlignment.Center };
+            var lkBox = new ComboBox { Style = (Style)FindResource("Combo"), Width = 150, ItemsSource = new[] { "Follow Hallow", "Light", "Dark" },
+                ToolTip = "Follow Hallow uses the light / dark choice in Hallow Toolkit (or Windows' own setting if it says Same as Windows)" };
+            System.Windows.Automation.AutomationProperties.SetName(lkBox, "Look");
+            var lkNow = Look.Norm(eng.S.LookMode); lkBox.SelectedIndex = lkNow == "light" ? 1 : lkNow == "dark" ? 2 : 0;
+            lkBox.SelectionChanged += (s, e) => { eng.S.LookMode = lkBox.SelectedIndex == 1 ? "light" : lkBox.SelectedIndex == 2 ? "dark" : "hallow"; eng.S.Save(); Look.Update(); };
+            var lkNote = new TextBlock { Foreground = Look.Muted, FontSize = 11, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis };
+            Look.Live(lkNote, t => t.Text = "now " + Look.Mode);
+            DockPanel.SetDock(lkl, Dock.Left); DockPanel.SetDock(lkBox, Dock.Left);
+            lk.Children.Add(lkl); lk.Children.Add(lkBox); lk.Children.Add(lkNote); sp.Children.Add(lk);
             sw("Use the Hallow icon: while Hallow Hub shows one tray icon for every Hallow app, Hallow Mixer's own icon hides (its menu is in Hub's)", eng.S.UseHallowIcon, v => { eng.S.UseHallowIcon = v; ThreadPool.QueueUserWorkItem(o => CheckHub()); });
             var ur = new WrapPanel { Margin = new Thickness(0, 4, 0, 0) };
             var checkNow = new Button { Content = "Check for updates now", Style = (Style)FindResource("Btn"), Margin = new Thickness(0, 0, 8, 6) };
@@ -793,13 +854,13 @@ namespace HallowMixer
             };
             ur.Children.Add(checkNow); ur.Children.Add(exp); ur.Children.Add(imp);
             sp.Children.Add(ur);
-            sp.Children.Add(new TextBlock { Text = "Hallow Mixer v" + Program.Version, Foreground = (Brush)FindResource("Muted"), FontSize = 11, Margin = new Thickness(0, 12, 0, 0) });
+            sp.Children.Add(new TextBlock { Text = "Hallow Mixer v" + Program.Version, Foreground = Look.Muted, FontSize = 11, Margin = new Thickness(0, 12, 0, 0) });
             b.Child = new ScrollViewer { Content = sp, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
             return b;
         }
 
         static TextBlock Label(string t, double left, double right)
-        { return new TextBlock { Text = t, Foreground = new SolidColorBrush(C("#8F88A0")), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(left, 0, right, 0) }; }
+        { return new TextBlock { Text = t, Foreground = Look.Muted, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(left, 0, right, 0) }; }
 
         // v3.23 column layout (top to bottom): header, fader + meter (grows, but only up to a point), % + mute + output,
         // channel tools (icon buttons), then the app list, which always keeps room for about three apps.
@@ -807,12 +868,13 @@ namespace HallowMixer
         Border StripShell(Strip st, string name)
         {
             // card: a soft glow of the channel colour fading down from the top, thin coloured outline
-            var panel = C("#211B2A");
-            Func<double, Color> mix = a => Color.FromRgb((byte)(panel.R + (st.Color.R - panel.R) * a), (byte)(panel.G + (st.Color.G - panel.G) * a), (byte)(panel.B + (st.Color.B - panel.B) * a));
+            // v3.25 light mode: no glow, a flat white card with a slightly stronger coloured outline
+            var sc = st.Color;
             var glow = new LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(0, 1) };
-            glow.GradientStops.Add(new GradientStop(mix(0.15), 0)); glow.GradientStops.Add(new GradientStop(panel, 0.28));
+            glow.GradientStops.Add(new GradientStop()); glow.GradientStops.Add(new GradientStop { Offset = 0.28 });
+            Look.Live(glow, x => { x.GradientStops[0].Color = Look.IsLight ? Look.Col("Panel") : Look.Mix(sc, 0.15); x.GradientStops[1].Color = Look.Col("Panel"); });
             var shell = new Border { Background = glow, CornerRadius = new CornerRadius(14), Margin = new Thickness(4, 0, 4, 0), Padding = new Thickness(10, 10, 10, 10),
-                BorderBrush = new SolidColorBrush(mix(0.28)), BorderThickness = new Thickness(1), ClipToBounds = true };
+                BorderBrush = Look.Live(new SolidColorBrush(), x => x.Color = Look.Mix(sc, Look.IsLight ? 0.4 : 0.28)), BorderThickness = new Thickness(1), ClipToBounds = true };
             var g = st.Body = new Grid();
             g.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });                                                       // header
             g.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star), MinHeight = FaderMin, MaxHeight = FaderMax });   // fader
@@ -821,11 +883,11 @@ namespace HallowMixer
             var hdr = new DockPanel { Margin = new Thickness(0, 0, 0, 2) };
             string icon; if (!StripIcons.TryGetValue(st.Id, out icon)) icon = "sliders";
             var chip = new Border { Width = 30, Height = 30, CornerRadius = new CornerRadius(9), Margin = new Thickness(0, 0, 9, 0), VerticalAlignment = VerticalAlignment.Center,
-                Background = new SolidColorBrush(mix(0.24)), Child = Icons.Make(icon, 14, B(st.Color)) };
+                Background = Look.Tint(sc, 0.24), Child = Icons.Make(icon, 14, Look.Ink(sc)) };
             DockPanel.SetDock(chip, Dock.Left); hdr.Children.Add(chip);
             var names = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
             names.Children.Add(new TextBlock { Text = name, FontWeight = FontWeights.Bold, FontSize = 13.5, TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = name });
-            st.Sub = new TextBlock { Foreground = (Brush)FindResource("Muted"), FontSize = 10.5, TextTrimming = TextTrimming.CharacterEllipsis };
+            st.Sub = new TextBlock { Foreground = Look.Muted, FontSize = 10.5, TextTrimming = TextTrimming.CharacterEllipsis };
             st.Sub.SetBinding(FrameworkElement.ToolTipProperty, new System.Windows.Data.Binding("Text") { Source = st.Sub });
             names.Children.Add(st.Sub);
             hdr.Children.Add(names);
@@ -844,7 +906,7 @@ namespace HallowMixer
             g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(6) });
             st.Fader = new Slider { Style = (Style)FindResource("VFader"), Foreground = B(st.Color), ToolTip = tip };
             Grid.SetColumn(st.Fader, 1); g.Children.Add(st.Fader);
-            var track = new Border { Background = B("#2A2333"), CornerRadius = new CornerRadius(3), Margin = new Thickness(0, 9, 0, 9) };
+            var track = new Border { Background = Look.Get("MeterBack"), CornerRadius = new CornerRadius(3), Margin = new Thickness(0, 9, 0, 9) };
             st.MeterScale = new ScaleTransform(1, 0);
             st.Meter = new Rectangle { Fill = B(st.Color), RadiusX = 3, RadiusY = 3, Opacity = 0.85, RenderTransformOrigin = new Point(0.5, 1), RenderTransform = st.MeterScale };
             track.Child = st.Meter;
@@ -921,7 +983,7 @@ namespace HallowMixer
             list.Children.Add(st.Now);
             st.AppList = new StackPanel();
             list.Children.Add(st.AppList);
-            st.Empty = new TextBlock { Text = "Nothing playing here", Foreground = (Brush)FindResource("Muted"), FontSize = 11, Opacity = 0.7, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 10, 0, 0),
+            st.Empty = new TextBlock { Text = "Nothing playing here", Foreground = Look.Muted, FontSize = 11, Opacity = 0.7, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 10, 0, 0),
                 TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center, ToolTip = "Apps show up here while they make sound. Right-click an app in another channel to move it here." };
             list.Children.Add(st.Empty);
             g.Children.Add(ListScroller(list));
@@ -1061,22 +1123,21 @@ namespace HallowMixer
             var src = a.ExePath != null && File.Exists(a.ExePath) ? AppIcon(a.ExePath) : null;
             if (src != null) return new Image { Width = 16, Height = 16, Source = src };
             string ic = a.Key == "system" ? "volume-high" : a.Key.StartsWith("discord") ? "discord" : StripIcons.ContainsKey(st.Id) ? StripIcons[st.Id] : "sliders";
-            var panel = C("#211B2A"); var c = st.Color;
-            var bg = Color.FromRgb((byte)(panel.R + (c.R - panel.R) * 0.3), (byte)(panel.G + (c.G - panel.G) * 0.3), (byte)(panel.B + (c.B - panel.B) * 0.3));
-            return new Border { Width = 16, Height = 16, CornerRadius = new CornerRadius(4), Background = B(bg), Child = Icons.Make(ic, 9, B(c)) };
+            var c = st.Color;
+            return new Border { Width = 16, Height = 16, CornerRadius = new CornerRadius(4), Background = Look.Tint(c, 0.3), Child = Icons.Make(ic, 9, Look.Ink(c)) };
         }
 
         // v3.23 one compact card per app: icon (click = mute), name, its level, and a thin slider
         UIElement AppRow(MixApp a, Strip st)
         {
             var p = new Border { Margin = new Thickness(0, 0, 0, 4), Padding = new Thickness(7, 5, 7, 3), CornerRadius = new CornerRadius(8),
-                Background = B("#271F31"), BorderBrush = B("#30283C"), BorderThickness = new Thickness(1) };
-            p.MouseEnter += (o, e) => p.Background = B("#2E2539"); p.MouseLeave += (o, e) => p.Background = B("#271F31");
+                Background = Look.Get("Card"), BorderBrush = Look.Get("CardLine"), BorderThickness = new Thickness(1) };
+            p.MouseEnter += (o, e) => p.Background = Look.Get("CardHi"); p.MouseLeave += (o, e) => p.Background = Look.Get("Card");
             var col = new StackPanel();
             var line = new DockPanel();
             var icon = AppIconView(a, st); icon.Margin = new Thickness(0, 0, 7, 0); icon.Cursor = Cursors.Hand; icon.VerticalAlignment = VerticalAlignment.Center;
             icon.ToolTip = "Click to mute / unmute just " + a.Name;
-            var pct = new TextBlock { FontSize = 10.5, Foreground = (Brush)FindResource("Muted"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0) };
+            var pct = new TextBlock { FontSize = 10.5, Foreground = Look.Muted, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0) };
             var name = new TextBlock { Text = a.Name + (eng.S.BgLevel.ContainsKey(a.Key) ? (eng.InBackground(a.Key) ? "  (in background)" : "") : ""), FontSize = 11.5, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center,
                 ToolTip = a.Name + "\n" + (a.ExePath ?? a.Key) + (a.AutoChannel ? "" : "\n(you put this here)") + "\nRight-click for more" };
             var s = new Slider { Style = (Style)FindResource("MiniFader"), Minimum = 0, Maximum = 100, Height = 14,
@@ -1086,7 +1147,7 @@ namespace HallowMixer
                 var m = eng.AppMuted(a.Key);
                 icon.Opacity = m ? 0.35 : 1; name.Opacity = m ? 0.5 : 1; name.TextDecorations = m ? TextDecorations.Strikethrough : null;
                 pct.Text = m ? "muted" : (int)Math.Round(s.Value) + "%";
-                s.Foreground = m ? B("#5A5168") : B(Color.FromArgb(200, st.Color.R, st.Color.G, st.Color.B)); s.Opacity = m ? 0.6 : 1;
+                s.Foreground = m ? (Brush)Look.Get("Dim") : B(Color.FromArgb(200, st.Color.R, st.Color.G, st.Color.B)); s.Opacity = m ? 0.6 : 1;
             };
             icon.MouseLeftButtonUp += (o, e) => { eng.ToggleAppMute(a); look(); Status(a.Name + (eng.AppMuted(a.Key) ? " muted." : " unmuted.")); };
             DockPanel.SetDock(icon, Dock.Left); line.Children.Add(icon);
@@ -1423,10 +1484,10 @@ namespace HallowMixer
         public static string AskIn(Window owner, string title, string question, string value)
         {
             var w = new Window { Title = title, Owner = owner, Width = 360, SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.NoResize,
-                WindowStartupLocation = WindowStartupLocation.CenterOwner, Background = (Brush)owner.FindResource("Bg"), Foreground = (Brush)owner.FindResource("Text"), FontFamily = owner.FontFamily };
+                WindowStartupLocation = WindowStartupLocation.CenterOwner, Background = Look.Bg, Foreground = Look.Text, FontFamily = owner.FontFamily };
             var sp = new StackPanel { Margin = new Thickness(18) };
             sp.Children.Add(new TextBlock { Text = question, Margin = new Thickness(0, 0, 0, 8), TextWrapping = TextWrapping.Wrap });
-            var box = new TextBox { Text = value, Background = (Brush)owner.FindResource("PanelHi"), Foreground = (Brush)owner.FindResource("Text"), BorderBrush = (Brush)owner.FindResource("Line"), Padding = new Thickness(6, 4, 6, 4), CaretBrush = Brushes.White };
+            var box = new TextBox { Text = value, Background = Look.PanelHi, Foreground = Look.Text, BorderBrush = Look.Line, Padding = new Thickness(6, 4, 6, 4), CaretBrush = Look.Text };
             sp.Children.Add(box);
             var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 12, 0, 0) };
             var ok = new Button { Content = "OK", Style = (Style)owner.FindResource("Accent"), IsDefault = true, MinWidth = 70, Margin = new Thickness(0, 0, 8, 0) };
@@ -2050,7 +2111,7 @@ namespace HallowMixer
         void OnHandle()
         {
             var h = new WindowInteropHelper(this).Handle;
-            int dark = 1; DwmSetWindowAttribute(h, 20, ref dark, 4);
+            Look.TitleBar(h);   // v3.25 dark or light title bar, as the app looks
             HwndSource.FromHwnd(h).AddHook(WndProc);
             var bad = new List<string>();
             if (!RegisterHotKey(h, 1, 0x4003, 0x21)) bad.Add("Ctrl+Alt+PageUp");   // MOD_ALT|MOD_CONTROL|MOD_NOREPEAT

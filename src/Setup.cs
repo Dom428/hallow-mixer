@@ -148,7 +148,7 @@ namespace HallowMixer
         {
             eng = engine; done = onDone;
             Title = "Hallow Mixer setup"; Width = 720; Height = 560; ResizeMode = ResizeMode.NoResize;
-            Background = (Brush)FindResource("Bg"); Foreground = (Brush)FindResource("Text");
+            Background = Look.Bg; Foreground = Look.Text;
             FontFamily = new FontFamily("Segoe UI"); FontSize = 12.5;
             WindowStartupLocation = WindowStartupLocation.CenterOwner;
             Content = new Border { Padding = new Thickness(28, 22, 28, 22), Child = page };
@@ -160,23 +160,23 @@ namespace HallowMixer
         {
             page.Children.Clear();
             var sp = new StackPanel();
-            sp.Children.Add(new TextBlock { Text = title, FontSize = 22, FontWeight = FontWeights.Bold, Foreground = Accent.Brush });
-            if (sub != null) sp.Children.Add(new TextBlock { Text = sub, Foreground = (Brush)FindResource("Muted"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 16) });
+            sp.Children.Add(new TextBlock { Text = title, FontSize = 22, FontWeight = FontWeights.Bold, Foreground = Accent.Ink });
+            if (sub != null) sp.Children.Add(new TextBlock { Text = sub, Foreground = Look.Muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 16) });
             page.Children.Add(sp);
             return sp;
         }
         Border Card(string title, string text, bool enabled, Action click)
         {
-            var b = new Border { Background = (Brush)FindResource("Panel"), CornerRadius = new CornerRadius(8), Padding = new Thickness(18, 14, 18, 14), Margin = new Thickness(0, 0, 0, 10),
-                BorderThickness = new Thickness(1), BorderBrush = B("#3A3248"), Cursor = enabled ? Cursors.Hand : Cursors.Arrow, Opacity = enabled ? 1 : 0.45 };
+            var b = new Border { Background = Look.Panel, CornerRadius = new CornerRadius(8), Padding = new Thickness(18, 14, 18, 14), Margin = new Thickness(0, 0, 0, 10),
+                BorderThickness = new Thickness(1), BorderBrush = Look.Line, Cursor = enabled ? Cursors.Hand : Cursors.Arrow, Opacity = enabled ? 1 : 0.45 };
             var sp = new StackPanel();
             sp.Children.Add(new TextBlock { Text = title, FontSize = 15, FontWeight = FontWeights.Bold });
-            sp.Children.Add(new TextBlock { Text = text, Foreground = (Brush)FindResource("Muted"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) });
+            sp.Children.Add(new TextBlock { Text = text, Foreground = Look.Muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) });
             b.Child = sp;
             if (enabled)
             {
-                b.MouseEnter += (s, e) => b.BorderBrush = Accent.Brush;
-                b.MouseLeave += (s, e) => b.BorderBrush = B("#3A3248");
+                b.MouseEnter += (s, e) => b.BorderBrush = Accent.Ink;
+                b.MouseLeave += (s, e) => b.BorderBrush = Look.Line;
                 b.MouseLeftButtonUp += (s, e) => click();
             }
             AutomationName(b, title);
@@ -244,7 +244,7 @@ namespace HallowMixer
                 readyBox = Switch(sp, "Make my mic Discord-ready (good level that stays put, voice EQ, rumble cut)", true);
                 startBox = Switch(sp, "Start Hallow Mixer with Windows (in the tray)", true);
                 sp.Children.Add(new TextBlock { Text = "Last step is yours: in SteelSeries GG, turn Sonar off so it stops adding its own devices. Hallow Mixer doesn't uninstall or change GG.",
-                    Foreground = (Brush)FindResource("Muted"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 0) });
+                    Foreground = Look.Muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 0) });
             }
             else
             {
@@ -279,7 +279,7 @@ namespace HallowMixer
         static UIElement Line(string text)
         {
             var d = new DockPanel { Margin = new Thickness(0, 0, 0, 7) };
-            var dot = new TextBlock { Text = "•", Foreground = Accent.Brush, Width = 16, FontWeight = FontWeights.Bold }; DockPanel.SetDock(dot, Dock.Left);
+            var dot = new TextBlock { Text = "•", Foreground = Accent.Ink, Width = 16, FontWeight = FontWeights.Bold }; DockPanel.SetDock(dot, Dock.Left);
             d.Children.Add(dot); d.Children.Add(new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap }); return d;
         }
 

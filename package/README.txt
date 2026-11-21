@@ -50,6 +50,7 @@ WHAT IT DOES
 - One Hallow icon: with Hallow Hub 2.4 running, Mixer's menu is in Hub's tray icon (Settings > Use the Hallow icon).
 - EQ > your mic > Mic chain: noise gate, compressor and limiter (Light / Streamer / Loud room).
 - Hallow accent: the colour picked in Hallow Toolkit (Settings to turn off). Crash reports are kept on this PC only.
+- Light and dark mode: follows the choice in Hallow Toolkit (Light / Dark / Same as Windows), or pick one in Settings > Look.
 - Settings > Sidetone: hear your own mic in your headset (off by default).
 - EQ > Mine: save, export, import or paste presets (AutoEQ text works), A/B compare.
 - Tray > Output or Ctrl+Alt+O: switch output; each output remembers its channel outputs.
