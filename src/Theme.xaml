@@ -72,6 +72,68 @@
             </Setter.Value>
         </Setter>
     </Style>
+    <!-- v3.23 small slider for each app inside a channel: thin track, small knob -->
+    <Style x:Key="MiniKnob" TargetType="Thumb">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Thumb">
+                    <Grid Width="14" Height="14" Background="Transparent">
+                        <Ellipse x:Name="k" Width="11" Height="11" Fill="#DCD7E6" Stroke="#16121C" StrokeThickness="2"/>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="k" Property="Fill" Value="#FFFFFF"/><Setter TargetName="k" Property="Width" Value="13"/><Setter TargetName="k" Property="Height" Value="13"/></Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+    <Style x:Key="MiniFader" TargetType="Slider">
+        <Setter Property="Orientation" Value="Horizontal"/>
+        <Setter Property="IsMoveToPointEnabled" Value="True"/>
+        <Setter Property="SmallChange" Value="1"/><Setter Property="LargeChange" Value="10"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Slider">
+                    <Track x:Name="PART_Track" Orientation="Horizontal">
+                        <Track.DecreaseRepeatButton><RepeatButton Style="{StaticResource Bar}" Command="Slider.DecreaseLarge" Height="4" Background="{TemplateBinding Foreground}"/></Track.DecreaseRepeatButton>
+                        <Track.IncreaseRepeatButton><RepeatButton Style="{StaticResource Bar}" Command="Slider.IncreaseLarge" Height="4" Background="#352D42"/></Track.IncreaseRepeatButton>
+                        <Track.Thumb><Thumb Style="{StaticResource MiniKnob}"/></Track.Thumb>
+                    </Track>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+    <!-- v3.23 thin rounded scrollbar (app lists) -->
+    <Style x:Key="ThinThumb" TargetType="Thumb">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Thumb">
+                    <Border x:Name="t" Background="#4A4058" CornerRadius="3" Margin="1,0,1,0"/>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="t" Property="Background" Value="#6A5E7C"/></Trigger>
+                        <Trigger Property="IsDragging" Value="True"><Setter TargetName="t" Property="Background" Value="#8F88A0"/></Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+    <Style x:Key="ThinScroll" TargetType="ScrollBar">
+        <Setter Property="Width" Value="7"/>
+        <Setter Property="MinWidth" Value="7"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ScrollBar">
+                    <Border Background="#14FFFFFF" CornerRadius="3">
+                        <Track x:Name="PART_Track" IsDirectionReversed="True">
+                            <Track.DecreaseRepeatButton><RepeatButton Style="{StaticResource Bar}" Command="ScrollBar.PageUpCommand" Background="Transparent"/></Track.DecreaseRepeatButton>
+                            <Track.IncreaseRepeatButton><RepeatButton Style="{StaticResource Bar}" Command="ScrollBar.PageDownCommand" Background="Transparent"/></Track.IncreaseRepeatButton>
+                            <Track.Thumb><Thumb Style="{StaticResource ThinThumb}" MinHeight="18"/></Track.Thumb>
+                        </Track>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
     <!-- Game/chat balance: both sides dark, the knob shows where the balance is. -->
     <Style x:Key="Balance" TargetType="Slider" BasedOn="{StaticResource HFader}">
         <Setter Property="Template">

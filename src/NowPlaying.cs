@@ -1,4 +1,4 @@
-// Hallow Mixer - "now playing": the song or video Windows knows about (the same info as the volume pop-up / media keys),
+﻿// Hallow Mixer - "now playing": the song or video Windows knows about (the same info as the volume pop-up / media keys),
 // with play/pause and skip. Read through Windows' media session API; nothing is sent anywhere.
 using System;
 using System.Collections.Generic;
@@ -160,6 +160,55 @@ namespace HallowMixer
             sub.Text = (string.IsNullOrEmpty(m.Artist) ? "" : m.Artist + "  ·  ") + m.App + (channelName != null ? " in " + channelName : "") + (m.Playing ? "" : "  (paused)");
             dot.Background = new SolidColorBrush(channelColor); dot.Opacity = m.Playing ? 1 : 0.35;
             play.Content = m.Playing ? "" : "";
+            prev.IsEnabled = m.CanPrev; next.IsEnabled = m.CanNext; play.IsEnabled = m.CanPlayPause;
+        }
+    }
+
+    // v3.23 the song or video, as a small card inside the channel its app plays in (main window).
+    public class NowCard : Border
+    {
+        readonly TextBlock title, sub; readonly Button prev, play, next; readonly FrameworkElement playIcon, pauseIcon;
+        public Action<string> Command;
+
+        Button IconBtn(FrameworkElement icon, string tip, string cmd)
+        {
+            var b = new Button { Content = icon, Style = (Style)FindResource("Btn"), Width = 30, Height = 22, Padding = new Thickness(0), Margin = new Thickness(2, 0, 2, 0), ToolTip = tip };
+            System.Windows.Automation.AutomationProperties.SetName(b, tip);
+            b.Click += (s, e) => { if (Command != null) Command(cmd); };
+            return b;
+        }
+        static FrameworkElement Ic(string name) { return Icons.Make(name, 9, new SolidColorBrush(Color.FromRgb(0xEC, 0xE8, 0xF4))); }
+
+        public NowCard()
+        {
+            CornerRadius = new CornerRadius(9); BorderThickness = new Thickness(1); Padding = new Thickness(8, 6, 6, 6); Margin = new Thickness(0, 0, 0, 6);
+            Visibility = Visibility.Collapsed;
+            var g = new Grid();
+            for (int i = 0; i < 3; i++) g.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            title = new TextBlock { FontWeight = FontWeights.SemiBold, FontSize = 11.5, TextTrimming = TextTrimming.CharacterEllipsis };
+            g.Children.Add(title);
+            sub = new TextBlock { Foreground = (Brush)FindResource("Muted"), FontSize = 10.5, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
+            Grid.SetRow(sub, 1); g.Children.Add(sub);
+            var btns = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 5, 0, 0) };
+            playIcon = Ic("play"); pauseIcon = Ic("pause");
+            prev = IconBtn(Ic("backward"), "Previous", "prev"); play = IconBtn(pauseIcon, "Play / pause", "playpause"); next = IconBtn(Ic("forward"), "Next", "next");
+            btns.Children.Add(prev); btns.Children.Add(play); btns.Children.Add(next);
+            Grid.SetRow(btns, 2); g.Children.Add(btns);
+            Child = g;
+        }
+
+        public void Show(MediaInfo m, Color c)
+        {
+            if (m == null) { Visibility = Visibility.Collapsed; return; }
+            Visibility = Visibility.Visible;
+            var panel = Color.FromRgb(0x21, 0x1B, 0x2A);
+            Func<double, Color> mix = a => Color.FromRgb((byte)(panel.R + (c.R - panel.R) * a), (byte)(panel.G + (c.G - panel.G) * a), (byte)(panel.B + (c.B - panel.B) * a));
+            Background = new SolidColorBrush(mix(0.13)); BorderBrush = new SolidColorBrush(mix(0.4));
+            title.Text = m.Title;
+            sub.Text = string.IsNullOrEmpty(m.Artist) ? m.App : m.Artist;
+            ToolTip = m.Line + "\n" + m.App + (m.Playing ? "" : " (paused)");
+            play.Content = m.Playing ? pauseIcon : playIcon;
+            Opacity = m.Playing ? 1 : 0.75;
             prev.IsEnabled = m.CanPrev; next.IsEnabled = m.CanNext; play.IsEnabled = m.CanPlayPause;
         }
     }

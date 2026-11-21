@@ -334,21 +334,82 @@ namespace HallowMixer
             return "other";
         }
 
-        static string Friendly(string exe, string key)
+        // v3.23 a readable name: the program's own description ("Discord", "Google Chrome"), else its file name made pretty
+        // ("DeltaForceClient-Win64-Shipping" -> "Delta Force").
+        public static string Friendly(string exe, string key)
         {
+            string file = exe != null ? Path.GetFileNameWithoutExtension(exe) : key;
             try
             {
-                if (exe != null)
+                if (exe != null && File.Exists(exe))
                 {
                     var fi = FileVersionInfo.GetVersionInfo(exe);
-                    var n = !string.IsNullOrWhiteSpace(fi.FileDescription) ? fi.FileDescription : fi.ProductName;
-                    if (!string.IsNullOrWhiteSpace(n) && n.Length < 40) return n.Trim();
+                    foreach (var cand in new[] { fi.FileDescription, fi.ProductName })
+                    {
+                        if (string.IsNullOrWhiteSpace(cand)) continue;
+                        var n = cand.Trim();
+                        if (n.Length >= 40 || n.Length < 2 || Junk(n)) continue;
+                        // a description that is just the file name again gets the same clean-up as the file name
+                        if (n.IndexOf(' ') < 0 && Squash(n) == Squash(file)) return PrettyName(n);
+                        return n;
+                    }
                 }
             }
             catch { }
-            return key.Length > 0 ? char.ToUpper(key[0]) + key.Substring(1) : key;
+            return PrettyName(file ?? key ?? "");
+        }
+        static bool Junk(string n)
+        {
+            var l = n.ToLowerInvariant();
+            return l.Contains("shipping") || l == "unreal engine" || l == "unrealgame" || l == "bootstrapper" || l == "launcher" || l == "application" || l.EndsWith(".exe");
+        }
+        static string Squash(string s) { return new string((s ?? "").Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant(); }
+        static readonly System.Text.RegularExpressions.Regex[] Tails = {
+            new System.Text.RegularExpressions.Regex(@"[-_. ]?(win64|win32|wingdk|x64|x86|64bit|32bit)?[-_. ]?shipping$", System.Text.RegularExpressions.RegexOptions.IgnoreCase),
+            new System.Text.RegularExpressions.Regex(@"[-_. ](win64|win32|x64|x86|64|32|dx11|dx12|vulkan|vk|be|eac)$", System.Text.RegularExpressions.RegexOptions.IgnoreCase),
+            new System.Text.RegularExpressions.Regex(@"_(x64|x86)$", System.Text.RegularExpressions.RegexOptions.IgnoreCase),
+            new System.Text.RegularExpressions.Regex(@"(?<=[a-z]{3})[-_ ]?client$", System.Text.RegularExpressions.RegexOptions.IgnoreCase),
+        };
+        // "DeltaForceClient-Win64-Shipping" -> "Delta Force", "my_game_x64" -> "My Game", "obs64" -> "Obs64"
+        public static string PrettyName(string raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return raw ?? "";
+            var s = raw.Trim();
+            if (s.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) s = s.Substring(0, s.Length - 4);
+            for (int pass = 0; pass < 3; pass++)
+                foreach (var t in Tails) { var n = t.Replace(s, ""); if (n.Length >= 2) s = n; }
+            var sb = new System.Text.StringBuilder();
+            for (int i = 0; i < s.Length; i++)
+            {
+                char c = s[i];
+                if (c == '_' || c == '-' || c == '.') { sb.Append(' '); continue; }
+                // a space before an upper-case letter that follows a lower-case one ("DeltaForce" -> "Delta Force")
+                if (i > 0 && char.IsUpper(c) && char.IsLower(s[i - 1])) sb.Append(' ');
+                sb.Append(c);
+            }
+            var words = sb.ToString().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(w => char.ToUpperInvariant(w[0]) + w.Substring(1));
+            var r = string.Join(" ", words);
+            return r.Length > 0 ? r : raw;
+        }
+        // v3.23 the channel an app goes in by its name alone (for now playing when the app has no sound stream right now)
+        public static string KnownChannel(string key)
+        {
+            string c; if (string.IsNullOrEmpty(key)) return null;
+            if (Known.TryGetValue(key, out c)) return c;
+            foreach (var kv in Known) if (kv.Key.Length > 3 && key.StartsWith(kv.Key, StringComparison.OrdinalIgnoreCase)) return kv.Value;
+            return null;
         }
 
+        readonly Dictionary<uint, string> nameCache = new Dictionary<uint, string>();
+        string ProcName(uint pid)
+        {
+            string n;
+            if (nameCache.TryGetValue(pid, out n)) return n;
+            try { using (var p = Process.GetProcessById((int)pid)) n = p.ProcessName.ToLowerInvariant(); } catch { n = null; }
+            if (nameCache.Count > 500) nameCache.Clear();
+            nameCache[pid] = n; return n;
+        }
         // pid -> exe path, so we only look each process up once
         readonly Dictionary<uint, string> exeCache = new Dictionary<uint, string>();
 
@@ -367,7 +428,9 @@ namespace HallowMixer
                 else
                 {
                     if (!exeCache.TryGetValue(s.Pid, out exe)) { exe = Proc.Path(s.Pid); exeCache[s.Pid] = exe; }
-                    key = exe != null ? Path.GetFileNameWithoutExtension(exe).ToLowerInvariant() : ("pid" + s.Pid);
+                    // v3.23: Windows won't give the path of some processes (games with anti-cheat, apps run as admin) -
+                    // their process name still sorts them right ("spotify" -> Music) instead of a "pid1234" in System & other
+                    key = exe != null ? Path.GetFileNameWithoutExtension(exe).ToLowerInvariant() : (ProcName(s.Pid) ?? ("pid" + s.Pid));
                 }
                 MixApp app;
                 if (!byKey.TryGetValue(key, out app))
