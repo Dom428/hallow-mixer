@@ -21,7 +21,11 @@ namespace HallowMixer
         public static readonly SolidColorBrush Brush = new SolidColorBrush(Own), Hi = new SolidColorBrush(Lighter(Own)), Text = new SolidColorBrush(TextOn(Own));
         // v3.25 the accent for text, thin lines and icons: the accent itself on dark, darkened to 4.5:1 on white in light mode
         public static readonly SolidColorBrush Ink = new SolidColorBrush(Own);
-        public static Color Current { get { return Brush.Color; } }
+        // v3.26 the accent exactly as picked, in both modes (the hotkey pop-up over games stays dark). In light mode Brush / Hi / Text
+        // are the button FILL (Look.FillOf), its border (fill x 0.9) and the text on it.
+        public static readonly SolidColorBrush Raw = new SolidColorBrush(Own);
+        static Color raw = Own;
+        public static Color Current { get { return raw; } }
         public static string OverrideFile;   // --theme-file <path>: developer testing only
         public static string File { get { return OverrideFile ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), @"Hallow\theme.json"); } }
 
@@ -35,7 +39,7 @@ namespace HallowMixer
         static void Publish()
         {
             if (app == null) return;
-            app.Resources["AccentBrush"] = new SolidColorBrush(Brush.Color); app.Resources["AccentHiBrush"] = new SolidColorBrush(Hi.Color); app.Resources["AccentTextBrush"] = new SolidColorBrush(Text.Color); app.Resources["AccentInkBrush"] = new SolidColorBrush(Ink.Color);
+            app.Resources["AccentBrush"] = new SolidColorBrush(Brush.Color); app.Resources["AccentHiBrush"] = new SolidColorBrush(Hi.Color); app.Resources["AccentTextBrush"] = new SolidColorBrush(Text.Color); app.Resources["AccentInkBrush"] = new SolidColorBrush(Ink.Color); app.Resources["AccentRawBrush"] = new SolidColorBrush(raw);
         }
         // v3.25 theme.json's text, or null (missing, too big or unreadable). Never throws. Toolkit replaces the file atomically.
         public static string ReadText()
@@ -69,15 +73,17 @@ namespace HallowMixer
         {
             Color c = Own;
             if (useHallow) { var f = Read(); if (f.HasValue) c = f.Value; }
-            if (Brush.Color == c && painted == Look.IsLight) return;
-            Brush.Color = c; Repaint();
+            if (raw == c && painted == Look.IsLight) return;
+            raw = c; Repaint();
         }
         static bool? painted;
         // v3.25 also after a light/dark change: the ink and the text on accent buttons depend on the mode (dark = as before)
         public static void Repaint()
         {
-            var c = Brush.Color; painted = Look.IsLight;
-            Hi.Color = Lighter(c); Text.Color = Look.IsLight ? Look.TextOnFill(c) : TextOn(c); Ink.Color = Look.InkOf(c);
+            var c = raw; bool light = Look.IsLight; painted = light; Raw.Color = c;
+            if (light) { var fill = Look.FillOf(c); Brush.Color = fill; Hi.Color = Look.Scale(fill, 0.9); Text.Color = Look.TextOnFill(fill); }
+            else { Brush.Color = c; Hi.Color = Lighter(c); Text.Color = TextOn(c); }   // dark: as always
+            Ink.Color = Look.InkOf(c);
             Publish();
         }
 

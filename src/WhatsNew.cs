@@ -13,6 +13,7 @@ namespace HallowMixer
     {
         // Newest first. One or two short lines per version.
         public static readonly Tuple<string, string[]>[] Notes = {
+            Tuple.Create("3.26", new[] { "Light mode readability fixes: green and amber status text, accent-coloured text and filled accent buttons (e.g. violet) are easier to read", "Windows that are already open switch look and accent right away" }),
             Tuple.Create("3.25", new[] { "Light and dark mode: Hallow Mixer follows the Light / Dark / Same as Windows choice in Hallow Toolkit, live - or pick its own in Settings > Look", "Tooltips, right-click menus, scrollbars and the title bar follow too" }),
             Tuple.Create("3.24", new[] { "Hallow Remote and Hallow Hub can show every app that's playing and change its level, mute it or move it to another channel - from your phone" }),
             Tuple.Create("3.23", new[] { "A cleaner mixer: every channel always shows its apps, with their real names (\"Delta Force\", not the program file) and a slim slider each", "The song that's playing sits in its channel with play/pause and skip; Chat's and the mic's extra buttons never get cut off" }),

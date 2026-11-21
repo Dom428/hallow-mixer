@@ -22,14 +22,14 @@ using WF = System.Windows.Forms;
 [assembly: AssemblyTitle("Hallow Mixer")]
 [assembly: AssemblyProduct("Hallow Mixer")]
 [assembly: AssemblyDescription("Per-app volume mixer: game, chat, music, media")]
-[assembly: AssemblyVersion("3.25.0.0")]
-[assembly: AssemblyFileVersion("3.25.0.0")]
+[assembly: AssemblyVersion("3.26.0.0")]
+[assembly: AssemblyFileVersion("3.26.0.0")]
 
 namespace HallowMixer
 {
     public static class Program
     {
-        public const string Version = "3.25";
+        public const string Version = "3.26";
         public static List<CliCommand> StartupCommands = new List<CliCommand>();
         public static string HubApp = "Hub";
         public static string DataDir = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "HallowMixer");
@@ -115,7 +115,7 @@ namespace HallowMixer
         {
             WindowStyle = WindowStyle.None; AllowsTransparency = true; Background = Brushes.Transparent; Topmost = true;
             ShowInTaskbar = false; ShowActivated = false; SizeToContent = SizeToContent.WidthAndHeight; ResizeMode = ResizeMode.NoResize; Focusable = false;
-            barFill = new Border { Background = Accent.Brush, CornerRadius = new CornerRadius(3), HorizontalAlignment = HorizontalAlignment.Left, Height = 6, Width = 0 };
+            barFill = new Border { Background = Accent.Raw, CornerRadius = new CornerRadius(3), HorizontalAlignment = HorizontalAlignment.Left, Height = 6, Width = 0 };
             barBack = new Border { Background = new SolidColorBrush(Color.FromRgb(0x3A, 0x32, 0x48)), CornerRadius = new CornerRadius(3), Height = 6, Width = 260, Margin = new Thickness(0, 10, 0, 0), Child = barFill };
             var sp = new StackPanel(); sp.Children.Add(text); sp.Children.Add(barBack);
             Content = new Border { Background = new SolidColorBrush(Color.FromArgb(235, 0x1C, 0x17, 0x24)), CornerRadius = new CornerRadius(10), Padding = new Thickness(22, 14, 22, 14),
@@ -355,6 +355,29 @@ namespace HallowMixer
             eng.S.MutedApps.Remove("steam"); eng.S.MutedApps.Add("steam");
         }
 
+        // v3.26 live test helpers: every palette colour of the look in use now (colours both looks share are taken out later)
+        static HashSet<Color> LiveColours()
+        {
+            var s = new HashSet<Color>();
+            foreach (var k in Look.Palette) s.Add((Color)ColorConverter.ConvertFromString(k.Value[Look.IsLight ? 1 : 0]));
+            return s;
+        }
+        // colours that are the same in both looks on purpose (channel colours, EQ band dots) - never "old"
+        static readonly string[] FixedColours = { "#F07820", "#A98BE0", "#6ED28C", "#5AB4F0", "#8F88A0", "#F05A8C", "#A88BEB", "#6CCB7A", "#E8C547", "#F06292", "#4DD0C8", "#FF8A65", "#B0BEC5", "#CE93D8", "#9E97AD", "#1E1926" };
+        // every solid brush the visual tree shows (backgrounds, text, borders, fills, strokes)
+        static void ScanColours(DependencyObject d, Action<string, Color> f)
+        {
+            if (d == null) return;
+            Action<string, Brush> b = (n, x) => { var sc = x as SolidColorBrush; if (sc != null && sc.Color.A > 0) f(d.GetType().Name + "." + n, sc.Color); };
+            var c = d as Control; if (c != null) { b("Background", c.Background); b("Foreground", c.Foreground); b("BorderBrush", c.BorderBrush); }
+            var bo = d as Border; if (bo != null) { b("Background", bo.Background); b("BorderBrush", bo.BorderBrush); }
+            var p = d as Panel; if (p != null) b("Background", p.Background);
+            var tb = d as TextBlock; if (tb != null) { b("Foreground", tb.Foreground); b("Background", tb.Background); }
+            var sh = d as System.Windows.Shapes.Shape; if (sh != null) { b("Fill", sh.Fill); b("Stroke", sh.Stroke); }
+            int n2 = 0; try { n2 = VisualTreeHelper.GetChildrenCount(d); } catch { }
+            for (int i = 0; i < n2; i++) ScanColours(VisualTreeHelper.GetChild(d, i), f);
+        }
+
         // Developer snapshots (--snap <folder>): each window rendered to a PNG, never shown.
         public void SnapAll(string dir)
         {
@@ -416,10 +439,20 @@ namespace HallowMixer
                 {
                     var before = Look.Mode; var want = Look.IsLight ? "dark" : "light";
                     var mini2 = new MiniWindow(eng.S, strips.Values.Select(st => Tuple.Create(st.Id, st.Color, st.Fader)), balance, null);
+                    // v3.26 dialogs that are already open when the mode / accent changes must recolour too: open them all first
+                    var open = new List<Tuple<string, Window>>();
+                    Action<string, Func<Window>> opn = (n, mk) => { try { var x = mk(); Snap.Save(x, System.IO.Path.Combine(dir, "live-before-" + n + ".png"), W(x), H(x)); open.Add(Tuple.Create(n, x)); } catch (Exception ex) { log.AppendLine("could not open " + n + ": " + ex.Message); } };
+                    opn("eq", () => new EqWindow(eng.S)); opn("games", () => new GamesWindow(eng, () => { })); opn("apps", () => new AppsWindow(eng, () => { }));
+                    opn("whatsnew", () => new WhatsNewWindow(WhatsNew.Since("3.8"))); opn("crash", () => new CrashWindow("2026-11-19 20-00-00.txt"));
+                    opn("stream", () => { var sw = new StreamWindow(eng, obs, q => System.Threading.Tasks.Task.FromResult(0)); var rt = sw.Refresh(); return sw; });
+                    opn("setup", () => new SetupWindow(eng, (a, b, c) => { }));
+                    var stale = LiveColours(); var oldAcc = new[] { Accent.Brush.Color, Accent.Text.Color, Accent.Ink.Color, Accent.Hi.Color };
                     Accent.Watch(Dispatcher, () => eng.S.UseHallowAccent);
                     var old = File.Exists(Accent.OverrideFile) ? File.ReadAllText(Accent.OverrideFile) : "{}";
                     var json = System.Text.RegularExpressions.Regex.IsMatch(old, "\"mode\"\\s*:") ? System.Text.RegularExpressions.Regex.Replace(old, "\"mode\"\\s*:\\s*\"[^\"]*\"", "\"mode\":\"" + want + "\"")
                                                                                                   : old.TrimEnd().TrimEnd('}') + (old.Contains(":") ? "," : "") + "\"mode\":\"" + want + "\"}";
+                    var newAcc = Environment.GetEnvironmentVariable("HALLOW_SNAP_LIVE_ACCENT");   // also change the accent in the same write
+                    if (!string.IsNullOrEmpty(newAcc)) json = System.Text.RegularExpressions.Regex.Replace(json, "\"accent\"\\s*:\\s*\"[^\"]*\"", "\"accent\":\"" + newAcc + "\"");
                     var tmp = Accent.OverrideFile + ".tmp"; File.WriteAllText(tmp, json); File.Copy(tmp, Accent.OverrideFile, true); File.Delete(tmp);
                     var t0 = DateTime.Now;
                     while (Look.Mode != want && (DateTime.Now - t0).TotalSeconds < 12)
@@ -432,6 +465,21 @@ namespace HallowMixer
                     Snap.Save(this, System.IO.Path.Combine(dir, "live-main.png"), 974, 733);
                     settingsPanel.Visibility = Visibility.Visible; Snap.Save(this, System.IO.Path.Combine(dir, "live-settings.png"), 1010, 900); settingsPanel.Visibility = Visibility.Collapsed;
                     Snap.Save(mini2, System.IO.Path.Combine(dir, "live-mini.png"), 330, 0);
+                    // what the open windows show now must not use a colour that only the old look had (old palette values, old accent shades)
+                    if (!string.IsNullOrEmpty(newAcc)) { var na = Accent.Current; log.AppendLine("accent now " + na.ToString() + " (wanted " + newAcc + ")"); }
+                    var now = LiveColours(); var nowAcc = new[] { Accent.Brush.Color, Accent.Text.Color, Accent.Ink.Color, Accent.Hi.Color, Accent.Raw.Color };
+                    stale.ExceptWith(now); stale.ExceptWith(nowAcc); stale.ExceptWith(FixedColours.Select(x => (Color)ColorConverter.ConvertFromString(x)));
+                    var oldOnly = new HashSet<Color>(oldAcc.Where(c => !now.Contains(c) && !nowAcc.Contains(c) && !FixedColours.Any(x => (Color)ColorConverter.ConvertFromString(x) == c)));   // an orange accent is also Game's colour
+                    int bad = 0;
+                    foreach (var o in open)
+                    {
+                        var seen = new List<string>(); int total = 0, fresh = 0;
+                        Snap.Save(o.Item2, System.IO.Path.Combine(dir, "live-" + o.Item1 + ".png"), W(o.Item2), H(o.Item2), v => ScanColours(v, (who, c) => { total++; if (now.Contains(c) || nowAcc.Contains(c)) fresh++; if (stale.Contains(c) || oldOnly.Contains(c)) seen.Add(who + " " + c); }));
+                        var bgOk = o.Item2.Background is SolidColorBrush && ((SolidColorBrush)o.Item2.Background).Color == Look.Col("Bg");
+                        log.AppendLine((seen.Count == 0 && bgOk ? "LIVE-OK " : "LIVE-STALE ") + o.Item1 + ": background " + (bgOk ? "follows" : "OLD") + ", " + seen.Count + " old colours (" + total + " brushes looked at, " + fresh + " in the new look)" + (seen.Count > 0 ? " - " + string.Join("; ", seen.Distinct().Take(12)) : ""));
+                        if (seen.Count > 0 || !bgOk) bad++;
+                    }
+                    log.AppendLine("open dialogs checked " + open.Count + ", stale " + bad);
                     File.WriteAllText(Accent.OverrideFile, old);
                 }
                 catch (Exception ex) { log.AppendLine(ex.ToString()); }

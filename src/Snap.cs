@@ -1,4 +1,4 @@
-// Hallow Mixer - developer snapshots: "HallowMixer.exe --snap <folder>" renders the windows to PNGs without showing them.
+﻿// Hallow Mixer - developer snapshots: "HallowMixer.exe --snap <folder>" renders the windows to PNGs without showing them.
 // Nothing is changed in this mode: no audio, devices, EQ file, settings, tray, hotkeys or local API.
 using System;
 using System.IO;
@@ -13,7 +13,9 @@ namespace HallowMixer
     {
         public static bool On;
 
-        public static void Save(Window win, string path, double width, double height)
+        public static void Save(Window win, string path, double width, double height) { Save(win, path, width, height, null); }
+        // v3.26 inspect: looks at the rendered tree before it goes back into the window (the live light / dark test)
+        public static void Save(Window win, string path, double width, double height, Action<Visual> inspect)
         {
             var c = win.Content as UIElement; win.Content = null;
             var host = new System.Windows.Controls.Border { Background = win.Background, Child = c, Width = width };
@@ -25,6 +27,7 @@ namespace HallowMixer
             host.Arrange(new Rect(0, 0, width, host.Height)); host.UpdateLayout();
             var bmp = new RenderTargetBitmap((int)Math.Ceiling(width), (int)Math.Ceiling(host.Height), 96, 96, PixelFormats.Pbgra32);
             bmp.Render(host);
+            if (inspect != null) inspect(host);
             var enc = new PngBitmapEncoder(); enc.Frames.Add(BitmapFrame.Create(bmp));
             Directory.CreateDirectory(Path.GetDirectoryName(path));
             using (var f = File.Create(path)) enc.Save(f);

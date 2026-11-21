@@ -87,10 +87,17 @@ namespace HallowMixer
             return x;
         }
         public static readonly Color White = Color.FromRgb(0xFF, 0xFF, 0xFF), Ink0 = Color.FromRgb(0x1E, 0x1A, 0x26);
-        // the accent (or a channel colour) for text, thin lines and icons: as it is on dark, darkened to 4.5:1 on white in light mode
-        public static Color InkOf(Color c) { return IsLight ? Darken(c, White, 4.5) : c; }
+        // v3.26 the darkest light surface text can sit on (Panel 2 / hover): inks are darkened against it, so they pass on #F6F4FA and white too
+        public static readonly Color Surface2 = Color.FromRgb(0xEE, 0xEA, 0xF5);
+        // the accent (or a channel colour) for text, thin lines and icons: as it is on dark, darkened to 4.5:1 on #EEEAF5 in light mode
+        public static Color InkOf(Color c) { return IsLight ? TextAccent(c) : c; }
+        public static Color TextAccent(Color c) { return Darken(c, Surface2, 4.5); }
         // text on a filled colour in light mode: #1E1A26 or white, whichever reads better
         public static Color TextOnFill(Color c) { return Contrast(Ink0, c) >= Contrast(White, c) ? Ink0 : White; }
+        // v3.26 the light-mode fill for accent buttons / pills (as Hallow Toolkit 5.16): the real accent if its text colour reaches 4.5:1
+        // on it, else the accent darkened to 4.5:1 on white (e.g. violet #8B5CF6), with white text
+        public static Color FillOf(Color c) { return Contrast(c, TextOnFill(c)) >= 4.5 ? c : Darken(c, White, 4.5); }
+        public static Color Scale(Color c, double k) { return Color.FromRgb((byte)(c.R * k), (byte)(c.G * k), (byte)(c.B * k)); }
 
         // ---- palette: key -> { dark, light }. Keys are the resource names Theme.xaml uses.
         static Color C(string hex) { return (Color)ColorConverter.ConvertFromString(hex); }
@@ -106,6 +113,8 @@ namespace HallowMixer
             { "Green",      new[] { "#6CCB7A", "#1E8E4F" } },
             { "Amber",      new[] { "#E8C547", "#A66A00" } },
             { "Red",        new[] { "#C8414B", "#C2333F" } },
+            { "GreenText",  new[] { "#6CCB7A", "#1B7A44" } },   // v3.26 green / amber as small text (the icon values are just under 4.5:1)
+            { "AmberText",  new[] { "#E8C547", "#8F5B00" } },
             { "RedLine",    new[] { "#E05A64", "#A82B36" } },
             { "OnRed",      new[] { "#ECE8F4", "#FFFFFF" } },   // text/icon on a red (muted) button
             { "Field",      new[] { "#241E2E", "#FFFFFF" } },   // settings flyout, text boxes, combo pop-ups
@@ -161,8 +170,9 @@ namespace HallowMixer
         // ---- live brushes: anything computed from the palette (channel tints, inks) repaints on every change.
         // Held weakly, so cards that are rebuilt every few seconds don't pile up.
         static readonly List<KeyValuePair<WeakReference, Action<object>>> live = new List<KeyValuePair<WeakReference, Action<object>>>();
-        // green status text: the palette green, darkened in light mode until it reads as small text on the page background (4.5:1)
-        public static readonly SolidColorBrush GreenText = Live(new SolidColorBrush(), b => b.Color = IsLight ? Darken(Col("Green"), Col("Bg"), 4.5) : Col("Green"));
+        // v3.26 green / amber status TEXT: the family text values in light mode (#1B7A44 / #8F5B00); Green / Amber stay for icons, dots, fills
+        public static SolidColorBrush GreenText { get { return shared["GreenText"]; } }
+        public static SolidColorBrush AmberText { get { return shared["AmberText"]; } }
         public static T Live<T>(T target, Action<T> paint) where T : class
         {
             paint(target);
