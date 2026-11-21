@@ -143,6 +143,15 @@ namespace HallowMixer
         }
         // Windows' current volume of this stream (first speaker channel), 0..1
         public float Current() { float v = -1; try { Vol.GetChannelVolume(0, out v); } catch { } return v; }
+        // v3.24 the stream is playing right now (Windows' session state "active"); FakeState stands in for tests and --snap
+        public int FakeState = -1;
+        public bool Active()
+        {
+            if (Ctl == null) return FakeState == 1;
+            int s = 0;
+            try { Ctl.GetState(out s); } catch { }
+            return s == 1;
+        }
         public bool Expired()
         {
             int s = 2;

@@ -233,6 +233,7 @@ namespace HallowMixer
         public List<AppSession> Sessions = new List<AppSession>();
         internal List<AppSession> Prev;   // last refresh's streams (to carry over what we set)
         public float Peak() { float m = 0; foreach (var s in Sessions) m = Math.Max(m, s.Peak()); return m; }
+        public bool Playing { get { foreach (var s in Sessions) if (s.Active()) return true; return false; } }   // v3.24 any of its streams active
     }
 
     public class Engine
@@ -473,6 +474,13 @@ namespace HallowMixer
         }
         public int AppVolume(string key) { int v; return S.AppVolume.TryGetValue(key, out v) ? v : 100; }
         public bool AppMuted(string key) { return S.MutedApps.Contains(key); }
+        // v3.24 the app card's slider (and POST /app): its level inside the channel; 100 = nothing stored. Saved later by the window.
+        public void SetAppVolume(string key, int level)
+        {
+            level = Math.Max(0, Math.Min(100, level));
+            if (level == 100) S.AppVolume.Remove(key); else S.AppVolume[key] = level;
+            Apply();
+        }
         // ---- v3.1 background mute: the app whose window you're in (process name), set by the window
         public string FrontKey;
         public float BgFactor(string key)

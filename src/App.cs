@@ -22,14 +22,14 @@ using WF = System.Windows.Forms;
 [assembly: AssemblyTitle("Hallow Mixer")]
 [assembly: AssemblyProduct("Hallow Mixer")]
 [assembly: AssemblyDescription("Per-app volume mixer: game, chat, music, media")]
-[assembly: AssemblyVersion("3.23.0.0")]
-[assembly: AssemblyFileVersion("3.23.0.0")]
+[assembly: AssemblyVersion("3.24.0.0")]
+[assembly: AssemblyFileVersion("3.24.0.0")]
 
 namespace HallowMixer
 {
     public static class Program
     {
-        public const string Version = "3.23";
+        public const string Version = "3.24";
         public static List<CliCommand> StartupCommands = new List<CliCommand>();
         public static string HubApp = "Hub";
         public static string DataDir = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "HallowMixer");
@@ -1095,7 +1095,7 @@ namespace HallowMixer
             var sline = new DockPanel { Margin = new Thickness(0, 2, 0, 0) };
             pct.Width = 34; pct.TextAlignment = TextAlignment.Right; pct.FontSize = 10;
             DockPanel.SetDock(pct, Dock.Right); sline.Children.Add(pct);
-            s.ValueChanged += (o, e) => { eng.S.AppVolume[a.Key] = (int)Math.Round(s.Value); if (eng.S.AppVolume[a.Key] == 100) eng.S.AppVolume.Remove(a.Key); eng.Apply(); dirty = true; look(); };
+            s.ValueChanged += (o, e) => { eng.SetAppVolume(a.Key, (int)Math.Round(s.Value)); dirty = true; look(); };
             sline.Children.Add(s); col.Children.Add(sline);
             p.Child = col; look();
             var cm = new ContextMenu();
@@ -1677,7 +1677,7 @@ namespace HallowMixer
         void StartApi()
         {
             if (api != null) return;
-            api = new MixerApi(ApiState, ApiDo, Dispatcher) { ShareJson = ShareJson, ApplyShare = ApplyShare };
+            api = new MixerApi(ApiState, ApiDo, Dispatcher) { ShareJson = ShareJson, ApplyShare = ApplyShare, AppAction = ApiApp };
             if (!api.Start()) { api = null; return; }
             Dispatcher.ShutdownStarted += (s, e) => StopApi();
         }
@@ -1881,12 +1881,23 @@ namespace HallowMixer
             return new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(new Dictionary<string, object> {
                 { "version", Program.Version }, { "channels", chans }, { "mic", micInfo }, { "chatMix", eng.S.ChatMix },
                 { "presets", eng.S.Presets.Select(p => p.Name).ToArray() }, { "preset", lastPresetName }, { "game", eng.CurrentGameName }, { "obs", obs.Connected },
-                { "nowPlaying", NowState() }, { "profile", eng.S.ProfileName }, { "profiles", Profiles.List(eng.S.ProfileName).ToArray() } });
+                { "nowPlaying", NowState() }, { "profile", eng.S.ProfileName }, { "profiles", Profiles.List(eng.S.ProfileName).ToArray() }, { "apps", AppApi.List(eng) } });
         }
         object NowState()
         {
             var m = eng.S.NowPlayingOn ? NowPlaying.Current : null; if (m == null) return null;
             return new Dictionary<string, object> { { "app", m.App }, { "title", m.Title }, { "artist", m.Artist }, { "playing", m.Playing }, { "canPrev", m.CanPrev }, { "canNext", m.CanNext }, { "channel", NowChannel(m) } };
+        }
+        // v3.24 POST /app from Hallow Remote / Hub: exactly what the app's card does - slider, icon click (mute), right-click > Move to
+        string ApiApp(Dictionary<string, string> args)
+        {
+            bool moved; var msg = AppApi.Do(eng, args, out moved);
+            if (msg.StartsWith("!")) return msg;
+            if (args.ContainsKey("volume")) dirty = true;   // like the slider: saved with the next settings save
+            RebuildApps();
+            if (appsWin != null && appsWin.IsLoaded) appsWin.Fill();
+            if (moved || args.ContainsKey("muted")) Status(msg + (moved ? " - remembered from now on." : "."));
+            return msg;
         }
         // Commands: /set?ch=game&v=60 (or &d=-10), /mute?ch=game&m=toggle|1|0, /mic?mute=toggle|1|0, /preset?name=Chill
         string ApiDo(string path, Dictionary<string, string> q)

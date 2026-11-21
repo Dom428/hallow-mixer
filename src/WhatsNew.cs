@@ -13,6 +13,7 @@ namespace HallowMixer
     {
         // Newest first. One or two short lines per version.
         public static readonly Tuple<string, string[]>[] Notes = {
+            Tuple.Create("3.24", new[] { "Hallow Remote and Hallow Hub can show every app that's playing and change its level, mute it or move it to another channel - from your phone" }),
             Tuple.Create("3.23", new[] { "A cleaner mixer: every channel always shows its apps, with their real names (\"Delta Force\", not the program file) and a slim slider each", "The song that's playing sits in its channel with play/pause and skip; Chat's and the mic's extra buttons never get cut off" }),
             Tuple.Create("3.22", new[] { "Apps (top bar): every app's channel, output and rules in one place - also apps that aren't running, or add one by name", "Right-click an app > When it starts: it always starts at the level you pick" }),
             Tuple.Create("3.21", new[] { "Smart Volume for Game, Chat and Music too, not only Media (Settings)", "A loudness meter (LUFS) under the mixer" }),

@@ -62,6 +62,8 @@ WHAT IT DOES
 - Now playing: the song or video that's playing appears as a small card in its channel (Spotify in Music, and in Mini) with play/pause and skip.
 - Share: Hallow Toolkit's "Export my setup" includes your mixer presets, app choices and EQ; "Import a setup" brings a friend's in.
 - Phone: Hallow Toolkit's phone dashboard shows Mixer controls while Hallow Mixer runs (turn it off in Settings if you like).
+- Phone apps: Hallow Remote and Hallow Hub can change each app's level, mute it or move it to
+  another channel, the same as its card in the window.
 - Stream (top bar): link OBS (OBS > Tools > WebSocket Server Settings > Enable), then set each channel's stream level, or click Set up OBS for me. Pick a preset for each OBS scene.
 - Settings > EQ follows the game: each game remembers its headset EQ.
 - Settings > Even out Media: loud ads and explosions down, quiet talking up.

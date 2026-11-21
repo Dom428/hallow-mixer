@@ -3,6 +3,7 @@
 // which only your Windows account can read. Browsers can't use it (no CORS, Host checked, Origin refused).
 // v3.14: GET /wait?rev=<n> (also /api/wait) - long poll for Hallow Overlay and Hallow Remote: answers with the state plus
 // "rev" as soon as rev differs from <n> (mic, mute, channel, preset, profile, game or now playing changed), or after 25 s.
+// v3.24: GET /state also lists "apps" (key, name, channel, volume, muted, playing); POST /app {"key":..,"volume"/"muted"/"channel"} - see AppApi.cs.
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -22,6 +23,8 @@ namespace HallowMixer
         public int Port; public string Key;
         public Func<string> ShareJson;                 // GET /share -> the shareable part of your settings
         public Func<string, string> ApplyShare;        // POST /share-apply (JSON body) -> what changed
+        public Func<Dictionary<string, string>, string> AppAction;   // v3.24 POST /app (JSON body) -> what changed, "!" = refused
+        static string Esc(string s) { return (s ?? "").Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\r", " ").Replace("\n", " "); }
         readonly Func<string> state; readonly Func<string, Dictionary<string, string>, string> act; readonly Dispatcher ui;
         public static string FilePath { get { return Path.Combine(Program.DataDir, "api.json"); } }
 
@@ -120,6 +123,13 @@ namespace HallowMixer
             else if (want != 0 && r == want) Interlocked.Decrement(ref waiters);
             return now == null ? null : WithRev(now, r);
         }
+        // v3.24 after POST /app: rev always goes up (even if the app was already at that level) and every waiting request wakes
+        int Bump()
+        {
+            string now = null;
+            try { now = ui.Invoke(state, TimeSpan.FromSeconds(4)) as string; } catch { }
+            lock (gate) { rev++; if (now != null) lastState = now; Monitor.PulseAll(gate); return rev; }
+        }
         public string StateWithRev() { int r; var s = Check(out r); return s == null ? null : WithRev(s, r); }
 
         static bool SameKey(string a, string b)   // constant-time compare
@@ -171,6 +181,19 @@ namespace HallowMixer
                 {
                     if (first[0] != "POST" || reqBody == null) { code = 400; body = "{\"ok\":false,\"msg\":\"send the setup as a POST body\"}"; }
                     else { var msg = (string)ui.Invoke(ApplyShare, reqBody); body = "{\"ok\":" + (msg.StartsWith("!") ? "false" : "true") + ",\"msg\":\"" + msg.TrimStart('!').Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"}"; }
+                }
+                else if (path == "/app" && AppAction != null)
+                {
+                    // v3.24 one app's level, mute or channel - JSON body {"key":"spotify","volume":50}
+                    var args = first[0] == "POST" ? AppApi.Args(reqBody, q) : null;
+                    if (first[0] != "POST") { code = 400; body = "{\"ok\":false,\"msg\":\"send it as a POST\"}"; }
+                    else if (args == null) { code = 400; body = "{\"ok\":false,\"msg\":\"the body must be a JSON object\"}"; }
+                    else
+                    {
+                        var msg = (string)ui.Invoke(AppAction, args) ?? "!busy, try again";
+                        if (msg.StartsWith("!")) { code = msg.StartsWith("!404 ") ? 404 : 400; body = "{\"ok\":false,\"msg\":\"" + Esc(msg.Substring(code == 404 ? 5 : 1)) + "\"}"; }
+                        else body = "{\"ok\":true,\"msg\":\"" + Esc(msg) + "\",\"rev\":" + Bump() + "}";   // rev goes up now, so long polls wake
+                    }
                 }
                 else
                 {

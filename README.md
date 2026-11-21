@@ -56,6 +56,7 @@ A per-app volume mixer for Windows 10/11 - one fader per kind of sound, a game/c
 - **Now playing:** the song or video that's playing, with previous / play-pause / next - as a card in its channel (Spotify in Music), in the Mini mixer and on your phone.
 - **Share your setup:** Hallow Toolkit's "Share your setup" file carries your presets, app choices, ducking, mic mode and EQ - a friend imports it in one click.
 - **Hallow Toolkit + phone:** Hallow Toolkit installs and opens it, and its phone dashboard (over Tailscale) changes your levels, mutes and presets. Control is local to your PC and needs a key only your account can read.
+- **Apps on your phone:** Hallow Remote and Hallow Hub can see every app in the mixer and change its level, mute it or move it to another channel - the same as its card in the window (see [Local API](#local-api)).
 - **Stream (OBS):** a separate mix for your stream - each channel's level on stream, or keep it off stream; one click makes OBS sources for your apps; presets switch with your OBS scenes.
 - **EQ follows the game:** change the headset EQ while a game runs and it comes back every time that game starts.
 - **Even out Media:** loud ads and explosions in videos turn down, quiet talking comes up.
@@ -80,6 +81,37 @@ Windows Settings > Apps > Hallow Mixer > Uninstall. Every app goes back to full 
 - Hallow Mixer changes each app's own volume (the same thing Windows' volume mixer does), so it works with any headset or speakers, and alongside other audio software.
 - EQ goes through Equalizer APO (install it once and tick your devices). Hallow Mixer can't create virtual sound devices.
 - Settings live in `%APPDATA%\HallowMixer`.
+
+## Local API
+
+For Hallow Toolkit, Hallow Remote, Hallow Hub and Hallow Overlay. It listens on `127.0.0.1` only (port 5191-5199) and every request needs the `X-Hallow-Key` header; port and key are in `%APPDATA%\HallowMixer\api.json`, which only your Windows account can read. Requests from browsers (an `Origin` header) are refused.
+
+| Request | What it does |
+|---|---|
+| `GET /state` | Everything at once (below) |
+| `GET /wait?rev=<n>` | Long poll: answers with the state as soon as `rev` differs from `<n>`, or after 25 s |
+| `GET /set?ch=game&v=60` (or `&d=-10`), `/mute?ch=game&m=toggle\|1\|0`, `/mic?mute=toggle\|1\|0`, `/preset?name=Chill`, `/profile?name=..`, `/media?do=playpause\|next\|prev` | Channels, mic, presets, profiles, media keys |
+| `POST /app` | One app (3.24) - JSON body, below |
+
+Every path also works with `/api/` in front (`/api/state`, `/api/wait`, `/api/app`).
+
+`/state` (and `/wait`) answer with `rev`, `version`, `channels`, `mic`, `chatMix`, `presets`, `preset`, `game`, `obs`, `nowPlaying`, `profile`, `profiles` and, since 3.24, `apps` - every app in the mixer window:
+
+```json
+"apps":[{"key":"spotify","name":"Spotify","channel":"music","volume":100,"muted":false,"playing":true}]
+```
+
+`key` is the program name in lower case (`system` = Windows sounds), `name` the friendly name the window shows, `channel` one of `game`, `chat`, `music`, `media`, `other`, `volume` the app's own level inside its channel (0-100), `muted` its own mute, `playing` whether one of its sound streams is playing right now (a paused player has a stream that isn't playing).
+
+`POST /app` changes one app exactly like its card in the window - one or more of:
+
+```
+{"key":"spotify","volume":40}       // its slider, 0-100
+{"key":"spotify","muted":true}      // clicking its icon (true or false)
+{"key":"spotify","channel":"chat"}  // right-click > Move to (remembered)
+```
+
+It answers `{"ok":true,"msg":"Spotify 40%","rev":123}` and `rev` goes up, so long polls wake at once. A bad value changes nothing and answers 400 (`"ok":false` with the reason); an app that isn't in the mixer answers 404.
 
 ## Roadmap
 
