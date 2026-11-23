@@ -69,6 +69,10 @@ namespace HallowMixer
         // v3.21 - Smart Volume on more channels (Media stays on LevelMedia)
         [DataMember] public List<string> LevelOn = new List<string>();   // "game", "chat", "music"
         [DataMember] public bool LoudnessMeter = true;
+        // v3.27 - mute Spotify ads (only Spotify's own volume; Spotify itself is never changed)
+        [DataMember] public bool AdMute = true;            // on by default
+        [DataMember] public bool AdLower;                  // lower to AdLevel % instead of a full mute
+        [DataMember] public int AdLevel = 10;              // 0..50
         // v3.22 - app rules: an app always starts at this level (process name -> 0..100); names of remembered apps that aren't running
         [DataMember] public Dictionary<string, int> AppStart = new Dictionary<string, int>();
         [DataMember] public Dictionary<string, string> AppNames = new Dictionary<string, string>();
@@ -144,7 +148,7 @@ namespace HallowMixer
             DuckOnChat = true; DuckAmount = 50; PerGame = true; Overlay = true;
             PrimaryOut = ""; FallbackOut = ""; PrimaryMic = ""; MiniLeft = -1; MiniTop = -1;
             Eq = new Dictionary<string, EqState>(); AppOutput = new Dictionary<string, string>();
-            AutoUpdate = true; LastUpdateCheck = ""; MicKeepLevel = -1; ApiOn = true; UseHallowIcon = true; UseHallowAccent = true; LookMode = "hallow"; LastCrashShown = ""; SidetoneLevel = 30; SidetoneMic = ""; MyEq = new List<EqUserPreset>(); OutputsByHeadset = new Dictionary<string, Dictionary<string, string>>(); OutputKey = true; LevelOn = new List<string>(); LoudnessMeter = true; NowPlayingOn = true; SmartDuck = true; PresetKeys = true; MutedWarn = true; QuietFrom = 23; QuietTo = 7; QuietMax = 40; ProfileName = "Default"; SplitPrev = ""; LastSeenVersion = ""; BgLevel = new Dictionary<string, int>(); SetupMode = ""; ChatCleanPrev = ""; ObsHost = "localhost"; ObsPort = 4455; ObsPass = ""; EqPerGame = true; GameEq = new Dictionary<string, Dictionary<string, EqState>>(); MicMode = "off"; PttKey = 0x05; WinLeft = -1; WinTop = -1; WinWidth = -1; WinHeight = -1;
+            AutoUpdate = true; LastUpdateCheck = ""; MicKeepLevel = -1; ApiOn = true; UseHallowIcon = true; UseHallowAccent = true; LookMode = "hallow"; LastCrashShown = ""; SidetoneLevel = 30; SidetoneMic = ""; MyEq = new List<EqUserPreset>(); OutputsByHeadset = new Dictionary<string, Dictionary<string, string>>(); OutputKey = true; LevelOn = new List<string>(); LoudnessMeter = true; AdMute = true; AdLevel = 10; NowPlayingOn = true; SmartDuck = true; PresetKeys = true; MutedWarn = true; QuietFrom = 23; QuietTo = 7; QuietMax = 40; ProfileName = "Default"; SplitPrev = ""; LastSeenVersion = ""; BgLevel = new Dictionary<string, int>(); SetupMode = ""; ChatCleanPrev = ""; ObsHost = "localhost"; ObsPort = 4455; ObsPass = ""; EqPerGame = true; GameEq = new Dictionary<string, Dictionary<string, EqState>>(); MicMode = "off"; PttKey = 0x05; WinLeft = -1; WinTop = -1; WinWidth = -1; WinHeight = -1;
             MutedApps = new List<string>(); GameLevels = new Dictionary<string, Preset>(); GameMic = new Dictionary<string, string>(); GameChain = new Dictionary<string, string>(); GameMicDevice = "";
             AppChannel = new Dictionary<string, string>(); AppVolume = new Dictionary<string, int>();
             AppStart = new Dictionary<string, int>(); AppNames = new Dictionary<string, string>();
@@ -194,6 +198,7 @@ namespace HallowMixer
             if (string.IsNullOrEmpty(s.ObsHost)) s.ObsHost = "localhost";
             if (s.ObsPort <= 0) s.ObsPort = 4455;
             if (s.DuckAmount <= 0 || s.DuckAmount > 100) s.DuckAmount = 50;
+            if (s.AdLevel < 0 || s.AdLevel > 50) s.AdLevel = 10;
             foreach (var c in Engine.ChannelIds) if (!s.Channels.Any(x => x.Id == c)) s.Channels.Add(new ChannelState { Id = c });
             return s;
         }
@@ -754,16 +759,34 @@ namespace HallowMixer
         }
         public bool LevelsSwitched;
 
+        // ---- v3.27 Spotify ads: set by the window while an ad plays. Only Spotify's streams; your own mute (MutedApps) is never touched,
+        // so a Spotify you muted yourself stays muted after the ad, and one you didn't comes back.
+        public const string AdApp = "spotify";
+        public bool AdActive;
+        public bool AdMutes(string key) { return AdActive && S.AdMute && key == AdApp; }
+        // tests: with Snap.On, Apply() still runs, but only on made-up streams (AppSession.Fake) - never a real one
+        public static bool FakeApply;
+        // What one app's streams get: its level (0..1) and whether it's muted.
+        public float Target(MixApp a, out bool mute)
+        {
+            var c = Chan(a.Channel);
+            float v = c.Volume / 100f * ChannelFactor(a.Channel) * DuckFactor(a.Channel) * AppVolume(a.Key) / 100f * BgFactor(a.Key);
+            bool ad = AdMutes(a.Key);
+            if (ad && S.AdLower) v *= Math.Max(0, Math.Min(50, S.AdLevel)) / 100f;
+            mute = c.Muted || AppMuted(a.Key) || (ad && !S.AdLower);
+            return Math.Max(0f, Math.Min(1f, v));
+        }
+
         // Pushes the mixer's numbers onto every app stream (only where something changed).
         public void Apply()
         {
-            if (Snap.On) return;
+            if (Snap.On && !FakeApply) return;
             foreach (var a in Apps)
             {
+                bool mute; float v = Target(a, out mute);
+                foreach (var s in a.Sessions) { if (Snap.On && !s.Fake) continue; s.Set(v, mute); }
+                if (Snap.On) continue;
                 var c = Chan(a.Channel);
-                float v = c.Volume / 100f * ChannelFactor(a.Channel) * DuckFactor(a.Channel) * AppVolume(a.Key) / 100f * BgFactor(a.Key);
-                v = Math.Max(0f, Math.Min(1f, v));
-                foreach (var s in a.Sessions) s.Set(v, c.Muted || AppMuted(a.Key));
                 if (CoreAudio.CanRoutePerApp)
                     foreach (var pid in a.Pids)
                     {

@@ -158,8 +158,13 @@ namespace HallowMixer
             try { Ctl.GetState(out s); } catch { }
             return s == 2;
         }
+        // v3.27 a made-up stream (tests): Set() only records what it was given
+        public bool Fake { get { return Ctl == null && Vol == null; } }
+        public float FakeVolume = -1; public bool FakeMuted; public int FakeSets;
         public void Set(float v, bool mute)
-        { if (Snap.On) return;
+        {
+            if (Fake) { FakeVolume = mute ? 0f : v; FakeMuted = mute; FakeSets++; return; }
+            if (Snap.On) return;
             Guid g = Guid.Empty;
             float target = mute ? 0f : v;
             if (Math.Abs(target - LastSet) <= 0.004f && LastSet >= 0) return;

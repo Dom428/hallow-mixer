@@ -55,6 +55,7 @@ A per-app volume mixer for Windows 10/11 - one fader per kind of sound, a game/c
 - **Discord posts (with Hallow Toolkit):** if you turn them on, the songs you play in Music apps and your mic muted / back on can be posted to your Discord channel.
 - **Smarter ducking:** only real talking in Chat turns your game down - join/leave sounds, pings and background hum are ignored.
 - **Now playing:** the song or video that's playing, with previous / play-pause / next - as a card in its channel (Spotify in Music), in the Mini mixer and on your phone.
+- **Mute Spotify ads (3.27):** while Spotify plays an ad, Hallow Mixer mutes Spotify - only Spotify - and unmutes it the moment the music is back; Spotify's card says "Ad muted". On by default (Settings > Mute Spotify ads), or lower ads to a level you pick instead. A Spotify you muted yourself stays muted. See [Spotify ads](#spotify-ads).
 - **Share your setup:** Hallow Toolkit's "Share your setup" file carries your presets, app choices, ducking, mic mode and EQ - a friend imports it in one click.
 - **Hallow Toolkit + phone:** Hallow Toolkit installs and opens it, and its phone dashboard (over Tailscale) changes your levels, mutes and presets. Control is local to your PC and needs a key only your account can read.
 - **Apps on your phone:** Hallow Remote and Hallow Hub can see every app in the mixer and change its level, mute it or move it to another channel - the same as its card in the window (see [Local API](#local-api)).
@@ -81,7 +82,15 @@ Windows Settings > Apps > Hallow Mixer > Uninstall. Every app goes back to full 
 
 - Hallow Mixer changes each app's own volume (the same thing Windows' volume mixer does), so it works with any headset or speakers, and alongside other audio software.
 - EQ goes through Equalizer APO (install it once and tick your devices). Hallow Mixer can't create virtual sound devices.
-- Settings live in `%APPDATA%\HallowMixer`.
+- Settings live in `%APPDATA%\HallowMixer` (3.27: plus `status.json` for the other Hallow apps - the same as the pipe's `status`).
+
+## Spotify ads
+
+Hallow Mixer watches what Windows already knows about Spotify - its media session (the song info the volume pop-up shows) and the title of Spotify's window ("Artist - Song" while music plays, "Advertisement" or "Spotify" during an ad). An ad has to be seen for about a second before Spotify is muted, and real music (an artist and a normal track - even a song called "Advertisement") is never treated as one.
+
+- **Only your own volume:** it changes Spotify's level in the Windows mixer, the same as clicking Spotify's icon in Hallow Mixer. No other app and not your system volume.
+- **Spotify isn't modified:** no patching or changing Spotify's files, no blocking Spotify's network or ad servers, nothing to do with your Spotify account. The ads still play - you just don't hear them (or hear them quietly).
+- `status` over the family pipe, `/state` and `%APPDATA%\HallowMixer\status.json` show `spotifyAdMuted` (true / false) and `adsMutedToday` (a count) - never what played.
 
 ## Local API
 
@@ -96,7 +105,7 @@ For Hallow Toolkit, Hallow Remote, Hallow Hub and Hallow Overlay. It listens on 
 
 Every path also works with `/api/` in front (`/api/state`, `/api/wait`, `/api/app`).
 
-`/state` (and `/wait`) answer with `rev`, `version`, `channels`, `mic`, `chatMix`, `presets`, `preset`, `game`, `obs`, `nowPlaying`, `profile`, `profiles` and, since 3.24, `apps` - every app in the mixer window:
+`/state` (and `/wait`) answer with `rev`, `version`, `channels`, `mic`, `chatMix`, `presets`, `preset`, `game`, `obs`, `nowPlaying`, `profile`, `profiles`, since 3.24 `apps`, and since 3.27 `spotifyAdMuted` / `adsMutedToday` - every app in the mixer window:
 
 ```json
 "apps":[{"key":"spotify","name":"Spotify","channel":"music","volume":100,"muted":false,"playing":true}]

@@ -13,6 +13,7 @@ namespace HallowMixer
     {
         // Newest first. One or two short lines per version.
         public static readonly Tuple<string, string[]>[] Notes = {
+            Tuple.Create("3.27", new[] { "Spotify ads are muted - on by default (Settings > Mute Spotify ads, or lower them to a level you pick). Spotify's card says \"Ad muted\" while one plays", "Only Spotify's own volume changes: nothing else, and Spotify itself isn't touched" }),
             Tuple.Create("3.26", new[] { "Light mode readability fixes: green and amber status text, accent-coloured text and filled accent buttons (e.g. violet) are easier to read", "Windows that are already open switch look and accent right away" }),
             Tuple.Create("3.25", new[] { "Light and dark mode: Hallow Mixer follows the Light / Dark / Same as Windows choice in Hallow Toolkit, live - or pick its own in Settings > Look", "Tooltips, right-click menus, scrollbars and the title bar follow too" }),
             Tuple.Create("3.24", new[] { "Hallow Remote and Hallow Hub can show every app that's playing and change its level, mute it or move it to another channel - from your phone" }),

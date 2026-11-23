@@ -51,6 +51,8 @@ WHAT IT DOES
 - EQ > your mic > Mic chain: noise gate, compressor and limiter (Light / Streamer / Loud room).
 - Hallow accent: the colour picked in Hallow Toolkit (Settings to turn off). Crash reports are kept on this PC only.
 - Light and dark mode: follows the choice in Hallow Toolkit (Light / Dark / Same as Windows), or pick one in Settings > Look. 3.26: easier-to-read text and accent buttons in light mode.
+- Settings > Mute Spotify ads (on by default): Spotify - only Spotify - is muted while an ad plays (or lowered to a level you pick)
+  and comes back with the music. Only your own volume changes; Spotify itself isn't modified.
 - Settings > Sidetone: hear your own mic in your headset (off by default).
 - EQ > Mine: save, export, import or paste presets (AutoEQ text works), A/B compare.
 - Tray > Output or Ctrl+Alt+O: switch output; each output remembers its channel outputs.

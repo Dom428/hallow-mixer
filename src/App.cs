@@ -22,14 +22,14 @@ using WF = System.Windows.Forms;
 [assembly: AssemblyTitle("Hallow Mixer")]
 [assembly: AssemblyProduct("Hallow Mixer")]
 [assembly: AssemblyDescription("Per-app volume mixer: game, chat, music, media")]
-[assembly: AssemblyVersion("3.26.0.0")]
-[assembly: AssemblyFileVersion("3.26.0.0")]
+[assembly: AssemblyVersion("3.27.0.0")]
+[assembly: AssemblyFileVersion("3.27.0.0")]
 
 namespace HallowMixer
 {
     public static class Program
     {
-        public const string Version = "3.26";
+        public const string Version = "3.27";
         public static List<CliCommand> StartupCommands = new List<CliCommand>();
         public static string HubApp = "Hub";
         public static string DataDir = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "HallowMixer");
@@ -321,6 +321,12 @@ namespace HallowMixer
                 if (gamesWin != null && gamesWin.IsLoaded && eng.CurrentGame != shownGame) { shownGame = eng.CurrentGame; gamesWin.Fill(); }
             };
             refreshTimer.Start();
+            if (!Snap.On)
+            {
+                adTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(700) }; adTimer.Tick += (s, e) => PollAd(); adTimer.Start();   // v3.27
+                statusTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(60) }; statusTimer.Tick += (s, e) => WriteStatusFile(); statusTimer.Start();
+                Dispatcher.BeginInvoke(new Action(WriteStatusFile), DispatcherPriority.ApplicationIdle);
+            }
             if (eng.S.ApiOn && !Snap.On) StartApi();
             if (!Snap.On) { family = new FamilyPipe(FamilyAnswer); family.Start(); hubTimer = new Timer(o => CheckHub(), null, 300, 5000); }
             if (!Snap.On && eng.S.SidetoneOn) UpdateSidetone(true);
@@ -397,6 +403,18 @@ namespace HallowMixer
             Snap.Save(this, System.IO.Path.Combine(dir, "main-max.png"), 1920, 1001);    // maximized on a 1920x1080 screen
             startNotice.Visibility = sv0;
             Snap.Save(this, System.IO.Path.Combine(dir, "main-plain.png"), 1010, 690);
+            // v3.27 Spotify's card with the "Ad muted" / "Ad lowered" badge, and the setting on its own
+            eng.S.AdMute = true; eng.AdActive = true; RebuildApps();
+            Snap.Save(this, System.IO.Path.Combine(dir, "main-admute.png"), 974, 733);
+            eng.S.AdLower = true; RebuildApps(); Snap.Save(this, System.IO.Path.Combine(dir, "main-adlower.png"), 974, 733);
+            eng.S.AdLower = false; eng.AdActive = false; RebuildApps();
+            try
+            {
+                var adw = new Window { Background = Look.Field, Foreground = Foreground, FontFamily = FontFamily, FontSize = FontSize,
+                    Content = new Border { Background = Look.Field, Padding = new Thickness(18, 12, 18, 4), Child = BuildAdSettings() } };
+                Snap.Save(adw, System.IO.Path.Combine(dir, "settings-admute.png"), 440, 0);
+            }
+            catch (Exception ex) { File.WriteAllText(System.IO.Path.Combine(dir, "settings-admute.err.txt"), ex.ToString()); }
             var sv = startNotice.Visibility; var mv = micNotice.Visibility; var mt = micNoticeText.Text;
             startNotice.Visibility = Visibility.Visible; micNotice.Visibility = Visibility.Visible;
             micNoticeText.Text = "Microphone (QuadCast 2S) is muted in Windows - games and Discord hear nothing from you.";
@@ -762,6 +780,7 @@ namespace HallowMixer
             sw("Ctrl+Alt+O switches to the next output (headset, speakers...) - each one remembers where every channel plays", eng.S.OutputKey, v => { eng.S.OutputKey = v; var hh = new WindowInteropHelper(this).Handle; UnregisterHotKey(hh, 6); if (v && !TypesSomething(0x4F)) RegisterHotKey(hh, 6, 0x4003, 0x4F); });
             sw("Preset hotkeys: Ctrl+Alt+1 to 9 for your presets, Ctrl+Alt+0 for the next one", eng.S.PresetKeys, v => { eng.S.PresetKeys = v; RegisterPresetKeys(v); });
             sw("Show what's playing (song or video, with play/pause and skip)", eng.S.NowPlayingOn, v => { eng.S.NowPlayingOn = v; ShowNow(v ? NowPlaying.Current : null); });
+            sp.Children.Add(BuildAdSettings());   // v3.27
             sw("Keep my headset and mic: use them whenever they're on, and switch back if Windows moves sound or the mic to something else (like a monitor waking up)", eng.S.AutoSwitch, v =>
             {
                 eng.S.AutoSwitch = v; lastAuto = null; lastAutoMic = null;
@@ -1165,6 +1184,99 @@ namespace HallowMixer
             UpdateSubs();
         }
 
+        // ---- v3.27 Spotify ads: while one plays, only Spotify's streams are muted (or lowered) - Spotify itself is never changed
+        readonly AdWatch adWatch = new AdWatch(); IAdSource adSource; int adBusy; DispatcherTimer adTimer, statusTimer;
+        void PollAd()
+        {
+            bool want = eng.S.AdMute && eng.Apps.Any(a => a.Key == Engine.AdApp);
+            if (!want) { bool was = adWatch.Active; adWatch.Reset(); if (was) AdChanged(); return; }
+            if (System.Threading.Interlocked.Exchange(ref adBusy, 1) == 1) return;
+            if (adSource == null) adSource = new SpotifySource();
+            var src = adSource;
+            bool audio = eng.Apps.Any(a => a.Key == Engine.AdApp && a.Playing);
+            System.Threading.ThreadPool.QueueUserWorkItem(_ =>
+            {
+                AdSignal sig = null;
+                try { sig = src.Read(); if (sig != null) sig.AudioActive = audio; } catch { }
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    System.Threading.Interlocked.Exchange(ref adBusy, 0);
+                    if (eng.S.AdMute && adWatch.Update(sig, DateTime.Now)) AdChanged();
+                }));
+            });
+        }
+        void AdChanged()
+        {
+            eng.AdActive = adWatch.Active; eng.Apply(); RebuildApps();
+            if (adWatch.Active) Status(eng.S.AdLower ? "Spotify ad - Spotify is turned down to " + eng.S.AdLevel + "% until the music is back." : "Spotify ad - Spotify is muted until the music is back.");
+            else Status(eng.AppMuted(Engine.AdApp) ? "The ad is over - Spotify stays muted, as you had it." : "The music is back - so is Spotify's sound.");
+            WriteStatusFile();
+        }
+        // the small "Ad muted" pill on Spotify's card
+        FrameworkElement AdBadge(Color c)
+        {
+            var ink = Look.Ink(c);
+            var sp = new StackPanel { Orientation = Orientation.Horizontal };
+            var ic = Icons.Make("volume-xmark", 8, ink); ic.VerticalAlignment = VerticalAlignment.Center; ic.Margin = new Thickness(0, 0, 4, 0);
+            sp.Children.Add(ic);
+            sp.Children.Add(new TextBlock { Text = eng.S.AdLower ? "Ad lowered" : "Ad muted", FontSize = 9.5, FontWeight = FontWeights.SemiBold, Foreground = ink, VerticalAlignment = VerticalAlignment.Center });
+            var b = new Border { Child = sp, CornerRadius = new CornerRadius(7), Padding = new Thickness(5, 1, 6, 1), Margin = new Thickness(6, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center,
+                Background = Look.Tint(c, 0.16), BorderBrush = Look.Tint(c, 0.45), BorderThickness = new Thickness(1),
+                ToolTip = "Spotify is playing an ad, so Hallow Mixer " + (eng.S.AdLower ? "turned Spotify down to " + eng.S.AdLevel + "%" : "muted Spotify") + " - only Spotify.\nIt comes back the moment the music does. Settings > Mute Spotify ads." };
+            System.Windows.Automation.AutomationProperties.SetName(b, eng.S.AdLower ? "Ad lowered" : "Ad muted");
+            return b;
+        }
+        // Settings: Mute Spotify ads, or lower them to N %
+        FrameworkElement BuildAdSettings()
+        {
+            var sp = new StackPanel();
+            var on = new CheckBox { Content = new TextBlock { Text = "Mute Spotify ads - only Spotify's own volume changes, Spotify itself isn't touched", TextWrapping = TextWrapping.Wrap }, IsChecked = eng.S.AdMute, Style = (Style)FindResource("Switch"),
+                ToolTip = "While Spotify plays an ad, Hallow Mixer mutes Spotify (nothing else) and unmutes it the moment the music is back. A Spotify you muted yourself stays muted." };
+            System.Windows.Automation.AutomationProperties.SetName(on, "Mute Spotify ads");
+            sp.Children.Add(on);
+            var row = new DockPanel { Margin = new Thickness(52, 2, 0, 8) };
+            var lower = new CheckBox { Content = "Lower instead, to", Style = (Style)FindResource("Switch"), IsChecked = eng.S.AdLower, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0),
+                ToolTip = "Turn Spotify down to this level during ads instead of muting it" };
+            System.Windows.Automation.AutomationProperties.SetName(lower, "Lower Spotify ads instead of muting");
+            var lv = new TextBlock { Width = 34, Foreground = Look.Muted, VerticalAlignment = VerticalAlignment.Center, TextAlignment = TextAlignment.Right };
+            var sl = new Slider { Style = (Style)FindResource("HFader"), Minimum = 0, Maximum = 50, Value = eng.S.AdLevel, Foreground = Accent.Brush, VerticalAlignment = VerticalAlignment.Center, ToolTip = "Spotify's level during ads" };
+            System.Windows.Automation.AutomationProperties.SetName(sl, "Spotify level during ads");
+            Action upd = () => { lv.Text = eng.S.AdLevel + "%"; row.IsEnabled = eng.S.AdMute; sl.IsEnabled = eng.S.AdLower; };
+            on.Click += (s, e) =>
+            {
+                eng.S.AdMute = on.IsChecked == true; eng.S.Save(); upd();
+                if (!eng.S.AdMute && adWatch.Active) { adWatch.Reset(); AdChanged(); } else { eng.Apply(); RebuildApps(); }
+                if (!eng.S.AdMute) Status("Spotify ads aren't muted any more.");
+            };
+            lower.Click += (s, e) => { eng.S.AdLower = lower.IsChecked == true; eng.S.Save(); upd(); eng.Apply(); if (adWatch.Active) RebuildApps(); };
+            sl.ValueChanged += (s, e) => { eng.S.AdLevel = (int)Math.Round(sl.Value / 5) * 5; upd(); dirty = true; eng.Apply(); };
+            DockPanel.SetDock(lower, Dock.Left); DockPanel.SetDock(lv, Dock.Right);
+            row.Children.Add(lower); row.Children.Add(lv); row.Children.Add(sl);
+            sp.Children.Add(row);
+            var today = adWatch.CountOn(DateTime.Now);
+            if (today > 0) sp.Children.Add(new TextBlock { Text = (today == 1 ? "1 ad" : today + " ads") + " muted today", Foreground = Look.Muted, FontSize = 11, Margin = new Thickness(52, -4, 0, 8) });
+            upd();
+            return sp;
+        }
+        // v3.27 %APPDATA%\HallowMixer\status.json (Hallow family): the same JSON as the pipe's status, written atomically
+        string StatusJson(string st)
+        {
+            return "{\"app\":\"Mixer\",\"updated\":\"" + DateTime.Now.ToString("s") + "\",\"running\":true,\"hallowIcon\":" + (hubHosts ? "true" : "false") + ",\"lastCrash\":" + (Crash.LastTime() == null ? "null" : "\"" + Crash.LastTime() + "\"") + "," + st.Substring(1);
+        }
+        void WriteStatusFile()
+        {
+            if (Snap.On) return;
+            try
+            {
+                var st = ApiState(); if (st == null || !st.StartsWith("{")) return;
+                Directory.CreateDirectory(Program.DataDir);
+                var f = System.IO.Path.Combine(Program.DataDir, "status.json"); var tmp = f + ".tmp";
+                File.WriteAllText(tmp, StatusJson(st), new System.Text.UTF8Encoding(false));
+                if (File.Exists(f)) File.Replace(tmp, f, null); else File.Move(tmp, f);
+            }
+            catch { }
+        }
+
         // v3.23 the app's own icon, or the channel's icon when Windows can't give one
         FrameworkElement AppIconView(MixApp a, Strip st)
         {
@@ -1201,6 +1313,7 @@ namespace HallowMixer
             DockPanel.SetDock(icon, Dock.Left); line.Children.Add(icon);
             line.Children.Add(name);
             col.Children.Add(line);
+            if (eng.AdMutes(a.Key)) { var badge = AdBadge(st.Color); badge.HorizontalAlignment = HorizontalAlignment.Left; badge.Margin = new Thickness(23, 3, 0, 1); col.Children.Add(badge); }   // v3.27 its own line under the name
             var sline = new DockPanel { Margin = new Thickness(0, 2, 0, 0) };
             pct.Width = 34; pct.TextAlignment = TextAlignment.Right; pct.FontSize = 10;
             DockPanel.SetDock(pct, Dock.Right); sline.Children.Add(pct);
@@ -1833,7 +1946,7 @@ namespace HallowMixer
                 var a = api; string st = null;
                 try { st = a != null ? a.StateWithRev() : Dispatcher.Invoke(new Func<string>(ApiState), TimeSpan.FromSeconds(5)) as string; } catch { }
                 if (st == null || !st.StartsWith("{")) return "error busy, try again";
-                return "ok {\"app\":\"Mixer\",\"updated\":\"" + DateTime.Now.ToString("s") + "\",\"hallowIcon\":" + (hubHosts ? "true" : "false") + ",\"lastCrash\":" + (Crash.LastTime() == null ? "null" : "\"" + Crash.LastTime() + "\"") + "," + st.Substring(1);
+                return "ok " + StatusJson(st);
             }
             if (cmd == "open" || cmd == "menu" || cmd == "invoke" || cmd == "quit")
             {
@@ -1987,10 +2100,12 @@ namespace HallowMixer
             var mid = CoreAudio.DefaultId(1);
             var chans = Engine.ChannelIds.Select(id => { var c = eng.Chan(id); return (object)new Dictionary<string, object> { { "id", id }, { "name", Engine.ChannelNames[id] }, { "volume", c.Volume }, { "muted", c.Muted } }; }).ToArray();
             var micInfo = new Dictionary<string, object> { { "level", mid == null ? -1 : (int)Math.Round(CoreAudio.GetLevel(mid) * 100) }, { "muted", mid != null && CoreAudio.GetMute(mid) } };
-            return new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(new Dictionary<string, object> {
+            var d = new Dictionary<string, object> {
                 { "version", Program.Version }, { "channels", chans }, { "mic", micInfo }, { "chatMix", eng.S.ChatMix },
                 { "presets", eng.S.Presets.Select(p => p.Name).ToArray() }, { "preset", lastPresetName }, { "game", eng.CurrentGameName }, { "obs", obs.Connected },
-                { "nowPlaying", NowState() }, { "profile", eng.S.ProfileName }, { "profiles", Profiles.List(eng.S.ProfileName).ToArray() }, { "apps", AppApi.List(eng) } });
+                { "nowPlaying", NowState() }, { "profile", eng.S.ProfileName }, { "profiles", Profiles.List(eng.S.ProfileName).ToArray() }, { "apps", AppApi.List(eng) } };
+            AdWatch.AddStatus(d, eng, adWatch, DateTime.Now);   // v3.27 spotifyAdMuted, adsMutedToday (counts only)
+            return new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(d);
         }
         object NowState()
         {

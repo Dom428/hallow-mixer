@@ -25,7 +25,7 @@ namespace HallowMixer
         static int busy;
         public static volatile MediaInfo Current;
 
-        static T Wait<T>(IAsyncOperation<T> op)
+        internal static T Wait<T>(IAsyncOperation<T> op)
         {
             var end = DateTime.UtcNow.AddMilliseconds(2000);
             while (op.Status == AsyncStatus.Started)
