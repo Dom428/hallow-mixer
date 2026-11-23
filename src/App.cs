@@ -22,14 +22,14 @@ using WF = System.Windows.Forms;
 [assembly: AssemblyTitle("Hallow Mixer")]
 [assembly: AssemblyProduct("Hallow Mixer")]
 [assembly: AssemblyDescription("Per-app volume mixer: game, chat, music, media")]
-[assembly: AssemblyVersion("3.27.0.0")]
-[assembly: AssemblyFileVersion("3.27.0.0")]
+[assembly: AssemblyVersion("3.28.0.0")]
+[assembly: AssemblyFileVersion("3.28.0.0")]
 
 namespace HallowMixer
 {
     public static class Program
     {
-        public const string Version = "3.27";
+        public const string Version = "3.28";
         public static List<CliCommand> StartupCommands = new List<CliCommand>();
         public static string HubApp = "Hub";
         public static string DataDir = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "HallowMixer");
@@ -1585,7 +1585,7 @@ namespace HallowMixer
         string lastPresetName;   // v3.14: the preset used last (for /wait and the family link)
         void UsePreset(Preset p)
         {
-            lastPresetName = p.Name;
+            lastPresetName = p.Name; lastPreset = eng.S.Presets.IndexOf(p);   // v3.28 Ctrl+Alt+0 goes on from here
             eng.ApplyPreset(p); eng.NoteLevelsChanged(); LoadValues();
             Status(p.Name + " preset on.");
             ShowTrayTip(p.Name + " preset on.", false);
@@ -1948,7 +1948,7 @@ namespace HallowMixer
                 if (st == null || !st.StartsWith("{")) return "error busy, try again";
                 return "ok " + StatusJson(st);
             }
-            if (cmd == "open" || cmd == "menu" || cmd == "invoke" || cmd == "quit")
+            if (cmd == "open" || cmd == "menu" || cmd == "invoke" || cmd == "quit" || cmd == "preset")
             {
                 var arg = line.Length > cmd.Length ? line.Substring(cmd.Length).Trim() : "";
                 try { var r = Dispatcher.Invoke(new Func<string>(() => FamilyUi(cmd, arg)), TimeSpan.FromSeconds(5)) as string; return r ?? "error busy, try again"; }
@@ -2019,6 +2019,13 @@ namespace HallowMixer
         {
             if (exiting) return "error Hallow Mixer is closing";
             if (cmd == "open") { ShowFromTray(); return "ok"; }
+            if (cmd == "preset")   // v3.28 quick presets: preset <name | number | next | prev>
+            {
+                var p = Engine.PickPreset(eng.S.Presets, arg, lastPresetName);
+                if (p == null) return arg.Length == 0 ? "error say which preset: a name, a number, next or prev" : "error no preset called " + arg;
+                UsePreset(p);
+                return "ok " + new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(new Dictionary<string, object> { { "preset", p.Name } });
+            }
             if (cmd == "quit")
             {
                 var t = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };   // after the answer has gone back
@@ -2035,7 +2042,7 @@ namespace HallowMixer
                 string nextProfile = null;
                 if (profiles.Count > 1) { int i = profiles.FindIndex(x => string.Equals(x, eng.S.ProfileName, StringComparison.OrdinalIgnoreCase)); nextProfile = profiles[(i + 1) % profiles.Count]; }
                 int np = Math.Min(eng.S.Presets.Count, nextProfile != null ? 2 : 3);
-                for (int i = 0; i < np; i++) add("preset:" + i, "Preset: " + eng.S.Presets[i].Name, null);
+                for (int i = 0; i < np; i++) add("preset:" + i, "Preset: " + eng.S.Presets[i].Name, eng.S.Presets[i].Name == lastPresetName);   // v3.28 the preset in use is ticked
                 add("-", null, null);
                 add("mini", "Mini mixer (always on top)", mini != null && mini.IsVisible);
                 add("eq", "Equalizer", null);
@@ -2103,7 +2110,8 @@ namespace HallowMixer
             var d = new Dictionary<string, object> {
                 { "version", Program.Version }, { "channels", chans }, { "mic", micInfo }, { "chatMix", eng.S.ChatMix },
                 { "presets", eng.S.Presets.Select(p => p.Name).ToArray() }, { "preset", lastPresetName }, { "game", eng.CurrentGameName }, { "obs", obs.Connected },
-                { "nowPlaying", NowState() }, { "profile", eng.S.ProfileName }, { "profiles", Profiles.List(eng.S.ProfileName).ToArray() }, { "apps", AppApi.List(eng) } };
+                { "nowPlaying", NowState() }, { "profile", eng.S.ProfileName }, { "profiles", Profiles.List(eng.S.ProfileName).ToArray() }, { "apps", AppApi.List(eng) },
+                { "gameMic", eng.GameMicPreset }, { "gameMicChain", eng.GameMicChain } };   // v3.28 the game's mic preset / chain on the mic right now (null = your own)
             AdWatch.AddStatus(d, eng, adWatch, DateTime.Now);   // v3.27 spotifyAdMuted, adsMutedToday (counts only)
             return new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(d);
         }
@@ -2171,7 +2179,7 @@ namespace HallowMixer
                 case "/preset":
                 {
                     string n; q.TryGetValue("name", out n);
-                    var p = eng.S.Presets.FirstOrDefault(x => x.Name == n); if (p == null) return "no preset called " + n;
+                    var p = Engine.PickPreset(eng.S.Presets, n, lastPresetName); if (p == null) return "no preset called " + n;   // v3.28 any case, number, next / prev
                     UsePreset(p); return p.Name + " preset on";
                 }
             }

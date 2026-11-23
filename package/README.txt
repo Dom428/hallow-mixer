@@ -62,6 +62,8 @@ WHAT IT DOES
 - Games (top bar): every game's saved levels and EQ - change them or forget a game.
 - Ctrl+Alt+1 to 9 = your presets, Ctrl+Alt+0 = next preset.
 - Ducking only reacts to real talking (Settings > "Only for real talking" to change it).
+- Quick presets (3.28): Hallow Hub's menu ticks the preset you're using; Hub, Remote or a script can switch presets
+  (HallowMixer.exe --cmd "preset next", or a name / number / prev).
 - Now playing: the song or video that's playing appears as a small card in its channel (Spotify in Music, and in Mini) with play/pause and skip.
 - Share: Hallow Toolkit's "Export my setup" includes your mixer presets, app choices and EQ; "Import a setup" brings a friend's in.
 - Phone: Hallow Toolkit's phone dashboard shows Mixer controls while Hallow Mixer runs (turn it off in Settings if you like).

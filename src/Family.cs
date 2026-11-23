@@ -3,6 +3,7 @@
 //   The client writes one UTF-8 line "<command> [argument...]", the reply is one line: "ok", "ok <json>" or "error <message>".
 //   ping   -> ok {"app":"Mixer","version":"3.14"}
 //   status -> ok <the same state as the HTTP API's /state, with "app" and "rev"> (no keys or secrets)
+//   preset <name | number | next | prev> -> ok {"preset":"Chill"} (v3.28 quick presets for Hub / Remote / Keys)
 //   HallowMixer.exe --cmd "<line>" sends a line to the running copy and prints the reply (exit 0 ok, 1 error, 2 not running).
 using System;
 using System.IO;

@@ -701,6 +701,27 @@ namespace HallowMixer
         }
         // Exit: your own mic EQ goes back on.
         public void EndGameMic() { if (S.GameMicOn != null) SwitchMic(null, null); }
+        // v3.28 GameMicOn holds "<mic EQ preset>|<mic chain preset>" (either part may be empty) since 3.16 - these read it back.
+        public static string MicEqPart(string on) { if (string.IsNullOrEmpty(on)) return null; int i = on.IndexOf('|'); var p = i < 0 ? on : on.Substring(0, i); return p.Length == 0 ? null : p; }
+        public static string MicChainPart(string on) { if (string.IsNullOrEmpty(on)) return null; int i = on.IndexOf('|'); var p = i < 0 ? "" : on.Substring(i + 1); return p.Length == 0 ? null : p; }
+        public string GameMicPreset { get { return MicEqPart(S.GameMicOn); } }
+        public string GameMicChain { get { return MicChainPart(S.GameMicOn); } }
+
+        // ---- v3.28 quick presets from Hallow Hub / Remote / Keys: a preset by name (any case), by number (1 = first) or "next" / "prev".
+        public static Preset PickPreset(List<Preset> list, string arg, string current)
+        {
+            if (list == null || list.Count == 0 || string.IsNullOrWhiteSpace(arg)) return null;
+            arg = arg.Trim();
+            var byName = list.FirstOrDefault(p => string.Equals(p.Name, arg, StringComparison.OrdinalIgnoreCase));
+            if (byName != null) return byName;
+            int n;
+            if (int.TryParse(arg, out n)) return n >= 1 && n <= list.Count ? list[n - 1] : null;
+            var a = arg.ToLowerInvariant();
+            if (a != "next" && a != "prev" && a != "previous") return null;
+            int i = current == null ? -1 : list.FindIndex(p => string.Equals(p.Name, current, StringComparison.OrdinalIgnoreCase));
+            if (a == "next") return list[(i + 1) % list.Count];
+            return list[i < 0 ? list.Count - 1 : (i - 1 + list.Count) % list.Count];
+        }
 
         // ---- levels per game: when a game starts its own levels come back; when it closes, your normal ones do
         public string CurrentGame, CurrentGameName, LevelsNote;

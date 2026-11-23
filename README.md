@@ -56,6 +56,7 @@ A per-app volume mixer for Windows 10/11 - one fader per kind of sound, a game/c
 - **Smarter ducking:** only real talking in Chat turns your game down - join/leave sounds, pings and background hum are ignored.
 - **Now playing:** the song or video that's playing, with previous / play-pause / next - as a card in its channel (Spotify in Music), in the Mini mixer and on your phone.
 - **Mute Spotify ads (3.27):** while Spotify plays an ad, Hallow Mixer mutes Spotify - only Spotify - and unmutes it the moment the music is back; Spotify's card says "Ad muted". On by default (Settings > Mute Spotify ads), or lower ads to a level you pick instead. A Spotify you muted yourself stays muted. See [Spotify ads](#spotify-ads).
+- **Quick presets (3.28):** Hallow Hub's menu ticks the preset you're using; Hub, Remote, Hallow Keys or a script can switch presets over the family pipe with `preset Chill`, `preset 2`, `preset next` or `preset prev` (`HallowMixer.exe --cmd "preset next"`). `/preset?name=` takes the same (any case).
 - **Share your setup:** Hallow Toolkit's "Share your setup" file carries your presets, app choices, ducking, mic mode and EQ - a friend imports it in one click.
 - **Hallow Toolkit + phone:** Hallow Toolkit installs and opens it, and its phone dashboard (over Tailscale) changes your levels, mutes and presets. Control is local to your PC and needs a key only your account can read.
 - **Apps on your phone:** Hallow Remote and Hallow Hub can see every app in the mixer and change its level, mute it or move it to another channel - the same as its card in the window (see [Local API](#local-api)).
@@ -100,12 +101,12 @@ For Hallow Toolkit, Hallow Remote, Hallow Hub and Hallow Overlay. It listens on 
 |---|---|
 | `GET /state` | Everything at once (below) |
 | `GET /wait?rev=<n>` | Long poll: answers with the state as soon as `rev` differs from `<n>`, or after 25 s |
-| `GET /set?ch=game&v=60` (or `&d=-10`), `/mute?ch=game&m=toggle\|1\|0`, `/mic?mute=toggle\|1\|0`, `/preset?name=Chill`, `/profile?name=..`, `/media?do=playpause\|next\|prev` | Channels, mic, presets, profiles, media keys |
+| `GET /set?ch=game&v=60` (or `&d=-10`), `/mute?ch=game&m=toggle\|1\|0`, `/mic?mute=toggle\|1\|0`, `/preset?name=Chill` (3.28: any case, a number, `next` or `prev`), `/profile?name=..`, `/media?do=playpause\|next\|prev` | Channels, mic, presets, profiles, media keys |
 | `POST /app` | One app (3.24) - JSON body, below |
 
 Every path also works with `/api/` in front (`/api/state`, `/api/wait`, `/api/app`).
 
-`/state` (and `/wait`) answer with `rev`, `version`, `channels`, `mic`, `chatMix`, `presets`, `preset`, `game`, `obs`, `nowPlaying`, `profile`, `profiles`, since 3.24 `apps`, and since 3.27 `spotifyAdMuted` / `adsMutedToday` - every app in the mixer window:
+`/state` (and `/wait`) answer with `rev`, `version`, `channels`, `mic`, `chatMix`, `presets`, `preset`, `game`, `obs`, `nowPlaying`, `profile`, `profiles`, since 3.24 `apps`, since 3.27 `spotifyAdMuted` / `adsMutedToday`, and since 3.28 `gameMic` / `gameMicChain` (the running game's mic EQ preset / mic chain on your mic right now, `null` = your own) - `apps` is every app in the mixer window:
 
 ```json
 "apps":[{"key":"spotify","name":"Spotify","channel":"music","volume":100,"muted":false,"playing":true}]
