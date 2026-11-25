@@ -63,6 +63,7 @@ WHAT IT DOES
 - Ctrl+Alt+1 to 9 = your presets, Ctrl+Alt+0 = next preset.
 - Ducking only reacts to real talking (Settings > "Only for real talking" to change it).
 - Quick presets (3.28): Hallow Hub's menu ticks the preset you're using; Hub, Remote or a script can switch presets
+- Why the volume changed (3.29): a Why? button by the status line lists what Mixer turned down by itself and which setting did it (Chat ducking, Smart Volume, background apps, game levels, quiet hours, Spotify ads).
   (HallowMixer.exe --cmd "preset next", or a name / number / prev).
 - Now playing: the song or video that's playing appears as a small card in its channel (Spotify in Music, and in Mini) with play/pause and skip.
 - Share: Hallow Toolkit's "Export my setup" includes your mixer presets, app choices and EQ; "Import a setup" brings a friend's in.

@@ -22,14 +22,14 @@ using WF = System.Windows.Forms;
 [assembly: AssemblyTitle("Hallow Mixer")]
 [assembly: AssemblyProduct("Hallow Mixer")]
 [assembly: AssemblyDescription("Per-app volume mixer: game, chat, music, media")]
-[assembly: AssemblyVersion("3.28.0.0")]
-[assembly: AssemblyFileVersion("3.28.0.0")]
+[assembly: AssemblyVersion("3.29.0.0")]
+[assembly: AssemblyFileVersion("3.29.0.0")]
 
 namespace HallowMixer
 {
     public static class Program
     {
-        public const string Version = "3.28";
+        public const string Version = "3.29";
         public static List<CliCommand> StartupCommands = new List<CliCommand>();
         public static string HubApp = "Hub";
         public static string DataDir = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "HallowMixer");
@@ -193,7 +193,7 @@ namespace HallowMixer
         }
     }
 
-    public class MixerWindow : Window
+    public partial class MixerWindow : Window
     {
         [DllImport("dwmapi.dll")] static extern int DwmSetWindowAttribute(IntPtr h, int attr, ref int val, int size);
         [DllImport("user32.dll")] static extern bool RegisterHotKey(IntPtr h, int id, uint mods, uint vk);
@@ -315,7 +315,7 @@ namespace HallowMixer
                 if (eng.S.ObsAuto && !obs.Connected && !obsConnecting && (DateTime.Now - lastObsTry).TotalSeconds > 30) { var t = ConnectObs(true); }
                 if (eng.Refresh()) { RebuildApps(); if (appsWin != null && appsWin.IsLoaded) appsWin.Fill(); } else UpdateSubs();
                 if (eng.StartNote != null) { Status(eng.StartNote); eng.StartNote = null; }
-                if (eng.LevelsSwitched) { eng.LevelsSwitched = false; LoadValues(); Status(eng.LevelsNote); if (eng.S.Overlay) osd.Flash(eng.LevelsNote, -1); }
+                if (eng.LevelsSwitched) { eng.LevelsSwitched = false; LoadValues(); Status(eng.LevelsNote); AutoLog.Note("game-levels", eng.LevelsNote + " (Settings > \"Remember my levels for each game\")."); if (eng.S.Overlay) osd.Flash(eng.LevelsNote, -1); }
                 if (eng.EqSwitched) { eng.EqSwitched = false; if (eqWin != null && eqWin.IsLoaded) eqWin.Reload(); }
                 if (eng.MicNote != null) { Status(eng.MicNote); eng.MicNote = null; }
                 if (gamesWin != null && gamesWin.IsLoaded && eng.CurrentGame != shownGame) { shownGame = eng.CurrentGame; gamesWin.Fill(); }
@@ -401,6 +401,7 @@ namespace HallowMixer
             Snap.Save(this, System.IO.Path.Combine(dir, "main-client.png"), 958, 694);   // inside a 974x733 window (title bar and frame off)
             Snap.Save(this, System.IO.Path.Combine(dir, "main-min.png"), 884, 561);      // inside the smallest window (900x600)
             Snap.Save(this, System.IO.Path.Combine(dir, "main-max.png"), 1920, 1001);    // maximized on a 1920x1080 screen
+            { var t0 = new DateTime(2026, 11, 24, 21, 4, 12); AutoLog.Note("duck-chat", "Game, music and media lowered 50% - someone talked in Chat (Discord). Off: Settings > \"Turn game, music and media down when someone talks in Chat\".", t0, 0); AutoLog.Note("smart-volume", "Game turned down by Smart Volume (a loud moment - it comes back up over a few seconds). Off: Settings > Smart Volume.", t0.AddSeconds(41), 0); AutoLog.Note("game-levels", "Your Delta Force levels are back. (Settings > \"Remember my levels for each game\").", t0.AddMinutes(-3), 0); var ww = WhyWindow(); ww.Content.ToString(); Snap.Save(ww, System.IO.Path.Combine(dir, "why.png"), 620, 0); Snap.Save(this, System.IO.Path.Combine(dir, "main-why.png"), 974, 733); AutoLog.Clear(); }   // v3.29
             startNotice.Visibility = sv0;
             Snap.Save(this, System.IO.Path.Combine(dir, "main-plain.png"), 1010, 690);
             // v3.27 Spotify's card with the "Ad muted" / "Ad lowered" badge, and the setting on its own
@@ -616,7 +617,9 @@ namespace HallowMixer
             status = new TextBlock { Foreground = Look.Muted, FontSize = 11.5, Margin = new Thickness(8, 8, 6, 0), TextTrimming = TextTrimming.CharacterEllipsis };
             status.SetBinding(FrameworkElement.ToolTipProperty, new System.Windows.Data.Binding("Text") { Source = status });
             loudText = new TextBlock { Foreground = Look.Muted, FontSize = 11.5, Margin = new Thickness(12, 8, 6, 0) };   // v3.21 loudness meter
-            var srow = new DockPanel(); DockPanel.SetDock(loudText, Dock.Right); srow.Children.Add(loudText); srow.Children.Add(status);
+            var srow = new DockPanel(); DockPanel.SetDock(loudText, Dock.Right); srow.Children.Add(loudText);
+            var why = BuildWhyButton(); DockPanel.SetDock(why, Dock.Right); srow.Children.Add(why);   // v3.29
+            srow.Children.Add(status);
             Grid.SetRow(srow, 4); root.Children.Add(srow);
             // v3.23 now playing sits in its channel's column (NowCard), no separate bar
             Status(CoreAudio.CanRoutePerApp ? "Right-click an app to move it, click its icon to mute it, scroll over a channel to change it.  Ctrl+Alt+PageUp/PageDown = game/chat,  Ctrl+Alt+M = mute mic."
@@ -1208,6 +1211,7 @@ namespace HallowMixer
         void AdChanged()
         {
             eng.AdActive = adWatch.Active; eng.Apply(); RebuildApps();
+            if (adWatch.Active) AutoLog.Note("ad", "Spotify ad - Spotify turned down until the music is back.");
             if (adWatch.Active) Status(eng.S.AdLower ? "Spotify ad - Spotify is turned down to " + eng.S.AdLevel + "% until the music is back." : "Spotify ad - Spotify is muted until the music is back.");
             else Status(eng.AppMuted(Engine.AdApp) ? "The ad is over - Spotify stays muted, as you had it." : "The music is back - so is Spotify's sound.");
             WriteStatusFile();
@@ -1259,9 +1263,11 @@ namespace HallowMixer
             return sp;
         }
         // v3.27 %APPDATA%\HallowMixer\status.json (Hallow family): the same JSON as the pipe's status, written atomically
+        // v3.29: status.json also carries the last 5 automatic volume changes (why the volume changed)
+        static string WithAuto(string st) { var t = st.TrimEnd(); if (!t.EndsWith("}")) return st; return t.Substring(0, t.Length - 1) + ",\"autoRecent\":" + new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(AutoLog.Json(5)) + "}"; }
         string StatusJson(string st)
         {
-            return "{\"app\":\"Mixer\",\"updated\":\"" + DateTime.Now.ToString("s") + "\",\"running\":true,\"hallowIcon\":" + (hubHosts ? "true" : "false") + ",\"lastCrash\":" + (Crash.LastTime() == null ? "null" : "\"" + Crash.LastTime() + "\"") + "," + st.Substring(1);
+            return "{\"app\":\"Mixer\",\"updated\":\"" + DateTime.Now.ToString("s") + "\",\"running\":true,\"hallowIcon\":" + (hubHosts ? "true" : "false") + ",\"lastCrash\":" + (Crash.LastTime() == null ? "null" : "\"" + Crash.LastTime() + "\"") + "," + WithAuto(st).Substring(1);
         }
         void WriteStatusFile()
         {
@@ -1396,7 +1402,8 @@ namespace HallowMixer
         }
 
         // Runs 20 times a second, also while hidden in the tray (ducking needs the live levels).
-        bool wasDucking;
+        bool wasDucking; readonly AutoLog.Edges autoEdges = new AutoLog.Edges();   // v3.29: why the volume changed
+        string Talker() { var t = eng.Apps.Where(a => a.Channel == "chat").OrderByDescending(a => a.Peak()).FirstOrDefault(); return t == null ? null : t.Name; }
         string defOut, defMic;   // default device ids, refreshed every 2 s (looking them up is too slow for 20x a second)
         // Headset first: if the headset is on, it should be the default output; if it's off, the fallback.
         string lastAuto;   // the device we last switched to (so we only act when the situation changes)
@@ -1478,7 +1485,7 @@ namespace HallowMixer
             {
                 eng.QuietNow = q; eng.Apply();
                 var msg = q ? "Quiet hours until " + eng.S.QuietTo.ToString("00") + ":00 - volume capped at " + eng.S.QuietMax + "%" : "Quiet hours are over";
-                Status(msg + "."); if (eng.S.Overlay) osd.Flash(msg, -1);
+                Status(msg + "."); AutoLog.Note("quiet", msg + "."); if (eng.S.Overlay) osd.Flash(msg, -1);
             }
             if (!q || defOut == null) return;
             var l = CoreAudio.GetLevel(defOut);
@@ -1535,8 +1542,9 @@ namespace HallowMixer
             uint pid; GetWindowThreadProcessId(h, out pid);
             var a = eng.AppForPid(pid); var key = a != null ? a.Key : eng.KeyForPid(pid);
             if (key == eng.FrontKey) return;
-            bool before = eng.FrontKey != null && eng.S.BgLevel.ContainsKey(eng.FrontKey), after = key != null && eng.S.BgLevel.ContainsKey(key);
+            var oldFront = eng.FrontKey; bool before = eng.FrontKey != null && eng.S.BgLevel.ContainsKey(eng.FrontKey), after = key != null && eng.S.BgLevel.ContainsKey(key);
             eng.FrontKey = key;
+            if (before) { var ob = eng.Apps.FirstOrDefault(x => x.Key == oldFront); AutoLog.Note("background", (ob != null ? ob.Name : oldFront) + " lowered to " + eng.S.BgLevel[oldFront] + "% - it went to the background (its own setting: right-click it).", DateTime.Now, 30); }   // v3.29
             if (before || after) { eng.Apply(); UpdateSubs(); RebuildApps(); }
         }
         void TickMeters()
@@ -1551,7 +1559,8 @@ namespace HallowMixer
             bool lv = false; foreach (var lc in Engine.LevelChannels) lv |= eng.UpdateLevel(lc, peaks[lc]);   // v3.21 Smart Volume
             bool gd = eng.UpdateGuard(peaks, DateTime.UtcNow);
             if (eng.UpdateDuck(peaks["chat"], micPk) | lv | gd) eng.Apply();
-            if (eng.GuardNote != null) { Status(eng.GuardNote + " (loud-sound guard)."); eng.GuardNote = null; }
+            if (eng.GuardNote != null) { Status(eng.GuardNote + " (loud-sound guard)."); AutoLog.Note("guard", eng.GuardNote + " (loud-sound guard - Settings turns it off)."); eng.GuardNote = null; }
+            try { var nowA = DateTime.Now; autoEdges.Duck(eng.DuckChat < 0.97f, eng.DuckMic < 0.97f, eng.S.DuckAmount, Talker(), nowA); foreach (var lc in Engine.LevelChannels) autoEdges.Level(Engine.ChannelNames[lc], eng.Levelled(lc), eng.LevelGain(lc), nowA); } catch { }   // v3.29
             if (eng.Ducking != wasDucking) { wasDucking = eng.Ducking; UpdateSubs(); }
             if (!IsVisible) return;
             foreach (var st in strips.Values) SetMeter(st, peaks[st.Id]);
@@ -1948,6 +1957,7 @@ namespace HallowMixer
                 if (st == null || !st.StartsWith("{")) return "error busy, try again";
                 return "ok " + StatusJson(st);
             }
+            if (cmd == "why") return "ok " + new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(new Dictionary<string, object> { { "changes", AutoLog.Json(60) } });   // v3.29: what changed the volume by itself
             if (cmd == "open" || cmd == "menu" || cmd == "invoke" || cmd == "quit" || cmd == "preset")
             {
                 var arg = line.Length > cmd.Length ? line.Substring(cmd.Length).Trim() : "";
